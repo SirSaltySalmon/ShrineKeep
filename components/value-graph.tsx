@@ -96,18 +96,6 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
     const raw = (currentValue ?? "").trim()
     const num = raw === "" ? null : parseFloat(raw)
     const value = num === null || Number.isNaN(num) ? 0 : num
-    const { data: latestRecord } = await supabase
-      .from("value_history")
-      .select("value")
-      .eq("item_id", itemId)
-      .order("recorded_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    const latestVal = latestRecord?.value != null ? Number(latestRecord.value) : null
-    const differs =
-      (latestVal === null) !== (value === null) ||
-      (latestVal !== null && value !== null && Math.abs(latestVal - value) >= 1e-6)
-    if (!differs) return
     try {
       const { error } = await supabase.from("value_history").insert({
         item_id: itemId,
@@ -118,13 +106,6 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
     } catch (error) {
       console.error("Error adding record:", error)
     }
-  }
-
-  const canAddRecord = () => {
-    const raw = (currentValue ?? "").trim()
-    if (raw === "") return false
-    const num = parseFloat(raw)
-    return !Number.isNaN(num)
   }
 
   if (loading) {
@@ -141,7 +122,6 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
             variant="outline"
             size="sm"
             onClick={addRecordNow}
-            disabled={!canAddRecord()}
             className="shrink-0"
           >
             <Plus className="h-4 w-4 mr-1" />
@@ -171,7 +151,6 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
           variant="outline"
           size="sm"
           onClick={addRecordNow}
-          disabled={!canAddRecord()}
           className="shrink-0"
         >
           <Plus className="h-4 w-4 mr-1" />
