@@ -33,7 +33,7 @@ A versatile utility webapp to track completion, values, and spending for any col
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/SirSaltySalmon/ShrineKeep
    cd ShrineKeep
    ```
 
