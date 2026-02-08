@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { formatCurrency } from "@/lib/utils"
 import { Upload, Search as SearchIcon, TrendingUp } from "lucide-react"
-import Image from "next/image"
-import GoogleImageSearch from "./google-image-search"
+import ThumbnailImage from "./thumbnail-image"
+import ImageSearch from "./image-search"
 import ValueGraph from "./value-graph"
 
 interface ItemDialogProps {
@@ -123,11 +123,25 @@ export default function ItemDialog({
           .eq("id", item!.id)
         if (error) throw error
 
-        // Record value change if value changed
-        if (item && item.current_value !== parseFloat(currentValue || "0")) {
+        // Record value change only when the new value differs from the latest record (not previous item value)
+        const newValRaw = currentValue.trim() === "" ? null : parseFloat(currentValue)
+        const newVal = newValRaw === null || Number.isNaN(newValRaw) ? null : newValRaw
+        const { data: latestRecord } = await supabase
+          .from("value_history")
+          .select("value")
+          .eq("item_id", item!.id)
+          .order("recorded_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        const latestValue =
+          latestRecord?.value != null ? Number(latestRecord.value) : null
+        const valueDiffersFromLatest =
+          (latestValue === null) !== (newVal === null) ||
+          (latestValue !== null && newVal !== null && Math.abs(latestValue - newVal) >= 1e-6)
+        if (item && valueDiffersFromLatest) {
           await supabase.from("value_history").insert({
             item_id: item.id,
-            value: parseFloat(currentValue || "0"),
+            value: newVal ?? 0,
           })
         }
       }
@@ -135,7 +149,13 @@ export default function ItemDialog({
       onSave()
       onOpenChange(false)
     } catch (error) {
-      console.error("Error saving item:", error)
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? String((error as { message: unknown }).message)
+            : String(error)
+      console.error("Error saving item:", message, error)
     } finally {
       setSaving(false)
     }
@@ -234,10 +254,9 @@ export default function ItemDialog({
               <div className="mt-2 space-y-2">
                 {thumbnailUrl && (
                   <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
-                    <Image
+                    <ThumbnailImage
                       src={thumbnailUrl}
                       alt="Thumbnail"
-                      fill
                       className="object-cover"
                     />
                   </div>
@@ -269,7 +288,7 @@ export default function ItemDialog({
             </div>
             {!isNew && item && !isWishlist && (
               <div className="border-t pt-4">
-                <ValueGraph itemId={item.id} />
+                <ValueGraph itemId={item.id} acquisitionDate={acquisitionDate.trim() || null} currentValue={currentValue} />
               </div>
             )}
           </div>
@@ -284,7 +303,7 @@ export default function ItemDialog({
         </DialogContent>
       </Dialog>
       {showImageSearch && (
-        <GoogleImageSearch
+        <ImageSearch
           open={showImageSearch}
           onOpenChange={setShowImageSearch}
           itemName={name}

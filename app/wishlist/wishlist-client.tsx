@@ -4,10 +4,17 @@ import { useState, useEffect } from "react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatCurrency } from "@/lib/utils"
-import { Plus, Check } from "lucide-react"
-import Image from "next/image"
+import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Plus } from "lucide-react"
+import ItemCard from "@/components/item-card"
 import ItemDialog from "@/components/item-dialog"
 
 export default function WishlistClient() {
@@ -16,6 +23,10 @@ export default function WishlistClient() {
   const [loading, setLoading] = useState(true)
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [showItemDialog, setShowItemDialog] = useState(false)
+  const [itemToMark, setItemToMark] = useState<Item | null>(null)
+  const [acquisitionDate, setAcquisitionDate] = useState("")
+  const [acquisitionPrice, setAcquisitionPrice] = useState("")
+  const [marking, setMarking] = useState(false)
 
   useEffect(() => {
     loadWishlistItems()
@@ -45,24 +56,32 @@ export default function WishlistClient() {
     }
   }
 
-  const handleMarkAsAcquired = async (item: Item) => {
-    const acquisitionDate = prompt("Enter acquisition date (YYYY-MM-DD) or leave blank for today:")
-    const acquisitionPrice = prompt("Enter acquisition price:")
+  const openMarkAsAcquired = (item: Item) => {
+    setItemToMark(item)
+    setAcquisitionDate(new Date().toISOString().split("T")[0])
+    setAcquisitionPrice(item.expected_price?.toString() ?? "")
+  }
 
+  const handleMarkAsAcquiredConfirm = async () => {
+    if (!itemToMark) return
+    setMarking(true)
     try {
       const { error } = await supabase
         .from("items")
         .update({
           is_wishlist: false,
           acquisition_date: acquisitionDate || new Date().toISOString().split("T")[0],
-          acquisition_price: acquisitionPrice ? parseFloat(acquisitionPrice) : null,
+          acquisition_price: acquisitionPrice.trim() ? parseFloat(acquisitionPrice) : null,
         })
-        .eq("id", item.id)
+        .eq("id", itemToMark.id)
 
       if (error) throw error
+      setItemToMark(null)
       loadWishlistItems()
     } catch (error) {
       console.error("Error marking as acquired:", error)
+    } finally {
+      setMarking(false)
     }
   }
 
@@ -91,45 +110,16 @@ export default function WishlistClient() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {items.map((item) => (
-            <Card key={item.id} className="hover:shadow-lg transition-shadow">
-              <div className="relative w-full h-48 bg-muted rounded-t-lg overflow-hidden">
-                {item.thumbnail_url ? (
-                  <Image
-                    src={item.thumbnail_url}
-                    alt={item.name}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <span className="text-muted-foreground">No image</span>
-                  </div>
-                )}
-              </div>
-              <CardHeader>
-                <CardTitle className="text-lg">{item.name}</CardTitle>
-                {item.description && (
-                  <CardDescription>{item.description}</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {item.expected_price !== null && item.expected_price !== undefined && (
-                    <div className="font-medium">
-                      Expected: {formatCurrency(item.expected_price)}
-                    </div>
-                  )}
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={() => handleMarkAsAcquired(item)}
-                  >
-                    <Check className="h-4 w-4 mr-2" />
-                    Mark as Acquired
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <ItemCard
+              key={item.id}
+              item={item}
+              variant="wishlist"
+              onClick={(item) => {
+                setSelectedItem(item)
+                setShowItemDialog(true)
+              }}
+              onMarkAcquired={openMarkAsAcquired}
+            />
           ))}
         </div>
 
@@ -148,6 +138,47 @@ export default function WishlistClient() {
           onSave={loadWishlistItems}
           isWishlist={true}
         />
+
+        <Dialog open={!!itemToMark} onOpenChange={(open) => !open && setItemToMark(null)}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Mark as Acquired</DialogTitle>
+              <DialogDescription>
+                {itemToMark
+                  ? `Enter acquisition details for "${itemToMark.name}". The item will move out of your wishlist.`
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Acquisition date</label>
+                <Input
+                  type="date"
+                  value={acquisitionDate}
+                  onChange={(e) => setAcquisitionDate(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Acquisition price</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={acquisitionPrice}
+                  onChange={(e) => setAcquisitionPrice(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setItemToMark(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleMarkAsAcquiredConfirm} disabled={marking}>
+                {marking ? "Saving..." : "Mark as Acquired"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   )

@@ -1,8 +1,12 @@
 import { redirect } from "next/navigation"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import DashboardClient from "./dashboard-client"
+import SearchResultsClient from "./search-results-client"
 
-export default async function DashboardPage() {
+export default async function DashboardSearchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>
+}) {
   const supabase = await createSupabaseServerClient()
   const {
     data: { session },
@@ -18,5 +22,7 @@ export default async function DashboardPage() {
     .eq("id", session.user.id)
     .single()
 
-  return <DashboardClient user={user} />
+  const { q } = await searchParams
+
+  return <SearchResultsClient user={user} initialQuery={q ?? ""} />
 }

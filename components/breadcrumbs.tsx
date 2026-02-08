@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 
 interface BreadcrumbsProps {
   currentBoxId: string | null
-  onBoxClick: (box: Box) => void
+  onBoxClick: (box: Box | null) => void
 }
 
 export default function Breadcrumbs({ currentBoxId, onBoxClick }: BreadcrumbsProps) {
@@ -33,7 +33,7 @@ export default function Breadcrumbs({ currentBoxId, onBoxClick }: BreadcrumbsPro
         .from("boxes")
         .select("*")
         .eq("id", currentId)
-        .single()
+        .single() as { data: Box | null }
 
       if (data) {
         boxes.unshift(data)
@@ -51,7 +51,7 @@ export default function Breadcrumbs({ currentBoxId, onBoxClick }: BreadcrumbsPro
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => onBoxClick({} as Box)}
+        onClick={() => onBoxClick(null)}
         className="h-8"
       >
         <Home className="h-4 w-4" />

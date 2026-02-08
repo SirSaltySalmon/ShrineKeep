@@ -47,11 +47,11 @@
 - ✅ Delete individual history records
 - ✅ View value changes over time
 
-### 7. Google Images Integration
-- ✅ Search images by item name
+### 7. Image Search (SerpAPI, google_images_light)
+- ✅ Search the web for images by item name (light engine: minimal data, fast)
 - ✅ Display search results in grid
 - ✅ Select image for thumbnail
-- ✅ Opens in modal dialog
+- ✅ Opens in modal dialog (server-side API keeps key secure)
 
 ### 8. UI Components
 - ✅ Modern, responsive design
@@ -125,7 +125,7 @@ ShrineKeep/
 │   ├── item-grid.tsx      # Item display component
 │   ├── item-dialog.tsx    # Item create/edit dialog
 │   ├── value-graph.tsx    # Value tracking graph
-│   ├── google-image-search.tsx  # Image search modal
+│   ├── image-search.tsx         # Image search modal (SerpAPI google_images_light)
 │   └── draggable-item.tsx # Draggable item component
 ├── lib/
 │   ├── supabase/

@@ -5,7 +5,7 @@ import { CSS } from "@dnd-kit/utilities"
 import { Item } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import Image from "next/image"
+import ThumbnailImage from "./thumbnail-image"
 import { Image as ImageIcon } from "lucide-react"
 
 interface DraggableItemProps {
@@ -39,10 +39,9 @@ export default function DraggableItem({ item, onClick }: DraggableItemProps) {
       >
         <div className="relative w-full h-48 bg-muted rounded-t-lg overflow-hidden">
           {item.thumbnail_url ? (
-            <Image
+            <ThumbnailImage
               src={item.thumbnail_url}
               alt={item.name}
-              fill
               className="object-cover"
             />
           ) : (

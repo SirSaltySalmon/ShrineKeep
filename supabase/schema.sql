@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.boxes (
 -- Items
 CREATE TABLE IF NOT EXISTS public.items (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  box_id UUID NOT NULL REFERENCES public.boxes(id) ON DELETE CASCADE,
+  box_id UUID REFERENCES public.boxes(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   description TEXT,
@@ -271,6 +271,16 @@ CREATE POLICY "Users can view value history for own items"
 CREATE POLICY "Users can create value history for own items"
   ON public.value_history FOR INSERT
   WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.items
+      WHERE items.id = value_history.item_id
+      AND items.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Users can update value history for own items"
+  ON public.value_history FOR UPDATE
+  USING (
     EXISTS (
       SELECT 1 FROM public.items
       WHERE items.id = value_history.item_id

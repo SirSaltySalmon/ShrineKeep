@@ -9,7 +9,7 @@ const nextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '**.googleusercontent.com',
+        hostname: '**.serpapi.com',
       },
     ],
   },

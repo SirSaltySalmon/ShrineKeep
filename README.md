@@ -8,7 +8,7 @@ A versatile utility webapp to track completion, values, and spending for any col
 - **Item Management**: Track items with photos, descriptions, values, acquisition dates and prices
 - **Wishlists**: Create wishlists with expected prices and easily mark items as acquired
 - **Value Tracking**: Automatically track value changes over time with visual graphs
-- **Google Images Integration**: Search and select images directly from Google Images
+- **Image Search**: Search the web for images (via SerpAPI) and select a thumbnail for items
 - **Social Features**: Share collections with friends and view public wishlists
 - **Tags & Search**: Tag items and search across all your collections
 
@@ -27,7 +27,7 @@ A versatile utility webapp to track completion, values, and spending for any col
 
 - Node.js 18+ and npm
 - A Supabase account (free tier works)
-- Google Custom Search API key (optional, for image search)
+- SerpAPI API key (optional, for image search)
 
 ### Setup Instructions
 
@@ -62,18 +62,11 @@ A versatile utility webapp to track completion, values, and spending for any col
      SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
      ```
 
-6. **Set up Google Custom Search (Optional)**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select existing
-   - Enable the Custom Search API
-   - Create credentials (API Key)
-   - Go to [Programmable Search Engine](https://programmablesearchengine.google.com/)
-   - Create a new search engine (select "Search the entire web")
-   - Get your Search Engine ID
-   - Add to `.env.local`:
+6. **Set up SerpAPI for image search (Optional)**
+   - Uses the **Google Images Light** engine (minimal data, faster). Sign up at [serpapi.com](https://serpapi.com) and get your API key from [manage-api-key](https://serpapi.com/manage-api-key)
+   - Add to `.env.local` (server-side only; do not use `NEXT_PUBLIC_`):
      ```
-     NEXT_PUBLIC_GOOGLE_SEARCH_API_KEY=your_api_key
-     NEXT_PUBLIC_GOOGLE_SEARCH_ENGINE_ID=your_engine_id
+     SERPAPI_API_KEY=your_serpapi_api_key
      ```
 
 7. **Run the development server**
@@ -104,8 +97,7 @@ Make sure to add all environment variables in your Vercel project settings:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (optional, only if you need server-side admin access)
-- `NEXT_PUBLIC_GOOGLE_SEARCH_API_KEY` (optional)
-- `NEXT_PUBLIC_GOOGLE_SEARCH_ENGINE_ID` (optional)
+- `SERPAPI_API_KEY` (optional, for image search; keep server-side)
 
 ## Project Structure
 
@@ -138,7 +130,7 @@ ShrineKeep/
 - Hover preview shows total value and item count
 
 ### Item Management
-- Add items with photos (upload or Google Images search)
+- Add items with photos (upload or web image search)
 - Track current value, acquisition price, and date
 - 4MB max photo size
 - Automatic value history tracking
@@ -154,10 +146,10 @@ ShrineKeep/
 - Delete individual history records
 - Track collection-level value changes
 
-### Google Images Integration
-- Search for images by item name
-- Select from search results
-- Images are referenced (not downloaded) for thumbnails
+### Image Search (SerpAPI, Google Images Light)
+- Search the web for images by item name (light engine: minimal data, fast)
+- Select from search results for item thumbnails
+- Images are referenced (not downloaded)
 
 ## Security
 

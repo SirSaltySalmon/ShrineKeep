@@ -54,33 +54,19 @@ npm install
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
    ```
 
-## Step 4: Set Up Google Custom Search (Optional)
+## Step 4: Set Up SerpAPI for Image Search (Optional)
 
-This is optional but enables the image search feature.
+This is optional but enables the image search feature (search the web for item thumbnails). The app uses SerpAPI’s **Google Images Light** engine (minimal data, faster responses).
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project (or select existing)
-3. Enable the **Custom Search API**:
-   - Go to **APIs & Services** > **Library**
-   - Search for "Custom Search API"
-   - Click **Enable**
-4. Create an API Key:
-   - Go to **APIs & Services** > **Credentials**
-   - Click **Create Credentials** > **API Key**
-   - Copy the API key
-5. Set up Custom Search Engine:
-   - Go to [Programmable Search Engine](https://programmablesearchengine.google.com/)
-   - Click **Add**
-   - Select "Search the entire web"
-   - Give it a name (e.g., "ShrineKeep Images")
-   - Click **Create**
-   - Copy the **Search Engine ID**
-
-6. Add to `.env.local`:
+1. Go to [serpapi.com](https://serpapi.com) and create a free account
+2. Open your [API key page](https://serpapi.com/manage-api-key)
+3. Copy your API key
+4. Add to `.env.local` (do **not** use `NEXT_PUBLIC_`—the key stays server-side):
    ```
-   NEXT_PUBLIC_GOOGLE_SEARCH_API_KEY=your-api-key
-   NEXT_PUBLIC_GOOGLE_SEARCH_ENGINE_ID=your-engine-id
+   SERPAPI_API_KEY=your-serpapi-api-key
    ```
+
+The free tier includes a limited number of searches per month.
 
 ## Step 5: Run the Development Server
 
@@ -110,10 +96,14 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - Make sure you ran the `schema.sql` script in Supabase SQL Editor
 - Check that all tables were created (go to **Table Editor** in Supabase)
 
-### Google Images search not working
-- Make sure you added the API key and Engine ID to `.env.local`
-- Check that the Custom Search API is enabled in Google Cloud Console
-- The free tier allows 100 searches per day
+### Error saving wishlist item
+- If the database was created before `box_id` was made nullable, run in Supabase SQL Editor:  
+  `ALTER TABLE public.items ALTER COLUMN box_id DROP NOT NULL;`
+
+### Image search not working
+- Make sure you added `SERPAPI_API_KEY` to `.env.local`
+- Restart the dev server after adding the key
+- Check your [SerpAPI dashboard](https://serpapi.com/manage-api-key) for quota and errors
 
 ## Next Steps
 

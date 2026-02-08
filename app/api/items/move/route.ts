@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient()
+    const supabase = await createSupabaseServerClient()
     const {
       data: { session },
     } = await supabase.auth.getSession()
