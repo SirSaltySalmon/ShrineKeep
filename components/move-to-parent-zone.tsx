@@ -26,12 +26,12 @@ export default function MoveToParentZone({ isRoot, parentBoxName }: MoveToParent
   return (
     <div
       ref={setNodeRef}
-      className={`flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 px-4 py-3 text-sm text-muted-foreground transition-colors ${
+      className={`flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 px-4 py-3 text-fluid-sm text-muted-foreground transition-colors min-w-0 overflow-hidden ${
         isOver ? "border-primary bg-primary/10 text-primary" : ""
       }`}
     >
       <ArrowUpToLine className="h-4 w-4 shrink-0" />
-      <span>{label}</span>
+      <span className="truncate min-w-0">{label}</span>
     </div>
   )
 }

@@ -58,17 +58,17 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Welcome to ShrineKeep</CardTitle>
-          <CardDescription className="text-center">
+      <Card className="w-full max-w-md min-w-0 overflow-hidden">
+        <CardHeader className="space-y-1 min-w-0">
+          <CardTitle className="text-fluid-2xl font-bold text-center min-w-0">Welcome to ShrineKeep</CardTitle>
+          <CardDescription className="text-center min-w-0">
             Sign in to your account to continue
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <form onSubmit={handleEmailLogin} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
+        <CardContent className="space-y-4 min-w-0 overflow-hidden">
+          <form onSubmit={handleEmailLogin} className="space-y-4 min-w-0 overflow-hidden">
+            <div className="space-y-2 min-w-0">
+              <label htmlFor="email" className="text-fluid-sm font-medium">
                 Email
               </label>
               <Input
@@ -80,8 +80,8 @@ export default function LoginPage() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
+            <div className="space-y-2 min-w-0">
+              <label htmlFor="password" className="text-fluid-sm font-medium">
                 Password
               </label>
               <Input
@@ -93,7 +93,7 @@ export default function LoginPage() {
               />
             </div>
             {error && (
-              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+              <div className="text-fluid-sm text-destructive bg-destructive/10 p-3 rounded-md min-w-0 overflow-hidden break-words">
                 {error}
               </div>
             )}
@@ -105,7 +105,7 @@ export default function LoginPage() {
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
+            <div className="relative flex justify-center text-fluid-xs uppercase">
               <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
             </div>
           </div>
@@ -137,8 +137,8 @@ export default function LoginPage() {
             Google
           </Button>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-2">
-          <div className="text-sm text-center text-muted-foreground">
+        <CardFooter className="flex flex-col space-y-2 min-w-0 overflow-hidden">
+          <div className="text-fluid-sm text-center text-muted-foreground min-w-0">
             Don't have an account?{" "}
             <Link href="/auth/signup" className="text-primary hover:underline">
               Sign up

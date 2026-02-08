@@ -92,36 +92,36 @@ export default function SearchResultsClient({
 
   if (!q?.trim()) {
     return (
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8 min-w-0 overflow-hidden">
         <Link
           href="/dashboard"
-          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
+          className="inline-flex items-center text-fluid-sm text-muted-foreground hover:text-foreground mb-6 min-w-0"
         >
-          <ArrowLeft className="h-4 w-4 mr-1" />
+          <ArrowLeft className="h-4 w-4 mr-1 shrink-0" />
           Back to Collections
         </Link>
-        <p className="text-muted-foreground">Enter a search term to find items.</p>
+        <p className="text-fluid-sm text-muted-foreground min-w-0">Enter a search term to find items.</p>
       </main>
     )
   }
 
   return (
-    <main className="container mx-auto px-4 py-8">
+    <main className="container mx-auto px-4 py-8 min-w-0 overflow-hidden">
       <Link
         href="/dashboard"
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
+        className="inline-flex items-center text-fluid-sm text-muted-foreground hover:text-foreground mb-6 min-w-0"
       >
-        <ArrowLeft className="h-4 w-4 mr-1" />
+        <ArrowLeft className="h-4 w-4 mr-1 shrink-0" />
         Back to Collections
       </Link>
-      <h1 className="text-2xl font-semibold mb-2">Search: &ldquo;{q}&rdquo;</h1>
-      <p className="text-muted-foreground mb-6">
+      <h1 className="text-fluid-2xl font-semibold mb-2 truncate min-w-0">Search: &ldquo;{q}&rdquo;</h1>
+      <p className="text-fluid-sm text-muted-foreground mb-6 min-w-0">
         {loading ? "Loading..." : `${items.length} item${items.length === 1 ? "" : "s"} found`}
       </p>
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading...</div>
+        <div className="text-center py-12 text-fluid-sm text-muted-foreground min-w-0">Loading...</div>
       ) : items.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">No items match your search.</div>
+        <div className="text-center py-12 text-fluid-sm text-muted-foreground min-w-0">No items match your search.</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {items.map((item) => (

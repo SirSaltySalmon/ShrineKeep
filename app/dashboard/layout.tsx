@@ -22,8 +22,6 @@ export default async function DashboardLayout({
     .eq("id", session.user.id)
     .single()
 
-  console.log(user)
-
   const displayName =
     (user?.name && user.name.trim() !== "" ? user.name : null) ??
     (session.user.user_metadata?.name as string | undefined) ??

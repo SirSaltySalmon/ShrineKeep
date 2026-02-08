@@ -314,12 +314,12 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
   return (
     <>
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
+      <main className="container mx-auto px-4 py-8 min-w-0 overflow-hidden">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4 min-w-0">
           <Breadcrumbs currentBoxId={currentBoxId} onBoxClick={handleBoxClick} />
-          <div className="flex items-center space-x-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="flex items-center space-x-2 min-w-0">
+            <div className="relative min-w-0 w-full sm:w-auto sm:min-w-[12rem]">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground shrink-0" />
               <Input
                 placeholder="Search items..."
                 value={searchQuery}
@@ -330,7 +330,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     router.push(`/dashboard/search?q=${encodeURIComponent(searchQuery.trim())}`)
                   }
                 }}
-                className="pl-10 w-64"
+                className="pl-10 w-full min-w-0 sm:w-64"
               />
             </div>
 
@@ -345,24 +345,24 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 }
               }}
             >
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
+              <DialogContent className="sm:max-w-[500px] min-w-0">
+                <DialogHeader className="min-w-0">
                   <DialogTitle>Rename box</DialogTitle>
                   <DialogDescription>
                     Change the name and description of this box, or delete it.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div>
-                    <label className="text-sm font-medium">Name</label>
+                <div className="space-y-4 py-4 min-w-0 overflow-hidden">
+                  <div className="min-w-0">
+                    <label className="text-fluid-sm font-medium">Name</label>
                     <Input
                       value={editBoxName}
                       onChange={(e) => setEditBoxName(e.target.value)}
                       placeholder="My Collection"
                     />
                   </div>
-                  <div>
-                    <label className="text-sm font-medium">Description (optional)</label>
+                  <div className="min-w-0">
+                    <label className="text-fluid-sm font-medium">Description (optional)</label>
                     <Input
                       value={editBoxDescription}
                       onChange={(e) => setEditBoxDescription(e.target.value)}
@@ -370,18 +370,18 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     />
                   </div>
 
-                  <div className="border-t pt-4 space-y-3">
-                    <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                  <div className="border-t pt-4 space-y-3 min-w-0 overflow-hidden">
+                    <div className="flex items-center gap-2 text-fluid-sm font-medium text-destructive">
                       <Trash2 className="h-4 w-4" />
                       Delete box
                     </div>
                     {deleteMode == null ? (
-                      <div className="flex flex-col gap-2">
-                        <p className="text-sm text-muted-foreground">
+                      <div className="flex flex-col gap-2 min-w-0 overflow-hidden">
+                        <p className="text-fluid-sm text-muted-foreground">
                           Choose how to handle contents:
                         </p>
-                        <div className="flex flex-col gap-2">
-                          <label className="flex items-start gap-2 text-sm cursor-pointer">
+                        <div className="flex flex-col gap-2 min-w-0 overflow-hidden">
+                          <label className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
                             <input
                               type="radio"
                               name="delete-mode"
@@ -389,11 +389,11 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                               onChange={() => setDeleteMode("delete-all")}
                               className="mt-1"
                             />
-                            <span>
+                            <span className="min-w-0 overflow-hidden">
                               <strong>Delete all:</strong> Permanently delete this box and all child items, sub-boxes, and their data (value history, photos, etc.).
                             </span>
                           </label>
-                          <label className="flex items-start gap-2 text-sm cursor-pointer">
+                          <label className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
                             <input
                               type="radio"
                               name="delete-mode"
@@ -401,22 +401,22 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                               onChange={() => setDeleteMode("move-to-root")}
                               className="mt-1"
                             />
-                            <span>
+                            <span className="min-w-0 overflow-hidden">
                               <strong>Move to root:</strong> Move all child items and sub-boxes to the root level, then delete this box.
                             </span>
                           </label>
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        <p className="text-sm text-muted-foreground">
+                      <div className="space-y-3 min-w-0 overflow-hidden">
+                        <p className="text-fluid-sm text-muted-foreground">
                           {deleteMode === "delete-all"
                             ? "All contents will be permanently deleted. This cannot be undone."
                             : "Child boxes and items will become root-level, then this box will be removed."}
                         </p>
-                        <div>
-                          <label className="text-sm font-medium">
-                            Type the box name to confirm: <strong>{editBox?.name}</strong>
+                        <div className="min-w-0 overflow-hidden">
+                          <label className="text-fluid-sm font-medium min-w-0">
+                            Type the box name to confirm: <strong className="break-all">{editBox?.name}</strong>
                           </label>
                           <Input
                             value={deleteConfirmName}
@@ -472,7 +472,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         </div>
 
         {loading ? (
-          <div className="text-center py-12">Loading...</div>
+          <div className="text-center py-12 text-fluid-base text-muted-foreground">Loading...</div>
         ) : (
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
             <BoxStatsPanel
@@ -480,35 +480,35 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               boxName={currentBox?.name ?? "Root"}
               refreshKey={statsRefreshKey}
             />
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold flex items-center">
-                  <Grid3x3 className="h-5 w-5 mr-2" />
+            <div className="mb-8 min-w-0 overflow-hidden">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
+                <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
+                  <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
                   Boxes
                 </h2>
                 <Dialog open={showNewBoxDialog} onOpenChange={setShowNewBoxDialog}>
-                  <Button onClick={() => setShowNewBoxDialog(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Box
+                  <Button onClick={() => setShowNewBoxDialog(true)} className="shrink-0">
+                    <Plus className="h-4 w-4 mr-2 shrink-0" />
+                    <span className="truncate">New Box</span>
                   </Button>
-                  <DialogContent>
-                    <DialogHeader>
+                  <DialogContent className="min-w-0">
+                    <DialogHeader className="min-w-0">
                       <DialogTitle>Create New Box</DialogTitle>
                       <DialogDescription>
                         Create a new collection box to organize your items.
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div>
-                        <label className="text-sm font-medium">Name</label>
+                    <div className="space-y-4 py-4 min-w-0 overflow-hidden">
+                      <div className="min-w-0">
+                        <label className="text-fluid-sm font-medium">Name</label>
                         <Input
                           value={newBoxName}
                           onChange={(e) => setNewBoxName(e.target.value)}
                           placeholder="My Collection"
                         />
                       </div>
-                      <div>
-                        <label className="text-sm font-medium">Description (optional)</label>
+                      <div className="min-w-0">
+                        <label className="text-fluid-sm font-medium">Description (optional)</label>
                         <Input
                           value={newBoxDescription}
                           onChange={(e) => setNewBoxDescription(e.target.value)}
@@ -516,7 +516,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                         />
                       </div>
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className="min-w-0">
                       <Button variant="outline" onClick={() => setShowNewBoxDialog(false)}>
                         Cancel
                       </Button>
@@ -545,9 +545,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
             )}
             <div>
               {searchQuery.trim() && items.length === 0 ? (
-                <div className="text-center py-12 space-y-3">
-                  <h2 className="text-xl font-semibold mb-4">Items</h2>
-                  <p className="text-muted-foreground">
+                <div className="text-center py-12 space-y-3 min-w-0 overflow-hidden">
+                  <h2 className="text-fluid-xl font-semibold mb-4">Items</h2>
+                  <p className="text-fluid-sm text-muted-foreground">
                     No items in this box.{" "}
                     <Link
                       href={`/dashboard/search?q=${encodeURIComponent(searchQuery.trim())}`}
@@ -556,7 +556,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                       Search sub-boxes?
                     </Link>
                   </p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-fluid-sm text-muted-foreground">
                     Or press Enter in the search box to see all matching items.
                   </p>
                 </div>

@@ -41,10 +41,10 @@ export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTit
 
   return (
     <>
-      <div className={sectionTitle ? "flex items-center justify-between mb-4" : "mb-4"}>
+      <div className={sectionTitle ? "flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0 overflow-hidden" : "mb-4 min-w-0"}>
         {sectionTitle ? (
           <>
-            <h2 className="text-xl font-semibold">{sectionTitle}</h2>
+            <h2 className="text-fluid-xl font-semibold truncate min-w-0">{sectionTitle}</h2>
             {addButton}
           </>
         ) : (

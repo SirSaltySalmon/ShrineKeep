@@ -47,23 +47,23 @@ export default function Breadcrumbs({ currentBoxId, onBoxClick }: BreadcrumbsPro
   }
 
   return (
-    <nav className="flex items-center space-x-2 text-sm">
+    <nav className="flex items-center space-x-2 text-fluid-sm min-w-0 overflow-hidden flex-wrap gap-y-1">
       <Button
         variant="ghost"
         size="sm"
         onClick={() => onBoxClick(null)}
-        className="h-8"
+        className="h-8 shrink-0"
       >
         <Home className="h-4 w-4" />
       </Button>
-      {path.map((box, index) => (
-        <div key={box.id} className="flex items-center space-x-2">
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      {path.map((box) => (
+        <div key={box.id} className="flex items-center space-x-2 min-w-0">
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
           <Button
             variant="ghost"
             size="sm"
             onClick={() => onBoxClick(box)}
-            className="h-8"
+            className="h-8 min-w-0 max-w-full truncate"
           >
             {box.name}
           </Button>

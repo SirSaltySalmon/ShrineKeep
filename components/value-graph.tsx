@@ -116,7 +116,7 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-lg font-semibold">Value History</h3>
+          <h3 className="text-fluid-lg font-semibold min-w-0">Value History</h3>
           <Button
             type="button"
             variant="outline"
@@ -145,7 +145,7 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="text-lg font-semibold">Value History</h3>
+        <h3 className="text-fluid-lg font-semibold min-w-0">Value History</h3>
         <Button
           type="button"
           variant="outline"
@@ -183,12 +183,12 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
           >
             <div className="shrink-0">
               <div className="font-medium">{formatCurrency(parseFloat(record.value.toString()))}</div>
-              <label className="text-xs text-muted-foreground block mt-1">Date & time</label>
+              <label className="text-fluid-xs text-muted-foreground block mt-1">Date & time</label>
               <div className="mt-0.5 flex items-center gap-1">
                 <input
                   key={`${record.id}-${record.recorded_at}`}
                   type="datetime-local"
-                  className="text-sm border rounded px-2 py-1 bg-background w-[200px] min-w-0 max-w-[calc(100vw-12rem)]"
+                  className="text-fluid-sm border rounded px-2 py-1 bg-background w-[200px] min-w-0 max-w-[calc(100vw-12rem)]"
                   defaultValue={formatRecordedAtForInput(record.recorded_at)}
                   onBlur={(e) => {
                     const v = e.target.value
@@ -213,7 +213,7 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
             <div className="flex-1 min-w-2" aria-hidden />
             <button
               onClick={() => deleteRecord(record.id)}
-              className="text-destructive hover:underline text-sm shrink-0"
+              className="text-destructive hover:underline text-fluid-sm shrink-0"
             >
               Delete
             </button>

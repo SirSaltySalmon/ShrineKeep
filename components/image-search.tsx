@@ -66,15 +66,15 @@ export default function ImageSearch({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto min-w-0">
+        <DialogHeader className="min-w-0">
           <DialogTitle>Search for Images</DialogTitle>
           <DialogDescription>
             Search the web for images to use as a thumbnail for your item
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="flex space-x-2">
+        <div className="space-y-4 py-4 min-w-0 overflow-hidden">
+          <div className="flex flex-wrap gap-2 min-w-0">
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -103,7 +103,7 @@ export default function ImageSearch({
                   onClick={() => !failedUrls.has(url) && onSelectImage(url)}
                 >
                   {failedUrls.has(url) ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-2 text-center text-muted-foreground text-sm">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-2 text-center text-muted-foreground text-fluid-sm">
                       <ImageOff className="h-8 w-8" />
                       <span>Failed to load</span>
                     </div>
@@ -122,7 +122,7 @@ export default function ImageSearch({
             </div>
           )}
           {!loading && images.length === 0 && searchQuery && (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-fluid-sm text-muted-foreground min-w-0">
               No images found. Try a different search term.
             </div>
           )}

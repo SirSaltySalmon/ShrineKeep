@@ -39,7 +39,7 @@ export default function ItemCard({
         )}
       </div>
       <CardHeader>
-        <CardTitle className="text-lg line-clamp-1">{item.name}</CardTitle>
+        <CardTitle className="text-fluid-lg line-clamp-1 truncate">{item.name}</CardTitle>
         {item.description && (
           <CardDescription className={variant === "collection" ? "line-clamp-2" : ""}>
             {item.description}
@@ -48,25 +48,25 @@ export default function ItemCard({
       </CardHeader>
       <CardContent onClick={(e) => e.stopPropagation()}>
         {variant === "collection" ? (
-          <div className="space-y-1 text-sm">
+          <div className="space-y-1 text-fluid-sm min-w-0 overflow-hidden">
             {item.current_value !== null && item.current_value !== undefined && (
-              <div className="font-medium">Value: {formatCurrency(item.current_value)}</div>
+              <div className="font-medium truncate">Value: {formatCurrency(item.current_value)}</div>
             )}
             {item.acquisition_price !== null && item.acquisition_price !== undefined && (
-              <div className="text-muted-foreground">
+              <div className="text-muted-foreground truncate">
                 Acquired: {formatCurrency(item.acquisition_price)}
               </div>
             )}
             {item.acquisition_date && (
-              <div className="text-muted-foreground text-xs">
+              <div className="text-muted-foreground text-fluid-xs truncate">
                 {formatDate(item.acquisition_date)}
               </div>
             )}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 text-fluid-sm min-w-0 overflow-hidden">
             {item.expected_price !== null && item.expected_price !== undefined && (
-              <div className="font-medium">
+              <div className="font-medium truncate">
                 Expected: {formatCurrency(item.expected_price)}
               </div>
             )}

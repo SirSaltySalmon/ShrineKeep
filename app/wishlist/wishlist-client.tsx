@@ -86,19 +86,19 @@ export default function WishlistClient() {
   }
 
   if (loading) {
-    return <div className="container mx-auto px-4 py-8">Loading...</div>
+    return <div className="container mx-auto px-4 py-8 text-fluid-base text-muted-foreground min-w-0">Loading...</div>
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold">Wishlist</h1>
+    <div className="min-h-screen bg-background min-w-0 overflow-hidden">
+      <header className="border-b min-w-0 overflow-hidden">
+        <div className="container mx-auto px-4 py-4 min-w-0">
+          <h1 className="text-fluid-2xl font-bold truncate min-w-0">Wishlist</h1>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-4">
+      <main className="container mx-auto px-4 py-8 min-w-0 overflow-hidden">
+        <div className="mb-4 min-w-0">
           <Button onClick={() => {
             setSelectedItem(null)
             setShowItemDialog(true)
@@ -124,7 +124,7 @@ export default function WishlistClient() {
         </div>
 
         {items.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
+          <div className="text-center py-12 text-fluid-sm text-muted-foreground min-w-0">
             Your wishlist is empty. Add items you want to acquire!
           </div>
         )}
@@ -140,8 +140,8 @@ export default function WishlistClient() {
         />
 
         <Dialog open={!!itemToMark} onOpenChange={(open) => !open && setItemToMark(null)}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
+          <DialogContent className="sm:max-w-[425px] min-w-0">
+            <DialogHeader className="min-w-0">
               <DialogTitle>Mark as Acquired</DialogTitle>
               <DialogDescription>
                 {itemToMark
@@ -149,17 +149,17 @@ export default function WishlistClient() {
                   : ""}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Acquisition date</label>
+            <div className="grid gap-4 py-4 min-w-0 overflow-hidden">
+              <div className="grid gap-2 min-w-0">
+                <label className="text-fluid-sm font-medium">Acquisition date</label>
                 <Input
                   type="date"
                   value={acquisitionDate}
                   onChange={(e) => setAcquisitionDate(e.target.value)}
                 />
               </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">Acquisition price</label>
+              <div className="grid gap-2 min-w-0">
+                <label className="text-fluid-sm font-medium">Acquisition price</label>
                 <Input
                   type="number"
                   step="0.01"

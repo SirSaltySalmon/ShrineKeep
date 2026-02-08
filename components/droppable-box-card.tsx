@@ -63,10 +63,10 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
       {...listeners}
     >
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center space-x-2 min-w-0">
-            <Package className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <CardTitle className="text-lg truncate">{box.name}</CardTitle>
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center space-x-2 min-w-0 overflow-hidden">
+            <Package className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-muted-foreground" />
+            <CardTitle className="text-fluid-lg truncate">{box.name}</CardTitle>
           </div>
           <div className="flex shrink-0 gap-0.5">
             {onShowStats && (
@@ -107,15 +107,15 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
         )}
       </CardHeader>
       <CardContent>
-        <div className="space-y-1 text-sm text-muted-foreground">
+        <div className="space-y-1 text-fluid-sm text-muted-foreground min-w-0 overflow-hidden">
           {box.total_value !== undefined && (
-            <div>Total Value: {formatCurrency(box.total_value)}</div>
+            <div className="truncate">Total Value: {formatCurrency(box.total_value)}</div>
           )}
           {box.total_acquisition_cost !== undefined && (
-            <div>Acquired: {formatCurrency(box.total_acquisition_cost)}</div>
+            <div className="truncate">Acquired: {formatCurrency(box.total_acquisition_cost)}</div>
           )}
           {box.item_count !== undefined && (
-            <div>{box.item_count} items</div>
+            <div className="truncate">{box.item_count} items</div>
           )}
         </div>
       </CardContent>
