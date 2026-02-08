@@ -22,7 +22,6 @@ export default function DraggableItemCard({ item, onClick }: DraggableItemCardPr
     listeners,
     setNodeRef,
     transform,
-    transition,
     isDragging,
   } = useDraggable({
     id: getItemDragId(item.id),
@@ -31,7 +30,6 @@ export default function DraggableItemCard({ item, onClick }: DraggableItemCardPr
 
   const style = {
     transform: CSS.Translate.toString(transform),
-    transition,
     opacity: isDragging ? 0.5 : 1,
   }
 

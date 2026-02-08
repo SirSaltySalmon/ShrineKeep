@@ -37,7 +37,6 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
     listeners,
     setNodeRef: setDragRef,
     transform,
-    transition,
     isDragging,
   } = useDraggable({
     id: getBoxDragId(box.id),
@@ -46,7 +45,6 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
 
   const style = {
     transform: CSS.Translate.toString(transform),
-    transition,
     opacity: isDragging ? 0.5 : 1,
   }
 

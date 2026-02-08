@@ -117,11 +117,11 @@ export async function GET(
     allDates.add(today)
     const sortedDates = Array.from(allDates).sort()
 
-    function getValueAsOf(itemId: string, dateStr: string): number {
+    const getValueAsOf = (itemId: string, dateStr: string): number => {
       const records = valueByItem.get(itemId)
       const endOfDay = dateStr + "T23:59:59.999Z"
       if (!records?.length) return itemCurrentValue.get(itemId) ?? 0
-      let best = null
+      let best: { recorded_at: string; value: number } | null = null
       for (const r of records) {
         if (r.recorded_at <= endOfDay) best = r
         else break
