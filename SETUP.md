@@ -95,7 +95,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ## Step 6: Create Your First Account
 
 1. Click **Sign up**
-2. Enter a username, email, and password
+2. Enter a name, email, and password
 3. Or sign up with Google (if you configured OAuth in Supabase)
 
 ## Troubleshooting
@@ -124,6 +124,67 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ### "Unsupported provider: provider is not enabled" (Google sign-in)
 - Google sign-in must be enabled in your Supabase project
 - In Supabase go to **Authentication** > **Providers**, turn **Google** **ON**, and add your Google OAuth Client ID and Client secret (see **Enable Google Sign-In** above)
+
+### Header shows "user_xxxx" instead of Google name
+- The app prefers `public.users.name` and falls back to session metadata when the stored name looks like `user_xxxxxxxx`. If it still shows the default: run the **"Re-backfill names from auth"** SQL below (overwrites `name` from Google/auth for all users). If you never added the column, run the full **"Add name column"** block first.
+
+## SQL: Add `name` column and fix display for Google / email accounts
+
+Run this in Supabase **SQL Editor** (one block) to add the display `name` column, backfill existing users (including Google), and update the trigger so new signups set `name`:
+
+```sql
+-- Add display name column
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS name TEXT;
+
+-- Backfill from auth metadata (Google: name, full_name) or username
+UPDATE public.users u
+SET name = COALESCE(
+  au.raw_user_meta_data->>'name',
+  au.raw_user_meta_data->>'full_name',
+  u.username
+)
+FROM auth.users au
+WHERE au.id = u.id AND (u.name IS NULL OR u.name = '');
+
+UPDATE public.users SET name = username WHERE name IS NULL OR name = '';
+
+ALTER TABLE public.users ALTER COLUMN name SET DEFAULT '';
+ALTER TABLE public.users ALTER COLUMN name SET NOT NULL;
+
+-- Trigger: set name on new signups (email + Google)
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.users (id, username, email, name)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'username', 'user_' || substr(NEW.id::text, 1, 8)),
+    NEW.email,
+    COALESCE(
+      NULLIF(TRIM(NEW.raw_user_meta_data->>'name'), ''),
+      NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''),
+      NULLIF(TRIM(NEW.raw_user_meta_data->>'username'), ''),
+      'user_' || substr(NEW.id::text, 1, 8)
+    )
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+**Re-backfill names from auth** (run if the header still shows `user_xxxx`; overwrites `name` for all users from auth metadata):
+
+```sql
+UPDATE public.users u
+SET name = COALESCE(
+  NULLIF(TRIM(au.raw_user_meta_data->>'name'), ''),
+  NULLIF(TRIM(au.raw_user_meta_data->>'full_name'), ''),
+  NULLIF(TRIM(COALESCE(au.raw_user_meta_data->>'given_name', '') || ' ' || COALESCE(au.raw_user_meta_data->>'family_name', '')), ''),
+  u.username
+)
+FROM auth.users au
+WHERE au.id = u.id;
+```
 
 ## Next Steps
 

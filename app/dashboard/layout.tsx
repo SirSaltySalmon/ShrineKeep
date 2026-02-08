@@ -18,13 +18,23 @@ export default async function DashboardLayout({
 
   const { data: user } = await supabase
     .from("users")
-    .select("username")
+    .select("name, username")
     .eq("id", session.user.id)
     .single()
 
+  console.log(user)
+
+  const displayName =
+    (user?.name && user.name.trim() !== "" ? user.name : null) ??
+    (session.user.user_metadata?.name as string | undefined) ??
+    (session.user.user_metadata?.full_name as string | undefined) ??
+    user?.username ??
+    session.user.email ??
+    null
+
   return (
     <div className="min-h-screen bg-background">
-      <AppNav username={user?.username ?? session.user.email ?? null} />
+      <AppNav name={displayName} />
       {children}
     </div>
   )

@@ -13,7 +13,7 @@ export default function SignupPage() {
   const supabase = createSupabaseClient()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [username, setUsername] = useState("")
+  const [name, setName] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -27,7 +27,8 @@ export default function SignupPage() {
       password,
       options: {
         data: {
-          username: username || `user_${Date.now()}`,
+          username: name.trim() || `user_${Date.now()}`,
+          name: name.trim() || `user_${Date.now()}`,
         },
       },
     })
@@ -74,15 +75,15 @@ export default function SignupPage() {
         <CardContent className="space-y-4">
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="username" className="text-sm font-medium">
-                Username
+              <label htmlFor="name" className="text-sm font-medium">
+                Name
               </label>
               <Input
-                id="username"
+                id="name"
                 type="text"
-                placeholder="johndoe"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Your display name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 required
               />
             </div>

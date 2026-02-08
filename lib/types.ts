@@ -2,6 +2,8 @@ export interface User {
   id: string
   username: string
   email: string
+  /** Display name (from signup or Google name/full_name). */
+  name?: string
   avatar_url?: string
   created_at: string
   updated_at: string

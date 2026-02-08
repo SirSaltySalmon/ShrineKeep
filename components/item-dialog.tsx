@@ -122,28 +122,28 @@ export default function ItemDialog({
           .update(itemData)
           .eq("id", item!.id)
         if (error) throw error
+      }
 
-        // Record value change only when the new value differs from the latest record (not previous item value)
-        const newValRaw = currentValue.trim() === "" ? null : parseFloat(currentValue)
-        const newVal = newValRaw === null || Number.isNaN(newValRaw) ? null : newValRaw
-        const { data: latestRecord } = await supabase
-          .from("value_history")
-          .select("value")
-          .eq("item_id", item!.id)
-          .order("recorded_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        const latestValue =
-          latestRecord?.value != null ? Number(latestRecord.value) : null
-        const valueDiffersFromLatest =
-          (latestValue === null) !== (newVal === null) ||
-          (latestValue !== null && newVal !== null && Math.abs(latestValue - newVal) >= 1e-6)
-        if (item && valueDiffersFromLatest) {
-          await supabase.from("value_history").insert({
-            item_id: item.id,
-            value: newVal ?? 0,
+      // Record value change only when the new value differs from the latest record (not previous item value)
+      const newValRaw = currentValue.trim() === "" ? null : parseFloat(currentValue)
+      const newVal = newValRaw === null || Number.isNaN(newValRaw) ? null : newValRaw
+      const { data: latestRecord } = await supabase
+        .from("value_history")
+        .select("value")
+        .eq("item_id", item!.id)
+        .order("recorded_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const latestValue =
+        latestRecord?.value != null ? Number(latestRecord.value) : null
+      const valueDiffersFromLatest =
+        (latestValue === null) !== (newVal === null) ||
+        (latestValue !== null && newVal !== null && Math.abs(latestValue - newVal) >= 1e-6)
+      if (item && valueDiffersFromLatest) {
+        await supabase.from("value_history").insert({
+          item_id: item.id,
+          value: newVal ?? 0,
           })
-        }
       }
 
       onSave()

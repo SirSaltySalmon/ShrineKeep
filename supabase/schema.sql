@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username TEXT UNIQUE NOT NULL,
   email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
   avatar_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
@@ -352,15 +353,21 @@ CREATE POLICY "Users can manage items in own wish lists"
     )
   );
 
--- Function to automatically create user profile on signup
+-- Function to automatically create user profile on signup (name from Google/full_name or username)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.users (id, username, email)
+  INSERT INTO public.users (id, username, email, name)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'username', 'user_' || substr(NEW.id::text, 1, 8)),
-    NEW.email
+    NEW.email,
+    COALESCE(
+      NULLIF(TRIM(NEW.raw_user_meta_data->>'name'), ''),
+      NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''),
+      NULLIF(TRIM(NEW.raw_user_meta_data->>'username'), ''),
+      'user_' || substr(NEW.id::text, 1, 8)
+    )
   );
   RETURN NEW;
 END;

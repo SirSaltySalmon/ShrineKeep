@@ -7,10 +7,10 @@ import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 
 interface AppNavProps {
-  username: string | null
+  name: string | null
 }
 
-export default function AppNav({ username }: AppNavProps) {
+export default function AppNav({ name }: AppNavProps) {
   const router = useRouter()
 
   const handleLogout = async () => {
@@ -38,8 +38,8 @@ export default function AppNav({ username }: AppNavProps) {
             </Link>
           </div>
           <div className="flex items-center gap-3">
-            {username && (
-              <span className="text-sm text-muted-foreground">{username}</span>
+            {name && (
+              <span className="text-sm text-muted-foreground">{name}</span>
             )}
             <Button
               variant="ghost"
