@@ -110,7 +110,7 @@ export async function GET(
       })
       allDates.add(r.recorded_at.slice(0, 10))
     }
-    for (const arr of valueByItem.values()) {
+    for (const arr of Array.from(valueByItem.values())) {
       arr.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))
     }
     const today = new Date().toISOString().slice(0, 10)
