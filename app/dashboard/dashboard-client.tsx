@@ -481,11 +481,11 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               refreshKey={statsRefreshKey}
             />
             <div className="mb-8">
-              <h2 className="text-xl font-semibold mb-4 flex items-center">
-                <Grid3x3 className="h-5 w-5 mr-2" />
-                Boxes
-              </h2>
-              <div className="mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold flex items-center">
+                  <Grid3x3 className="h-5 w-5 mr-2" />
+                  Boxes
+                </h2>
                 <Dialog open={showNewBoxDialog} onOpenChange={setShowNewBoxDialog}>
                   <Button onClick={() => setShowNewBoxDialog(true)}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -544,9 +544,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               </div>
             )}
             <div>
-              <h2 className="text-xl font-semibold mb-4">Items</h2>
               {searchQuery.trim() && items.length === 0 ? (
                 <div className="text-center py-12 space-y-3">
+                  <h2 className="text-xl font-semibold mb-4">Items</h2>
                   <p className="text-muted-foreground">
                     No items in this box.{" "}
                     <Link
@@ -569,6 +569,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     loadBoxes()
                     setStatsRefreshKey((k) => k + 1)
                   }}
+                  sectionTitle="Items"
                 />
               )}
             </div>

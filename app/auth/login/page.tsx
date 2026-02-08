@@ -47,7 +47,11 @@ export default function LoginPage() {
     })
 
     if (error) {
-      setError(error.message)
+      const msg =
+        error.message?.toLowerCase().includes("provider is not enabled")
+          ? "Google sign-in is not enabled for this app. Enable it in Supabase: Authentication → Providers → Google. See SETUP.md for steps."
+          : error.message
+      setError(msg)
       setLoading(false)
     }
   }

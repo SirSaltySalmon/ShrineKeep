@@ -40,6 +40,22 @@ npm install
 4. Make it **Public** (toggle on)
 5. Click **Create bucket**
 
+### Enable Google Sign-In (Optional)
+
+To use “Sign in with Google” you must enable the Google provider in Supabase and add credentials from Google Cloud.
+
+1. In Supabase, go to **Authentication** > **Providers**
+2. Find **Google** and turn it **ON**
+3. In [Google Cloud Console](https://console.cloud.google.com/), create or select a project
+4. Go to **APIs & Services** > **Credentials** > **Create credentials** > **OAuth client ID**
+5. Choose **Web application**, set **Authorized redirect URIs** to:
+   - `https://<your-project-ref>.supabase.co/auth/v1/callback`  
+   (Find your project ref in Supabase **Settings** > **API** > **Project URL**, e.g. `https://abcdefgh.supabase.co` → ref is `abcdefgh`)
+6. Copy the **Client ID** and **Client secret** into Supabase under **Authentication** > **Providers** > **Google**
+7. Save
+
+For local dev, you can also add `http://localhost:3000` as an authorized origin in the Google OAuth client if needed.
+
 ## Step 3: Configure Environment Variables
 
 1. Copy `.env.local.example` to `.env.local`:
@@ -104,6 +120,10 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - Make sure you added `SERPAPI_API_KEY` to `.env.local`
 - Restart the dev server after adding the key
 - Check your [SerpAPI dashboard](https://serpapi.com/manage-api-key) for quota and errors
+
+### "Unsupported provider: provider is not enabled" (Google sign-in)
+- Google sign-in must be enabled in your Supabase project
+- In Supabase go to **Authentication** > **Providers**, turn **Google** **ON**, and add your Google OAuth Client ID and Client secret (see **Enable Google Sign-In** above)
 
 ## Next Steps
 
