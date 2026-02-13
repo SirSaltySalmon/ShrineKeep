@@ -5,10 +5,10 @@ import WishlistClient from "./wishlist-client"
 export default async function WishlistPage() {
   const supabase = await createSupabaseServerClient()
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect("/auth/login")
   }
 

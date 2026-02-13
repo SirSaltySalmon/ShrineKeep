@@ -14,10 +14,10 @@ export async function GET(
   try {
     const supabase = await createSupabaseServerClient()
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
+      data: { user },
+    } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -26,7 +26,7 @@ export async function GET(
       return NextResponse.json({ error: "boxId required" }, { status: 400 })
     }
 
-    const userId = session.user.id
+    const userId = user.id
     const isRoot = boxId === "root"
 
     let allBoxIds: string[] = []

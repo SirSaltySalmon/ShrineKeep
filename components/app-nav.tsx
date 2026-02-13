@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Package, Heart, LogOut } from "lucide-react"
+import { Package, Heart, LogOut, Settings } from "lucide-react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 
@@ -36,6 +36,10 @@ export default function AppNav({ name }: AppNavProps) {
               <Link href="/wishlist" className="text-fluid-sm hover:underline flex items-center space-x-1 whitespace-nowrap">
                 <Heart className="h-4 w-4 shrink-0" />
                 <span>Wishlist</span>
+              </Link>
+              <Link href="/settings" className="text-fluid-sm hover:underline flex items-center space-x-1 whitespace-nowrap">
+                <Settings className="h-4 w-4 shrink-0" />
+                <span>Settings</span>
               </Link>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Item, Photo } from "@/lib/types"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -18,6 +18,7 @@ const MAX_PHOTOS = 10
 interface LocalPhoto {
   id?: string
   url: string
+  storage_path?: string // Storage path for Supabase storage files
   is_thumbnail: boolean
 }
 
@@ -32,6 +33,7 @@ function toLocalPhotos(item: Item | null): LocalPhoto[] {
     return sorted.map((p) => ({
       id: p.id,
       url: p.url,
+      storage_path: (p as any).storage_path,
       is_thumbnail: p.is_thumbnail || (!hasThumb && p === sorted[0]),
     }))
   }
@@ -70,9 +72,46 @@ export default function ItemDialog({
   const [photos, setPhotos] = useState<LocalPhoto[]>([])
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [showImageSearch, setShowImageSearch] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0)
+  // Track photos uploaded during this session that haven't been saved yet
+  const [unsavedUploadedPhotos, setUnsavedUploadedPhotos] = useState<Set<string>>(new Set())
+  // Use ref to track unsaved uploads for cleanup (avoids stale closure issues)
+  const unsavedUploadsRef = useRef<Set<string>>(new Set())
+
+  // Update ref whenever state changes
+  useEffect(() => {
+    unsavedUploadsRef.current = unsavedUploadedPhotos
+  }, [unsavedUploadedPhotos])
+
+  // Cleanup function to delete unsaved uploaded files via server API
+  const cleanupUnsavedUploads = useCallback(async () => {
+    const pathsToDelete = Array.from(unsavedUploadsRef.current)
+    if (pathsToDelete.length === 0) return
+    
+    setUnsavedUploadedPhotos(new Set())
+    unsavedUploadsRef.current = new Set()
+    
+    // Call server API to cleanup unsaved uploads
+    try {
+      const response = await fetch("/api/storage/cleanup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ storage_paths: pathsToDelete }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error("Failed to cleanup storage:", errorData.error)
+      }
+    } catch (error) {
+      console.error("Error calling cleanup API:", error)
+    }
+  }, [])
 
   useEffect(() => {
     if (item && !isNew) {
@@ -83,6 +122,8 @@ export default function ItemDialog({
       setAcquisitionPrice(item.acquisition_price?.toString() || "")
       setExpectedPrice(item.expected_price?.toString() || "")
       setPhotos(toLocalPhotos(item))
+      setUnsavedUploadedPhotos(new Set()) // Clear unsaved uploads when loading existing item
+      unsavedUploadsRef.current = new Set()
     } else {
       setName("")
       setDescription("")
@@ -91,8 +132,18 @@ export default function ItemDialog({
       setAcquisitionPrice("")
       setExpectedPrice("")
       setPhotos([])
+      setUnsavedUploadedPhotos(new Set()) // Clear unsaved uploads for new items
+      unsavedUploadsRef.current = new Set()
     }
   }, [item, isNew, open, isWishlist])
+
+  // Cleanup on dialog close/cancel - delete any unsaved uploaded files
+  useEffect(() => {
+    if (!open) {
+      // Dialog is closing - cleanup any unsaved uploads
+      cleanupUnsavedUploads()
+    }
+  }, [open, cleanupUnsavedUploads])
 
   const addPhoto = (url: string, setAsThumbnail = false) => {
     setPhotos((prev) => {
@@ -109,7 +160,67 @@ export default function ItemDialog({
     )
   }
 
-  const removePhoto = (index: number) => {
+  const removePhoto = async (index: number) => {
+    const photoToRemove = photos[index]
+    
+    // Handle deletion based on photo type:
+    // 1. Saved photo (has id and storage_path) -> delete from database and storage
+    // 2. Unsaved photo (no id but has storage_path) -> delete from storage only
+    // 3. External URL (no storage_path) -> just remove from UI
+    
+    if (photoToRemove.storage_path) {
+      try {
+        if (photoToRemove.id) {
+          // Saved photo: delete from database and storage
+          const response = await fetch("/api/photos/delete", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ photoId: photoToRemove.id }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error("Failed to delete photo:", errorData.error)
+            alert(`Failed to delete photo: ${errorData.error || "Unknown error"}`)
+            return // Don't remove from UI if deletion failed
+          }
+        } else {
+          // Unsaved photo: delete from storage only
+          const response = await fetch("/api/storage/cleanup", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ storage_paths: [photoToRemove.storage_path] }),
+          })
+
+          if (!response.ok) {
+            console.error("Failed to delete photo from storage")
+            // Still remove from UI even if storage deletion fails (it's unsaved)
+          } else {
+            // Remove from unsaved uploads tracking
+            setUnsavedUploadedPhotos((prev) => {
+              const next = new Set(prev)
+              next.delete(photoToRemove.storage_path!)
+              unsavedUploadsRef.current = next
+              return next
+            })
+          }
+        }
+      } catch (error) {
+        console.error("Failed to delete photo:", error)
+        if (photoToRemove.id) {
+          // For saved photos, show error and don't remove from UI
+          alert("Failed to delete photo. Please try again.")
+          return
+        }
+        // For unsaved photos, continue with removal from UI
+      }
+    }
+    
+    // Remove photo from UI
     setPhotos((prev) => {
       const next = prev.filter((_, i) => i !== index)
       const hadThumb = prev[index].is_thumbnail
@@ -130,8 +241,15 @@ export default function ItemDialog({
       return
     }
 
+    // Get current user ID
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      alert("You must be logged in to upload images.")
+      return
+    }
+
     setUploading(true)
-    const urls: string[] = []
+    const newPhotos: LocalPhoto[] = []
     for (let i = 0; i < toAdd; i++) {
       const file = files[i]
       if (file.size > 4 * 1024 * 1024) {
@@ -140,21 +258,58 @@ export default function ItemDialog({
       }
       const fileExt = file.name.split(".").pop()
       const fileName = `${Math.random()}.${fileExt}`
-      const filePath = `items/${fileName}`
+      // Use user-specific path: {user_id}/items/{filename}
+      const filePath = `${user.id}/items/${fileName}`
       const { error } = await supabase.storage.from("item-photos").upload(filePath, file)
       if (error) {
         console.error("Upload error:", error)
+        alert(`Failed to upload "${file.name}": ${error.message}`)
         continue
       }
-      const { data } = supabase.storage.from("item-photos").getPublicUrl(filePath)
-      urls.push(data.publicUrl)
+      
+      // For wishlist items, use public URL (accessible via storage policy)
+      // For private items, use signed URL (valid for 1 year)
+      let url: string
+      if (isWishlist) {
+        // Wishlist items: use public URL (policy allows public access)
+        const { data: publicUrlData } = supabase.storage.from("item-photos").getPublicUrl(filePath)
+        url = publicUrlData.publicUrl
+      } else {
+        // Private items: use signed URL
+        const { data: signedUrlData } = await supabase.storage
+          .from("item-photos")
+          .createSignedUrl(filePath, 31536000) // 1 year expiration
+        
+        if (signedUrlData?.signedUrl) {
+          url = signedUrlData.signedUrl
+        } else {
+          console.error("Failed to generate signed URL for:", filePath)
+          // Fallback to public URL (shouldn't happen, but just in case)
+          const { data: publicUrlData } = supabase.storage.from("item-photos").getPublicUrl(filePath)
+          url = publicUrlData.publicUrl
+        }
+      }
+      newPhotos.push({ 
+        url, 
+        storage_path: filePath,
+        is_thumbnail: false 
+      })
+      // Track this as an unsaved upload
+      setUnsavedUploadedPhotos((prev) => {
+        const next = new Set(prev).add(filePath)
+        unsavedUploadsRef.current = next
+        return next
+      })
     }
     setPhotos((prev) => {
       const next = [...prev]
       const needThumb = next.length === 0
-      urls.forEach((url, i) => {
+      newPhotos.forEach((photo, i) => {
         if (next.length >= MAX_PHOTOS) return
-        next.push({ url, is_thumbnail: needThumb && i === 0 })
+        next.push({ 
+          ...photo, 
+          is_thumbnail: needThumb && i === 0 
+        })
       })
       return next
     })
@@ -166,77 +321,47 @@ export default function ItemDialog({
     if (!name.trim()) return
 
     setSaving(true)
-    const userId = (await supabase.auth.getUser()).data.user?.id
-    if (!userId) return
-
-    const thumbnailUrl = photos.find((p) => p.is_thumbnail)?.url ?? null
-
-    const itemData: Record<string, unknown> = {
-      name: name.trim(),
-      description: description.trim() || null,
-      current_value: currentValue ? parseFloat(currentValue) : null,
-      acquisition_date: isWishlist ? null : (acquisitionDate || null),
-      acquisition_price: isWishlist ? null : (acquisitionPrice ? parseFloat(acquisitionPrice) : null),
-      expected_price: isWishlist ? (expectedPrice ? parseFloat(expectedPrice) : null) : null,
-      thumbnail_url: thumbnailUrl,
-      box_id: isWishlist ? null : boxId,
-      user_id: userId,
-      is_wishlist: isWishlist,
-    }
 
     try {
-      let itemId: string
-      if (isNew) {
-        const { data: newItem, error } = await supabase.from("items").insert(itemData).select("id").single()
-        if (error) throw error
-        itemId = newItem.id
-      } else {
-        itemId = item!.id
-        const { error } = await supabase.from("items").update(itemData).eq("id", itemId)
-        if (error) throw error
+      const currentValueNum = currentValue.trim() === "" ? null : parseFloat(currentValue)
+      const acquisitionPriceNum = acquisitionPrice.trim() === "" ? null : parseFloat(acquisitionPrice)
+      const expectedPriceNum = expectedPrice.trim() === "" ? null : parseFloat(expectedPrice)
+
+      const requestBody = {
+        ...(isNew ? {} : { id: item!.id }),
+        name: name.trim(),
+        description: description.trim() || null,
+        current_value: currentValueNum && !Number.isNaN(currentValueNum) ? currentValueNum : null,
+        acquisition_date: isWishlist ? null : (acquisitionDate || null),
+        acquisition_price: isWishlist ? null : (acquisitionPriceNum && !Number.isNaN(acquisitionPriceNum) ? acquisitionPriceNum : null),
+        expected_price: isWishlist ? (expectedPriceNum && !Number.isNaN(expectedPriceNum) ? expectedPriceNum : null) : null,
+        thumbnail_url: photos.find((p) => p.is_thumbnail)?.url ?? null,
+        box_id: isWishlist ? null : boxId,
+        is_wishlist: isWishlist,
+        photos: photos.map((p) => ({
+          url: p.url,
+          storage_path: p.storage_path,
+          is_thumbnail: p.is_thumbnail,
+        })),
       }
 
-      // Sync photos table: replace all photos for this item
-      const { error: deleteError } = await supabase.from("photos").delete().eq("item_id", itemId)
-      if (deleteError) throw deleteError
-      if (photos.length) {
-        const { error: insertError } = await supabase.from("photos").insert(
-          photos.map((p) => ({
-            item_id: itemId,
-            url: p.url,
-            is_thumbnail: p.is_thumbnail,
-          }))
-        )
-        if (insertError) throw insertError
+      const response = await fetch("/api/items", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to save item")
       }
 
-      // Value history: record when value changed (edit) or set (new item)
-      const newValRaw = currentValue.trim() === "" ? null : parseFloat(currentValue)
-      const newVal = newValRaw === null || Number.isNaN(newValRaw) ? null : newValRaw
-      if (isNew) {
-        if (newVal != null) {
-          await supabase.from("value_history").insert({ item_id: itemId, value: newVal })
-        }
-      } else {
-        const { data: latestRecord } = await supabase
-          .from("value_history")
-          .select("value")
-          .eq("item_id", itemId)
-          .order("recorded_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-        const latestValue = latestRecord?.value != null ? Number(latestRecord.value) : null
-        const valueDiffersFromLatest =
-          (latestValue === null) !== (newVal === null) ||
-          (latestValue !== null && newVal !== null && Math.abs(latestValue - newVal) >= 1e-6)
-        if (valueDiffersFromLatest) {
-          await supabase.from("value_history").insert({
-            item_id: itemId,
-            value: newVal ?? 0,
-          })
-        }
-      }
-
+      // Clear unsaved uploads tracking since we successfully saved
+      setUnsavedUploadedPhotos(new Set())
+      unsavedUploadsRef.current = new Set()
+      
       onSave()
       onOpenChange(false)
     } catch (error) {
@@ -247,8 +372,55 @@ export default function ItemDialog({
             ? String((error as { message: unknown }).message)
             : String(error)
       console.error("Error saving item:", message, error)
+      alert(`Failed to save item: ${message}`)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!item || isNew) return
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${item.name}"? This action cannot be undone and will delete all associated photos.`
+    )
+
+    if (!confirmed) return
+
+    setDeleting(true)
+
+    try {
+      const response = await fetch("/api/items/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ itemId: item.id }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to delete item")
+      }
+
+      // Clear unsaved uploads tracking
+      setUnsavedUploadedPhotos(new Set())
+      unsavedUploadsRef.current = new Set()
+
+      // Close dialog and refresh list
+      onSave() // Refresh the list
+      onOpenChange(false)
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error !== null && "message" in error
+            ? String((error as { message: unknown }).message)
+            : String(error)
+      console.error("Error deleting item:", message, error)
+      alert(`Failed to delete item: ${message}`)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -407,9 +579,11 @@ export default function ItemDialog({
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-white hover:bg-red-500/80"
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation()
-                          if (window.confirm("Remove this image?")) removePhoto(i)
+                          if (window.confirm("Remove this image?")) {
+                            await removePhoto(i)
+                          }
                         }}
                         title="Remove image"
                         aria-label="Remove image"
@@ -456,10 +630,21 @@ export default function ItemDialog({
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {!isNew && item && (
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting || saving}
+                className="mr-auto"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {deleting ? "Deleting..." : "Delete"}
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={deleting || saving}>
               Cancel
             </Button>
-            <Button onClick={handleSave} disabled={saving || !name.trim()}>
+            <Button onClick={handleSave} disabled={saving || deleting || !name.trim()}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>

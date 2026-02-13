@@ -9,17 +9,17 @@ export default async function DashboardSearchPage({
 }) {
   const supabase = await createSupabaseServerClient()
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user: authUser },
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!authUser) {
     redirect("/auth/login")
   }
 
   const { data: user } = await supabase
     .from("users")
     .select("*")
-    .eq("id", session.user.id)
+    .eq("id", authUser.id)
     .single()
 
   const { q } = await searchParams

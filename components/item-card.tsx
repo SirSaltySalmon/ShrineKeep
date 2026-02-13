@@ -7,6 +7,21 @@ import { formatCurrency, formatDate } from "@/lib/utils"
 import { Image as ImageIcon, Check } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
 
+// Get colors from CSS variables
+function getValueColor(): string {
+  if (typeof window === "undefined") return "hsl(142 76% 36%)"
+  const root = document.documentElement
+  const value = getComputedStyle(root).getPropertyValue("--value-color").trim()
+  return value ? `hsl(${value})` : "hsl(142 76% 36%)"
+}
+
+function getAcquisitionColor(): string {
+  if (typeof window === "undefined") return "hsl(0 84% 60%)"
+  const root = document.documentElement
+  const value = getComputedStyle(root).getPropertyValue("--acquisition-color").trim()
+  return value ? `hsl(${value})` : "hsl(0 84% 60%)"
+}
+
 interface ItemCardProps {
   item: Item
   variant: "collection" | "wishlist"
@@ -50,10 +65,12 @@ export default function ItemCard({
         {variant === "collection" ? (
           <div className="space-y-1 text-fluid-sm min-w-0 overflow-hidden">
             {item.current_value !== null && item.current_value !== undefined && (
-              <div className="font-medium truncate">Value: {formatCurrency(item.current_value)}</div>
+              <div className="font-medium truncate" style={{ color: getValueColor() }}>
+                Value: {formatCurrency(item.current_value)}
+              </div>
             )}
             {item.acquisition_price !== null && item.acquisition_price !== undefined && (
-              <div className="text-muted-foreground truncate">
+              <div className="truncate" style={{ color: getAcquisitionColor() }}>
                 Acquired: {formatCurrency(item.acquisition_price)}
               </div>
             )}

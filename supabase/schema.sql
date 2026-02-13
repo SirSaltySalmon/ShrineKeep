@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.photos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   item_id UUID NOT NULL REFERENCES public.items(id) ON DELETE CASCADE,
   url TEXT NOT NULL,
+  storage_path TEXT, -- Storage path in bucket (e.g., {user_id}/items/{filename}) for Supabase storage files
   is_thumbnail BOOLEAN DEFAULT false NOT NULL,
   uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
@@ -104,6 +105,17 @@ CREATE TABLE IF NOT EXISTS public.wish_list_items (
   PRIMARY KEY (wish_list_id, item_id)
 );
 
+-- User Settings (for customization and preferences)
+CREATE TABLE IF NOT EXISTS public.user_settings (
+  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  color_scheme JSONB,
+  wishlist_is_public BOOLEAN DEFAULT false NOT NULL,
+  wishlist_share_token TEXT UNIQUE,
+  wishlist_apply_colors BOOLEAN DEFAULT false NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_boxes_user_id ON public.boxes(user_id);
 CREATE INDEX IF NOT EXISTS idx_boxes_parent_box_id ON public.boxes(parent_box_id);
@@ -116,6 +128,7 @@ CREATE INDEX IF NOT EXISTS idx_value_history_item_id ON public.value_history(ite
 CREATE INDEX IF NOT EXISTS idx_friendships_user_id ON public.friendships(user_id);
 CREATE INDEX IF NOT EXISTS idx_friendships_friend_id ON public.friendships(friend_id);
 CREATE INDEX IF NOT EXISTS idx_tags_user_id ON public.tags(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_settings_share_token ON public.user_settings(wishlist_share_token);
 
 -- Row Level Security (RLS) Policies
 
@@ -130,6 +143,7 @@ ALTER TABLE public.value_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.friendships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.wish_lists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.wish_list_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 
 -- Users policies
 CREATE POLICY "Users can view own profile"
@@ -180,6 +194,18 @@ CREATE POLICY "Users can view items in public boxes"
     )
   );
 
+CREATE POLICY "Public can view wishlist items for public wishlists"
+  ON public.items FOR SELECT
+  USING (
+    is_wishlist = true AND
+    EXISTS (
+      SELECT 1 FROM public.user_settings
+      WHERE user_settings.user_id = items.user_id
+      AND user_settings.wishlist_is_public = true
+      AND user_settings.wishlist_share_token IS NOT NULL
+    )
+  );
+
 CREATE POLICY "Users can create own items"
   ON public.items FOR INSERT
   WITH CHECK (auth.uid() = user_id);
@@ -211,6 +237,22 @@ CREATE POLICY "Users can view photos in public items"
       JOIN public.boxes ON boxes.id = items.box_id
       WHERE items.id = photos.item_id
       AND boxes.is_public = true
+    )
+  );
+
+CREATE POLICY "Public can view photos for wishlist items in public wishlists"
+  ON public.photos FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.items
+      WHERE items.id = photos.item_id
+      AND items.is_wishlist = true
+      AND EXISTS (
+        SELECT 1 FROM public.user_settings
+        WHERE user_settings.user_id = items.user_id
+        AND user_settings.wishlist_is_public = true
+        AND user_settings.wishlist_share_token IS NOT NULL
+      )
     )
   );
 
@@ -342,6 +384,27 @@ CREATE POLICY "Users can delete own wish lists"
   ON public.wish_lists FOR DELETE
   USING (auth.uid() = user_id);
 
+-- User settings policies
+CREATE POLICY "Users can view own settings"
+  ON public.user_settings FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own settings"
+  ON public.user_settings FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own settings"
+  ON public.user_settings FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Public wishlist access policy (for viewing public wishlists by token)
+CREATE POLICY "Public can view settings for public wishlists"
+  ON public.user_settings FOR SELECT
+  USING (
+    wishlist_is_public = true AND
+    wishlist_share_token IS NOT NULL
+  );
+
 -- Wish list items policies
 CREATE POLICY "Users can manage items in own wish lists"
   ON public.wish_list_items FOR ALL
@@ -400,3 +463,77 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users
 
 CREATE TRIGGER update_wish_lists_updated_at BEFORE UPDATE ON public.wish_lists
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_user_settings_updated_at BEFORE UPDATE ON public.user_settings
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-- Storage Bucket Policies for item-photos
+-- Note: These policies assume the bucket 'item-photos' exists and is PRIVATE
+-- File paths should follow: {user_id}/items/{filename}
+-- Users can upload files to their own user folder
+CREATE POLICY "Authenticated users can upload item photos"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'item-photos' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Users can view their own photos
+CREATE POLICY "Users can view own item photos"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (
+    bucket_id = 'item-photos' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Users can view photos from wishlist items (check if item is wishlist via storage_path)
+-- This policy allows authenticated users to view wishlist item photos
+CREATE POLICY "Users can view wishlist item photos"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (
+    bucket_id = 'item-photos' AND
+    EXISTS (
+      SELECT 1 FROM public.photos
+      JOIN public.items ON items.id = photos.item_id
+      WHERE photos.storage_path = storage.objects.name
+      AND items.is_wishlist = true
+    )
+  );
+
+-- Public access to wishlist item photos (for unauthenticated users viewing public wishlists)
+CREATE POLICY "Public can view wishlist item photos"
+  ON storage.objects FOR SELECT
+  TO public
+  USING (
+    bucket_id = 'item-photos' AND
+    EXISTS (
+      SELECT 1 FROM public.photos
+      JOIN public.items ON items.id = photos.item_id
+      WHERE photos.storage_path = storage.objects.name
+      AND items.is_wishlist = true
+    )
+  );
+
+-- Users can update their own uploaded files
+CREATE POLICY "Users can update own item photos"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (
+    bucket_id = 'item-photos' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  )
+  WITH CHECK (
+    bucket_id = 'item-photos' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Users can delete their own uploaded files
+CREATE POLICY "Users can delete own item photos"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'item-photos' AND
+    (storage.foldername(name))[1] = auth.uid()::text
+  );

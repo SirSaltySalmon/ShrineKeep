@@ -8,6 +8,8 @@
 - ✅ Supabase integration (client & server)
 - ✅ Environment configuration
 - ✅ Database schema with RLS policies
+- ✅ next-themes for theme management
+- ✅ react-colorful for color customization
 
 ### 2. Authentication
 - ✅ Email/password signup and login
@@ -40,6 +42,8 @@
 - ✅ "Mark as Acquired" functionality
 - ✅ Converts wishlist items to regular items
 - ✅ Separate wishlist page
+- ✅ Public wishlist sharing with shareable links
+- ✅ Toggle for applying custom colors to public wishlist views
 
 ### 6. Value Tracking
 - ✅ Automatic value history recording on save
@@ -59,6 +63,13 @@
 - ✅ Loading states
 - ✅ Error handling
 - ✅ Form validation
+
+### 9. Settings & Customization
+- ✅ Custom color scheme per user
+- ✅ Settings page with color picker
+- ✅ Public wishlist sharing with shareable links
+- ✅ Toggle for applying custom colors to public wishlist views
+- ✅ Modular settings architecture for future extensions
 
 ## 🚧 Partially Implemented
 
@@ -110,7 +121,11 @@ ShrineKeep/
 │   │   ├── layout.tsx      # Dashboard layout with nav
 │   │   ├── page.tsx        # Server component
 │   │   └── dashboard-client.tsx  # Client component
+│   ├── settings/          # Settings page
+│   │   ├── page.tsx       # Server component
+│   │   └── settings-client.tsx  # Client component
 │   ├── wishlist/          # Wishlist page
+│   │   └── [token]/       # Public wishlist view
 │   ├── layout.tsx         # Root layout
 │   ├── page.tsx           # Home page (redirects)
 │   └── globals.css        # Global styles
@@ -119,11 +134,15 @@ ShrineKeep/
 │   │   ├── button.tsx
 │   │   ├── card.tsx
 │   │   ├── dialog.tsx
-│   │   └── input.tsx
+│   │   ├── input.tsx
+│   │   └── color-picker.tsx  # Color picker component
+│   ├── settings/          # Settings components
+│   │   └── wishlist-settings.tsx  # Wishlist privacy settings
 │   ├── box-grid.tsx       # Box display component
 │   ├── breadcrumbs.tsx    # Navigation breadcrumbs
 │   ├── item-grid.tsx      # Item display component
 │   ├── item-dialog.tsx    # Item create/edit dialog
+│   ├── theme-provider.tsx # Theme management
 │   ├── value-graph.tsx    # Value tracking graph
 │   ├── image-search.tsx         # Image search modal (SerpAPI google_images_light)
 │   └── draggable-item.tsx # Draggable item component
@@ -133,13 +152,20 @@ ShrineKeep/
 │   │   └── server.ts      # Server-side Supabase
 │   ├── types.ts           # TypeScript types
 │   ├── utils.ts           # Utility functions
+│   ├── settings.ts        # Settings utilities
 │   └── hooks/
 │       └── use-drag-drop.ts  # Drag & drop hook
 ├── supabase/
-│   └── schema.sql         # Complete database schema
+│   ├── schema.sql         # Complete database schema
+│   └── migration_add_user_settings.sql  # Migration for user settings
 ├── app/api/
-│   └── items/
-│       └── move/          # API route for moving items
+│   ├── items/
+│   │   └── move/          # API route for moving items
+│   ├── settings/
+│   │   └── route.ts       # Settings API route
+│   └── wishlist/
+│       └── [token]/
+│           └── route.ts   # Public wishlist API route
 └── Configuration files
     ├── package.json
     ├── tsconfig.json
@@ -170,6 +196,7 @@ All tables with Row-Level Security (RLS):
 - `friendships` - Friend relationships
 - `wish_lists` - Wishlist containers
 - `wish_list_items` - Wishlist item relationships
+- `user_settings` - User preferences and customization settings
 
 ## 🔒 Security
 

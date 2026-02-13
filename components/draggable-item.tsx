@@ -8,6 +8,21 @@ import { formatCurrency, formatDate } from "@/lib/utils"
 import ThumbnailImage from "./thumbnail-image"
 import { Image as ImageIcon } from "lucide-react"
 
+// Get colors from CSS variables
+function getValueColor(): string {
+  if (typeof window === "undefined") return "hsl(142 76% 36%)"
+  const root = document.documentElement
+  const value = getComputedStyle(root).getPropertyValue("--value-color").trim()
+  return value ? `hsl(${value})` : "hsl(142 76% 36%)"
+}
+
+function getAcquisitionColor(): string {
+  if (typeof window === "undefined") return "hsl(0 84% 60%)"
+  const root = document.documentElement
+  const value = getComputedStyle(root).getPropertyValue("--acquisition-color").trim()
+  return value ? `hsl(${value})` : "hsl(0 84% 60%)"
+}
+
 interface DraggableItemProps {
   item: Item
   onClick: () => void
@@ -61,10 +76,12 @@ export default function DraggableItem({ item, onClick }: DraggableItemProps) {
         <CardContent>
           <div className="space-y-1 text-sm">
             {item.current_value !== null && item.current_value !== undefined && (
-              <div className="font-medium">Value: {formatCurrency(item.current_value)}</div>
+              <div className="font-medium" style={{ color: getValueColor() }}>
+                Value: {formatCurrency(item.current_value)}
+              </div>
             )}
             {item.acquisition_price !== null && item.acquisition_price !== undefined && (
-              <div className="text-muted-foreground">
+              <div style={{ color: getAcquisitionColor() }}>
                 Acquired: {formatCurrency(item.acquisition_price)}
               </div>
             )}

@@ -13,8 +13,37 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import type { ValueChartPoint, AcquisitionChartPoint } from "@/lib/hooks/use-box-stats"
 
-export const VALUE_COLOR = "#22c55e"
-export const ACQUISITION_COLOR = "#ef4444"
+// Get colors from CSS variables with fallbacks
+function getValueColor(): string {
+  if (typeof window === "undefined") return "#22c55e"
+  const root = document.documentElement
+  const value = getComputedStyle(root).getPropertyValue("--value-color").trim()
+  return value ? `hsl(${value})` : "#22c55e"
+}
+
+function getAcquisitionColor(): string {
+  if (typeof window === "undefined") return "#ef4444"
+  const root = document.documentElement
+  const value = getComputedStyle(root).getPropertyValue("--acquisition-color").trim()
+  return value ? `hsl(${value})` : "#ef4444"
+}
+
+function getGraphValueColor(): string {
+  if (typeof window === "undefined") return "#22c55e"
+  const root = document.documentElement
+  const value = getComputedStyle(root).getPropertyValue("--graph-value-color").trim()
+  return value ? `hsl(${value})` : "#22c55e"
+}
+
+function getGraphAcquisitionColor(): string {
+  if (typeof window === "undefined") return "#ef4444"
+  const root = document.documentElement
+  const value = getComputedStyle(root).getPropertyValue("--graph-acquisition-color").trim()
+  return value ? `hsl(${value})` : "#ef4444"
+}
+
+// Export functions (these are now functions, not constants, to read CSS variables dynamically)
+export { getValueColor, getAcquisitionColor, getGraphValueColor, getGraphAcquisitionColor }
 
 /** Short format for Y-axis so labels fit (e.g. $900, $1.2k). */
 function formatAxisCurrency(value: number): string {
@@ -38,19 +67,22 @@ export function BoxStatsSummary({
   profit,
   variant,
 }: BoxStatsSummaryProps) {
+  const valueColor = getValueColor()
+  const acquisitionColor = getAcquisitionColor()
+
   if (variant === "cards") {
     return (
       <>
         <div className="grid grid-cols-2 gap-4 min-w-0">
           <div className="rounded-lg border p-4 text-center min-w-0 overflow-hidden">
             <div className="text-[clamp(0.65rem,2vw,0.875rem)] font-medium text-muted-foreground mb-1">Current value</div>
-            <div className="text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight min-w-0 overflow-hidden" style={{ color: VALUE_COLOR }}>
+            <div className="text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight min-w-0 overflow-hidden" style={{ color: valueColor }}>
               {formatCurrency(currentValue)}
             </div>
           </div>
           <div className="rounded-lg border p-4 text-center min-w-0 overflow-hidden">
             <div className="text-[clamp(0.65rem,2vw,0.875rem)] font-medium text-muted-foreground mb-1">Acquisition cost</div>
-            <div className="text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight min-w-0 overflow-hidden" style={{ color: ACQUISITION_COLOR }}>
+            <div className="text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight min-w-0 overflow-hidden" style={{ color: acquisitionColor }}>
               {formatCurrency(totalAcquisition)}
             </div>
           </div>
@@ -69,13 +101,13 @@ export function BoxStatsSummary({
     <div className="flex items-center gap-4">
       <div className="flex items-baseline gap-1.5">
         <span className="text-xs text-muted-foreground">Value</span>
-        <span className="text-xl font-bold" style={{ color: VALUE_COLOR }}>
+        <span className="text-xl font-bold" style={{ color: valueColor }}>
           {formatCurrency(currentValue)}
         </span>
       </div>
       <div className="flex items-baseline gap-1.5">
         <span className="text-xs text-muted-foreground">Acquisition</span>
-        <span className="text-xl font-bold" style={{ color: ACQUISITION_COLOR }}>
+        <span className="text-xl font-bold" style={{ color: acquisitionColor }}>
           {formatCurrency(totalAcquisition)}
         </span>
       </div>
@@ -163,6 +195,9 @@ export function BoxStatsCharts({
     ? { wrapperStyle: tooltipWrapperStyle, contentStyle: tooltipContentStyle }
     : undefined
 
+  const graphValueColor = getGraphValueColor()
+  const graphAcquisitionColor = getGraphAcquisitionColor()
+
   return (
     <div className="space-y-6">
       <CurrencyLineChart
@@ -171,7 +206,7 @@ export function BoxStatsCharts({
         title="Total value over time"
         emptyMessage="No value history. Update item values to see the graph."
         lineName="Total value"
-        color={VALUE_COLOR}
+        color={graphValueColor}
         tooltipProps={tooltipProps}
       />
       <CurrencyLineChart
@@ -180,7 +215,7 @@ export function BoxStatsCharts({
         title="Cumulative acquisition cost"
         emptyMessage="No acquisition data. Add acquisition date and price to items to see the graph."
         lineName="Acquisition cost"
-        color={ACQUISITION_COLOR}
+        color={graphAcquisitionColor}
         tooltipProps={tooltipProps}
       />
     </div>

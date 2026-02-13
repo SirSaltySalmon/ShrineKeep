@@ -6,10 +6,10 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient()
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
+      data: { user },
+    } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid mode" }, { status: 400 })
     }
 
-    const userId = session.user.id
+    const userId = user.id
 
     if (mode === "delete-all") {
       // CASCADE will delete child boxes and items (and value_history, photos, item_tags)

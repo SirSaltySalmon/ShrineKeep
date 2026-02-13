@@ -11,6 +11,9 @@ A versatile utility webapp to track completion, values, and spending for any col
 - **Image Search**: Search the web for images (via SerpAPI) and select a thumbnail for items
 - **Social Features**: Share collections with friends and view public wishlists
 - **Tags & Search**: Tag items and search across all your collections
+- **Custom Color Schemes**: Personalize your app's appearance with custom color themes
+- **Public Wishlist Sharing**: Share your wishlist with others via a shareable link
+- **Settings Management**: Customize app preferences and appearance settings
 
 ## Tech Stack
 
@@ -20,6 +23,8 @@ A versatile utility webapp to track completion, values, and spending for any col
 - **Deployment**: Vercel (recommended)
 - **Charts**: Recharts
 - **Drag & Drop**: @dnd-kit
+- **Theme Management**: next-themes for dynamic theme switching
+- **Color Picker**: react-colorful for color customization
 
 ## Getting Started
 
@@ -106,17 +111,22 @@ ShrineKeep/
 ├── app/                    # Next.js app directory
 │   ├── auth/              # Authentication pages
 │   ├── dashboard/         # Main dashboard
+│   ├── settings/           # Settings page
 │   └── wishlist/          # Wishlist page
+│       └── [token]/       # Public wishlist view
 ├── components/            # React components
 │   ├── ui/               # shadcn/ui components
+│   ├── settings/         # Settings components
 │   ├── box-grid.tsx      # Box display component
 │   ├── item-grid.tsx     # Item display component
 │   ├── item-dialog.tsx   # Item create/edit dialog
+│   ├── theme-provider.tsx # Theme management
 │   └── value-graph.tsx   # Value tracking graph
 ├── lib/                   # Utilities and helpers
 │   ├── supabase/         # Supabase client setup
 │   ├── types.ts          # TypeScript types
-│   └── utils.ts          # Utility functions
+│   ├── utils.ts          # Utility functions
+│   └── settings.ts       # Settings utilities
 ├── supabase/             # Database schema
 │   └── schema.sql        # Complete database schema
 └── public/               # Static assets

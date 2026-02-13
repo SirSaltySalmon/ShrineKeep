@@ -49,6 +49,7 @@ export interface Photo {
   id: string
   item_id: string
   url: string
+  storage_path?: string // Storage path for Supabase storage files
   is_thumbnail: boolean
   uploaded_at: string
 }
@@ -80,6 +81,43 @@ export interface WishList {
   user_id: string
   name: string
   is_public: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ColorScheme {
+  background?: string
+  foreground?: string
+  card?: string
+  cardForeground?: string
+  popover?: string
+  popoverForeground?: string
+  primary?: string
+  primaryForeground?: string
+  secondary?: string
+  secondaryForeground?: string
+  muted?: string
+  mutedForeground?: string
+  accent?: string
+  accentForeground?: string
+  destructive?: string
+  destructiveForeground?: string
+  border?: string
+  input?: string
+  ring?: string
+  // Value-related colors
+  valueColor?: string // Color for displaying current values
+  acquisitionColor?: string // Color for displaying acquisition prices
+  graphValueColor?: string // Color for value lines in graphs
+  graphAcquisitionColor?: string // Color for acquisition lines in graphs
+}
+
+export interface UserSettings {
+  user_id: string
+  color_scheme?: ColorScheme | null
+  wishlist_is_public: boolean
+  wishlist_share_token?: string | null
+  wishlist_apply_colors: boolean
   created_at: string
   updated_at: string
 }

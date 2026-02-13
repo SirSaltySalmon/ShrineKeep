@@ -18,6 +18,14 @@ import { format } from "date-fns"
 import { Calendar, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
+// Get graph value color from CSS variables
+function getGraphValueColor(): string {
+  if (typeof window === "undefined") return "#22c55e"
+  const root = document.documentElement
+  const value = getComputedStyle(root).getPropertyValue("--graph-value-color").trim()
+  return value ? `hsl(${value})` : "#22c55e"
+}
+
 interface ValueGraphProps {
   itemId: string
   acquisitionDate?: string | null
@@ -169,7 +177,7 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
           <Line
             type="monotone"
             dataKey="value"
-            stroke="#22c55e"
+            stroke={getGraphValueColor()}
             strokeWidth={2}
             name="Value"
           />

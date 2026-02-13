@@ -6,10 +6,10 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient()
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
+      data: { user },
+    } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
           .from("boxes")
           .select("parent_box_id")
           .eq("id", ancestorId)
-          .eq("user_id", session.user.id)
+          .eq("user_id", user.id)
           .single()
         ancestorId = parent?.parent_box_id ?? null
       }
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       .from("boxes")
       .update({ parent_box_id: targetParentBoxId || null })
       .eq("id", boxId)
-      .eq("user_id", session.user.id)
+      .eq("user_id", user.id)
 
     if (error) throw error
 
