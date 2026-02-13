@@ -6,7 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "ShrineKeep - Track Your Collections",
+  title: "ShrineKeep",
   description: "A versatile utility webapp to track completion, values, and spending for any collection of items.",
 }
 

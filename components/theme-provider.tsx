@@ -3,7 +3,6 @@
 import { ThemeProvider as NextThemesProvider } from "next-themes"
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
-import { createSupabaseClient } from "@/lib/supabase/client"
 import { applyColorScheme, getDefaultColorScheme } from "@/lib/settings"
 import { ColorScheme } from "@/lib/types"
 
@@ -39,39 +38,24 @@ export function ThemeProvider({
     }
 
     // Load user settings and apply custom colors
-    const loadUserSettings = async () => {
+    const loadUserColors = async () => {
       try {
-        const supabase = createSupabaseClient()
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (!user) {
-          setCustomColors(null)
-          setIsLoading(false)
-          return
-        }
-
-        const { data: settings } = await supabase
-          .from("user_settings")
-          .select("color_scheme")
-          .eq("user_id", user.id)
-          .single()
-
-        if (settings?.color_scheme) {
-          setCustomColors(settings.color_scheme as ColorScheme)
+        const colors = await fetch("/api/colors")
+        const data = await colors.json()
+        if (data) {
+          setCustomColors(data as ColorScheme)
         } else {
           setCustomColors(null)
         }
       } catch (error) {
-        console.error("Error loading user settings:", error)
+        console.error("Error loading user colors:", error)
         setCustomColors(null)
       } finally {
         setIsLoading(false)
       }
     }
 
-    loadUserSettings()
+    loadUserColors()
   }, [pathname])
 
   // Apply custom colors via CSS variables
@@ -121,7 +105,7 @@ export function ThemeProvider({
     }
   }, [customColors, isLoading, pathname])
 
-  return <NextThemesProvider {...props}>{children}</NextThemesProvider>
+  return <NextThemesProvider>{children}</NextThemesProvider>
 }
 
 /**

@@ -65,8 +65,8 @@ export default function LoginPage() {
             Sign in to your account to continue
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 min-w-0 overflow-hidden">
-          <form onSubmit={handleEmailLogin} className="space-y-4 min-w-0 overflow-hidden">
+        <CardContent className="space-y-4 min-w-0 overflow-visible">
+          <form onSubmit={handleEmailLogin} className="space-y-4 min-w-0 overflow-visible">
             <div className="space-y-2 min-w-0">
               <label htmlFor="email" className="text-fluid-sm font-medium">
                 Email

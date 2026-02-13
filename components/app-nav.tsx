@@ -27,11 +27,11 @@ export default function AppNav({ name }: AppNavProps) {
           <div className="flex items-center justify-between gap-4 flex-nowrap min-w-0">
             <div className="flex items-center space-x-4 sm:space-x-6 flex-shrink-0 min-w-0 overflow-hidden">
               <Link href="/dashboard" className="flex items-center space-x-2 hover:opacity-80 shrink-0">
-                <Package className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span className="font-semibold text-fluid-sm truncate">ShrineKeep</span>
               </Link>
-              <Link href="/dashboard" className="text-fluid-sm hover:underline whitespace-nowrap">
-                <span>Collections</span>
+              <Link href="/dashboard" className="text-fluid-sm hover:underline flex items-center space-x-1 whitespace-nowrap">
+                <Package className="h-4 w-4 shrink-0" />
+                <span>Dashboard</span>
               </Link>
               <Link href="/wishlist" className="text-fluid-sm hover:underline flex items-center space-x-1 whitespace-nowrap">
                 <Heart className="h-4 w-4 shrink-0" />

@@ -480,7 +480,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               boxName={currentBox?.name ?? "Root"}
               refreshKey={statsRefreshKey}
             />
-            <div className="mb-8 min-w-0 overflow-hidden">
+            <div className="mb-8 min-w-0 overflow-visible">
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
                 <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
                   <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />

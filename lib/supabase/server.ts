@@ -18,7 +18,7 @@ export const createSupabaseServerClient = async () => {
               cookieStore.set(name, value, options)
             )
           } catch {
-            // setAll from Server Component read-only context can be ignored when middleware refreshes sessions
+            // setAll from Server Component read-only context can be ignored when proxy refreshes sessions
           }
         },
       },

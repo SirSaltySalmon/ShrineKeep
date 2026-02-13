@@ -9,7 +9,7 @@ export default async function WishlistLayout({
   children: React.ReactNode
 }) {
   // Check if we're on a public wishlist route ([token])
-  // Middleware sets x-pathname header for us to access
+  // Proxy sets x-pathname header for us to access
   const headersList = await headers()
   const pathname = headersList.get("x-pathname") || ""
   
