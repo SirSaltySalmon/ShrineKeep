@@ -444,7 +444,7 @@ export default function ItemDialog({
               {isNew ? "Add a new item to your collection" : "Update item details"}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4 min-w-0 overflow-hidden">
+          <div className="space-y-4 py-4 min-w-0 overflow-visible">
             <div className="min-w-0">
               <label className="text-fluid-sm font-medium">Name *</label>
               <Input
@@ -464,7 +464,7 @@ export default function ItemDialog({
             {isWishlist ? (
               <>
                 <div className="grid grid-cols-2 gap-4 min-w-0">
-                  <div className="min-w-0 overflow-hidden">
+                  <div className="min-w-0 overflow-visible">
                     <label className="text-fluid-sm font-medium">Current Value</label>
                     <Input
                       type="number"
@@ -474,7 +474,7 @@ export default function ItemDialog({
                       placeholder="0.00"
                     />
                   </div>
-                  <div className="min-w-0 overflow-hidden">
+                  <div className="min-w-0 overflow-visible">
                     <label className="text-fluid-sm font-medium">Expected Price</label>
                     <Input
                       type="number"
@@ -489,7 +489,7 @@ export default function ItemDialog({
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-4 min-w-0">
-                  <div className="min-w-0 overflow-hidden">
+                  <div className="min-w-0 overflow-visible">
                     <label className="text-fluid-sm font-medium">Current Value</label>
                     <Input
                       type="number"
@@ -499,7 +499,7 @@ export default function ItemDialog({
                       placeholder="0.00"
                     />
                   </div>
-                  <div className="min-w-0 overflow-hidden">
+                  <div className="min-w-0 overflow-visible">
                     <label className="text-fluid-sm font-medium">Acquisition Price</label>
                     <Input
                       type="number"

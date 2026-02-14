@@ -60,6 +60,22 @@ To use “Sign in with Google” you must enable the Google provider in Supabase
 
 For local dev, you can also add `http://localhost:3000` as an authorized origin in the Google OAuth client if needed.
 
+### Configure Redirections (Optional)
+When logging in using Google, configuration is needed to allow redirecting after log in.
+1. Go to **Authentication**
+2. Go to **URL Configuration**
+3. Fill out **Site URL** with the URL you are deploying on.
+4. For auths to work frictionlessly, add URL to **Redirect URLs** as well, in this format:
+- https://shrinekeep.com/* (or your own domain replacing shrinekeep.com)
+- http://localhost:3000/* (for testing on your local device)
+
+### Log in with custom SMTP (Optional)
+1. Go to **Authentication**
+2. Go to **Email** and check out **SMTP Settings**. Almost required for production grade deployment.
+3. Get information from your domain name & email provider and submit.
+
+
+
 ## Step 3: Configure Environment Variables
 
 1. Copy `.env.local.example` to `.env.local`:

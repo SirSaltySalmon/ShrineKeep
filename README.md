@@ -35,6 +35,7 @@ A versatile utility webapp to track completion, values, and spending for any col
 - SerpAPI API key (optional, for image search)
 
 ### Setup Instructions
+Detailed instructions available in SETUP.md
 
 1. **Clone the repository**
    ```bash
@@ -52,6 +53,7 @@ A versatile utility webapp to track completion, values, and spending for any col
    - Go to Settings > API to get your URL and anon key
    - Go to Settings > Database to get your service role key (keep this secret!)
    - Create a storage bucket named `item-photos` with public access
+   - Further instructions in SETUP.md
 
 4. **Set up the database**
    - In Supabase, go to SQL Editor

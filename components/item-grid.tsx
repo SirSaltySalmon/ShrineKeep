@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
+import { Plus, Sword } from "lucide-react"
 import DraggableItemCard from "./draggable-item-card"
 import ItemDialog from "./item-dialog"
 
@@ -44,7 +44,10 @@ export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTit
       <div className={sectionTitle ? "flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0 overflow-hidden" : "mb-4 min-w-0"}>
         {sectionTitle ? (
           <>
-            <h2 className="text-fluid-xl font-semibold truncate min-w-0">{sectionTitle}</h2>
+            <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
+              <Sword className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
+              {sectionTitle}
+            </h2>
             {addButton}
           </>
         ) : (

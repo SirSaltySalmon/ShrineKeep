@@ -37,7 +37,7 @@ export default function SignupPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push("/verify-email")
+      router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`)
       router.refresh()
     }
   }

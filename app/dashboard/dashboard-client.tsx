@@ -8,7 +8,7 @@ import { Box, Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Search, Grid3x3, Trash2 } from "lucide-react"
+import { Plus, Search, Grid3x3, Trash2, Sword } from "lucide-react"
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { getItemDragId } from "@/components/draggable-item-card"
 import { getBoxDropId } from "@/components/droppable-box-card"
@@ -352,7 +352,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     Change the name and description of this box, or delete it.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4 min-w-0 overflow-hidden">
+                <div className="space-y-4 py-4 min-w-0 overflow-visible">
                   <div className="min-w-0">
                     <label className="text-fluid-sm font-medium">Name</label>
                     <Input
@@ -498,7 +498,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                         Create a new collection box to organize your items.
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4 min-w-0 overflow-hidden">
+                    <div className="space-y-4 py-4 min-w-0 overflow-visible">
                       <div className="min-w-0">
                         <label className="text-fluid-sm font-medium">Name</label>
                         <Input
@@ -546,7 +546,10 @@ export default function DashboardClient({ user }: DashboardClientProps) {
             <div>
               {searchQuery.trim() && items.length === 0 ? (
                 <div className="text-center py-12 space-y-3 min-w-0 overflow-hidden">
-                  <h2 className="text-fluid-xl font-semibold mb-4">Items</h2>
+                  <h2 className="text-fluid-xl font-semibold flex items-center mb-4 min-w-0 truncate">
+                    <Sword className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
+                    Items
+                  </h2>
                   <p className="text-fluid-sm text-muted-foreground">
                     No items in this box.{" "}
                     <Link
