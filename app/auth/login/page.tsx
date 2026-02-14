@@ -1,17 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import TurnstileWidget from "@/components/turnstile-widget"
+import TurnstileWidget, { type TurnstileWidgetRef } from "@/components/turnstile-widget"
 
 export default function LoginPage() {
   const router = useRouter()
   const supabase = createSupabaseClient()
+  const turnstileRef = useRef<TurnstileWidgetRef>(null)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -39,6 +40,8 @@ export default function LoginPage() {
 
     if (error) {
       setError(error.message)
+      setCaptchaToken(null)
+      turnstileRef.current?.reset()
       setLoading(false)
     } else {
       router.push("/dashboard")
@@ -92,9 +95,17 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2 min-w-0">
-              <label htmlFor="password" className="text-fluid-sm font-medium">
-                Password
-              </label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="password" className="text-fluid-sm font-medium">
+                  Password
+                </label>
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-fluid-xs text-primary hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -104,11 +115,16 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2 min-w-0">
-              <TurnstileWidget onSuccess={setCaptchaToken} />
+              <TurnstileWidget ref={turnstileRef} onSuccess={setCaptchaToken} />
             </div>
             {error && (
-              <div className="text-fluid-sm text-destructive bg-destructive/10 p-3 rounded-md min-w-0 overflow-hidden break-words">
-                {error}
+              <div className="space-y-1 text-fluid-sm text-destructive bg-destructive/10 p-3 rounded-md min-w-0 overflow-hidden break-words">
+                <p>{error}</p>
+                {error !== "Please complete the captcha verification." && (
+                  <p className="text-muted-foreground text-fluid-xs">
+                    Complete the captcha again to try another password.
+                  </p>
+                )}
               </div>
             )}
             <Button type="submit" className="w-full" disabled={loading}>

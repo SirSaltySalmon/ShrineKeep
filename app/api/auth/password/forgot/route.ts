@@ -2,34 +2,31 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { type AuthEmailResponse, isRateLimitError } from "@/lib/auth-utils"
 
-export type ResendEmailResponse = AuthEmailResponse
-
 export async function POST(request: Request): Promise<NextResponse<AuthEmailResponse>> {
   try {
     const body = await request.json().catch(() => ({}))
-    const emailFromBody = typeof body?.email === "string" ? body.email.trim() : null
-
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-
-    const email = emailFromBody || session?.user?.email || null
+    const email = typeof body?.email === "string" ? body.email.trim() : null
+    const captchaToken = typeof body?.captchaToken === "string" ? body.captchaToken : null
 
     if (!email) {
       return NextResponse.json(
         {
           ok: false,
           code: "missing_email",
-          message: "Email is required. Sign up and provide your email.",
+          message: "Please enter your email address.",
         },
         { status: 400 }
       )
     }
 
-    const { error } = await supabase.auth.resend({
-      type: "signup",
-      email,
+    const supabase = await createSupabaseServerClient()
+    const origin =
+      request.headers.get("origin") ??
+      (typeof request.url === "string" ? new URL(request.url).origin : "")
+    const redirectTo = `${origin}/auth/reset-password`
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo,
+      captchaToken: captchaToken ?? undefined,
     })
 
     if (error) {
@@ -40,24 +37,20 @@ export async function POST(request: Request): Promise<NextResponse<AuthEmailResp
             ok: false,
             code: "rate_limited",
             message:
-              "Please wait before requesting another email. You can request a new link once per minute.",
+              "Too many attempts. Please wait before requesting another reset email (about one per minute).",
           },
           { status: 429 }
         )
       }
       return NextResponse.json(
-        {
-          ok: false,
-          code: "failed",
-          message: msg,
-        },
+        { ok: false, code: "failed", message: msg },
         { status: 400 }
       )
     }
 
     return NextResponse.json({ ok: true })
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to resend email."
+    const message = e instanceof Error ? e.message : "Something went wrong. Please try again."
     return NextResponse.json(
       { ok: false, code: "failed", message },
       { status: 500 }

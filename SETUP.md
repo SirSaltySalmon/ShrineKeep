@@ -44,6 +44,15 @@ npm install
 - Private items: Only the owner can access (via signed URLs)
 - Wishlist items: Publicly accessible (via public URLs, controlled by storage policies)
 
+### Create Avatars Bucket (for profile photos)
+
+1. In Supabase **Storage**, click **New bucket**
+2. Name it: `avatars`
+3. Make it **Public** (so profile photos can be shown without signed URLs)
+4. Optionally set **File size limit** to 2 MB and **Allowed MIME types** to `image/jpeg`, `image/png`, `image/gif`, `image/webp`
+5. Click **Create bucket**
+6. Run the migration that adds storage policies for `avatars`: `supabase/migrations/20250215000000_add_avatars_bucket.sql`
+
 ### Enable Google Sign-In (Optional)
 
 To use “Sign in with Google” you must enable the Google provider in Supabase and add credentials from Google Cloud.
@@ -68,6 +77,7 @@ When logging in using Google, configuration is needed to allow redirecting after
 4. For auths to work frictionlessly, add URL to **Redirect URLs** as well, in this format:
 - https://shrinekeep.com/* (or your own domain replacing shrinekeep.com)
 - http://localhost:3000/* (for testing on your local device)
+   These same URLs are used for Google sign-in and for **forgot password** reset links (e.g. `/auth/reset-password`).
 
 ### Log in with custom SMTP (Optional)
 1. Go to **Authentication**
@@ -160,6 +170,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ### Settings not saving
 - Make sure you ran the `migration_add_user_settings.sql` script if upgrading
 - Ensure the `user_settings` table exists in your database
+- For **Personal** settings (display name switch), run `supabase/migrations/20250214000000_add_use_custom_display_name.sql` if the column is missing
 
 ### Public wishlist link not working
 - Ensure `user_settings` table exists and has RLS policies enabled

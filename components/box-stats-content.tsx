@@ -101,19 +101,19 @@ export function BoxStatsSummary({
     <div className="flex items-center gap-4">
       <div className="flex items-baseline gap-1.5">
         <span className="text-xs text-muted-foreground">Value</span>
-        <span className="text-xl font-bold" style={{ color: valueColor }}>
+        <span className="text-base font-bold" style={{ color: valueColor }}>
           {formatCurrency(currentValue)}
         </span>
       </div>
       <div className="flex items-baseline gap-1.5">
         <span className="text-xs text-muted-foreground">Acquisition</span>
-        <span className="text-xl font-bold" style={{ color: acquisitionColor }}>
+        <span className="text-base font-bold" style={{ color: acquisitionColor }}>
           {formatCurrency(totalAcquisition)}
         </span>
       </div>
       <div className="flex items-baseline gap-1.5">
         <span className="text-xs text-muted-foreground">Profit</span>
-        <span className="text-base font-semibold text-foreground">
+        <span className="text-base font-bold text-foreground">
           {formatCurrency(profit)}
         </span>
       </div>

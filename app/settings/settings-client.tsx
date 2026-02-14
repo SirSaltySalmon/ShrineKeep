@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ColorPicker } from "@/components/ui/color-picker"
 import { WishlistSettings } from "@/components/settings/wishlist-settings"
+import { PersonalSettings } from "@/components/settings/personal-settings"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   getDefaultColorScheme,
@@ -17,11 +19,23 @@ import { UserSettings, ColorScheme } from "@/lib/types"
 import { generateShareToken } from "@/lib/settings"
 import { Upload } from "lucide-react"
 
-interface SettingsClientProps {
-  initialSettings: UserSettings | null
+export interface InitialProfile {
+  displayName: string
+  useCustomDisplayName: boolean
+  providerName: string | null
+  email: string
+  isEmailProvider: boolean
+  avatarUrl: string | null
+  userId: string
 }
 
-export default function SettingsClient({ initialSettings }: SettingsClientProps) {
+interface SettingsClientProps {
+  initialSettings: UserSettings | null
+  initialProfile: InitialProfile
+}
+
+export default function SettingsClient({ initialSettings, initialProfile }: SettingsClientProps) {
+  const router = useRouter()
   const [colorScheme, setColorScheme] = useState<ColorScheme>(
     initialSettings?.color_scheme || getDefaultColorScheme()
   )
@@ -37,6 +51,12 @@ export default function SettingsClient({ initialSettings }: SettingsClientProps)
   const [wishlistApplyColors, setWishlistApplyColors] = useState(
     initialSettings?.wishlist_apply_colors || false
   )
+  const [useCustomDisplayName, setUseCustomDisplayName] = useState(
+    initialProfile.useCustomDisplayName
+  )
+  const [displayName, setDisplayName] = useState(initialProfile.displayName)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(initialProfile.avatarUrl)
+  const [avatarVersion, setAvatarVersion] = useState(0)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -70,21 +90,25 @@ export default function SettingsClient({ initialSettings }: SettingsClientProps)
           wishlist_is_public: wishlistIsPublic,
           wishlist_apply_colors: wishlistApplyColors,
           wishlist_share_token: wishlistShareToken,
+          use_custom_display_name: useCustomDisplayName,
+          name: displayName,
         }),
       })
 
+      const updated = await response.json()
+
       if (!response.ok) {
-        throw new Error("Failed to save settings")
+        throw new Error(updated?.error ?? "Failed to save settings")
       }
 
-      const updated = await response.json()
       setWishlistShareToken(updated.wishlist_share_token)
 
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+      router.refresh()
     } catch (error) {
       console.error("Error saving settings:", error)
-      alert("Failed to save settings. Please try again.")
+      alert(error instanceof Error ? error.message : "Failed to save settings. Please try again.")
     } finally {
       setSaving(false)
     }
@@ -175,13 +199,34 @@ export default function SettingsClient({ initialSettings }: SettingsClientProps)
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <h1 className="text-fluid-3xl font-bold mb-8">Settings</h1>
 
-        <Tabs defaultValue="colors" className="w-full">
+        <Tabs defaultValue="personal" className="w-full">
           <div className="overflow-x-auto -mx-4 px-4 mb-6">
             <TabsList className="inline-flex w-auto min-w-full">
-              <TabsTrigger value="colors" className="whitespace-nowrap shrink-0">Color Settings</TabsTrigger>
-              <TabsTrigger value="wishlist" className="whitespace-nowrap shrink-0">Wishlist Settings</TabsTrigger>
+              <TabsTrigger value="personal" className="whitespace-nowrap shrink-0">Personal</TabsTrigger>
+              <TabsTrigger value="colors" className="whitespace-nowrap shrink-0">Color</TabsTrigger>
+              <TabsTrigger value="wishlist" className="whitespace-nowrap shrink-0">Wishlist</TabsTrigger>
             </TabsList>
           </div>
+
+          <TabsContent value="personal" className="space-y-6 mt-6 min-w-0">
+            <PersonalSettings
+              displayName={displayName}
+              useCustomDisplayName={useCustomDisplayName}
+              providerName={initialProfile.providerName}
+              email={initialProfile.email}
+              isEmailProvider={initialProfile.isEmailProvider}
+              avatarUrl={avatarUrl}
+              avatarVersion={avatarVersion}
+              userId={initialProfile.userId}
+              onDisplayNameChange={setDisplayName}
+              onUseCustomDisplayNameChange={setUseCustomDisplayName}
+              onAvatarChange={(url) => {
+                setAvatarUrl(url)
+                setAvatarVersion((v) => v + 1)
+                router.refresh()
+              }}
+            />
+          </TabsContent>
 
           <TabsContent value="colors" className="space-y-6 mt-6 min-w-0">
             <div>

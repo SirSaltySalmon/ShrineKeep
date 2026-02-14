@@ -4,19 +4,52 @@ import SettingsClient from "./settings-client"
 export default async function SettingsPage() {
   const supabase = await createSupabaseServerClient()
   const {
-    data: { user },
+    data: { user: authUser },
   } = await supabase.auth.getUser()
 
-  if (!user) {
+  if (!authUser) {
     return null // Layout will handle redirect
   }
 
-  // Fetch user settings
-  const { data: settings } = await supabase
-    .from("user_settings")
-    .select("*")
-    .eq("user_id", user.id)
-    .single()
+  const [settingsResult, profileResult] = await Promise.all([
+    supabase
+      .from("user_settings")
+      .select("*")
+      .eq("user_id", authUser.id)
+      .single(),
+    supabase
+      .from("users")
+      .select("name, username, avatar_url")
+      .eq("id", authUser.id)
+      .single(),
+  ])
 
-  return <SettingsClient initialSettings={settings} />
+  const settings = settingsResult.data
+  const profile = profileResult.data
+  const provider =
+    (authUser.app_metadata?.provider as string) ??
+    authUser.identities?.[0]?.provider ??
+    "email"
+  const isEmailProvider = provider === "email"
+  const providerName =
+    (authUser.user_metadata?.name as string) ||
+    (authUser.user_metadata?.full_name as string) ||
+    null
+  const providerAvatarUrl = (authUser.user_metadata?.avatar_url as string) || null
+  const avatarUrl = profile?.avatar_url ?? providerAvatarUrl ?? null
+
+  return (
+    <SettingsClient
+      initialSettings={settings}
+      initialProfile={{
+        displayName: profile?.name ?? "",
+        useCustomDisplayName: isEmailProvider ? true : (settings?.use_custom_display_name ?? true),
+        providerName,
+        email: authUser.email ?? "",
+        isEmailProvider,
+        avatarUrl,
+        userId: authUser.id,
+      }}
+    />
+  )
 }

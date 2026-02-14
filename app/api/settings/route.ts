@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { generateShareToken } from "@/lib/settings"
 import { ColorScheme } from "@/lib/types"
+import { NAME_MAX_LENGTH, NAME_MAX_MESSAGE } from "@/lib/validation"
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
         wishlist_is_public: false,
         wishlist_share_token: null,
         wishlist_apply_colors: false,
+        use_custom_display_name: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -65,6 +67,9 @@ export async function PUT(request: NextRequest) {
       wishlist_is_public,
       wishlist_apply_colors,
       wishlist_share_token,
+      use_custom_display_name,
+      name: displayName,
+      avatar_url: avatarUrl,
     } = body
 
     // Validate color_scheme if provided
@@ -89,6 +94,7 @@ export async function PUT(request: NextRequest) {
       wishlist_is_public?: boolean
       wishlist_share_token?: string | null
       wishlist_apply_colors?: boolean
+      use_custom_display_name?: boolean
     } = {}
 
     if (color_scheme !== undefined) {
@@ -116,6 +122,17 @@ export async function PUT(request: NextRequest) {
       updateData.wishlist_apply_colors = wishlist_apply_colors
     }
 
+    if (use_custom_display_name !== undefined) {
+      updateData.use_custom_display_name = Boolean(use_custom_display_name)
+    }
+
+    if (typeof displayName === "string" && displayName.trim().length > NAME_MAX_LENGTH) {
+      return NextResponse.json(
+        { error: NAME_MAX_MESSAGE },
+        { status: 400 }
+      )
+    }
+
     // Upsert settings
     const { data: updated, error } = await supabase
       .from("user_settings")
@@ -132,6 +149,20 @@ export async function PUT(request: NextRequest) {
       .single()
 
     if (error) throw error
+
+    // Update display name and/or avatar in public.users if provided
+    const userUpdates: { name?: string; avatar_url?: string | null; updated_at: string } = {
+      updated_at: new Date().toISOString(),
+    }
+    if (typeof displayName === "string") {
+      userUpdates.name = displayName.trim()
+    }
+    if (avatarUrl !== undefined) {
+      userUpdates.avatar_url = typeof avatarUrl === "string" ? avatarUrl : null
+    }
+    if (userUpdates.name !== undefined || userUpdates.avatar_url !== undefined) {
+      await supabase.from("users").update(userUpdates).eq("id", user.id)
+    }
 
     return NextResponse.json(updated)
   } catch (error) {

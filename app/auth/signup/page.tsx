@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { createSupabaseClient } from "@/lib/supabase/client"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import TurnstileWidget from "@/components/turnstile-widget"
+import { NAME_MAX_LENGTH, PASSWORD_MAX_LENGTH } from "@/lib/validation"
 
 export default function SignupPage() {
   const router = useRouter()
@@ -26,6 +27,18 @@ export default function SignupPage() {
 
     if (!captchaToken) {
       setError("Please complete the captcha verification.")
+      setLoading(false)
+      return
+    }
+
+    const res = await fetch("/api/auth/signup/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), password }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setError(data?.error ?? "Invalid name or password.")
       setLoading(false)
       return
     }
@@ -94,6 +107,7 @@ export default function SignupPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                maxLength={NAME_MAX_LENGTH}
               />
             </div>
             <div className="space-y-2 min-w-0">
@@ -120,6 +134,7 @@ export default function SignupPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
+                maxLength={PASSWORD_MAX_LENGTH}
               />
             </div>
             <div className="space-y-2 min-w-0">

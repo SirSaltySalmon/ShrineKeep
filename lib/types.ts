@@ -118,6 +118,8 @@ export interface UserSettings {
   wishlist_is_public: boolean
   wishlist_share_token?: string | null
   wishlist_apply_colors: boolean
+  /** When true, show public.users.name; when false, show provider name (e.g. Google). */
+  use_custom_display_name?: boolean
   created_at: string
   updated_at: string
 }

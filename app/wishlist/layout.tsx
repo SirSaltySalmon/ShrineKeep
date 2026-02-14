@@ -34,24 +34,21 @@ export default async function WishlistLayout({
     redirect("/auth/login")
   }
 
-  const { data: user } = await supabase
-    .from("users")
-    .select("name, username")
-    .eq("id", authUser.id)
-    .single()
+  const [{ data: user }, { data: settings }] = await Promise.all([
+    supabase.from("users").select("name, username").eq("id", authUser.id).single(),
+    supabase.from("user_settings").select("use_custom_display_name").eq("user_id", authUser.id).single(),
+  ])
 
-  const storedName = user?.name?.trim()
-  const isDefaultName = storedName && /^user_[a-f0-9]{8}$/i.test(storedName)
-  const fromSession =
+  const providerName =
     (authUser.user_metadata?.name as string | undefined) ??
-    (authUser.user_metadata?.full_name as string | undefined)
-  const displayName =
-    (storedName && !isDefaultName ? storedName : null) ??
-    (fromSession && fromSession.trim() !== "" ? fromSession : null) ??
-    (isDefaultName ? storedName : null) ??
-    user?.username ??
-    authUser.email ??
+    (authUser.user_metadata?.full_name as string | undefined) ??
     null
+  const customName = user?.name && user.name.trim() !== "" ? user.name : null
+  const useCustom = settings?.use_custom_display_name ?? true
+
+  const displayName = useCustom
+    ? (customName ?? providerName ?? user?.username ?? authUser.email ?? null)
+    : (providerName ?? user?.username ?? authUser.email ?? null)
 
   return (
     <div className="min-h-screen bg-background">

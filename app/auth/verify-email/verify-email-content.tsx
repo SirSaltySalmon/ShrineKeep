@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import type { ResendEmailResponse } from "@/app/auth/resend-email/route"
+import type { AuthEmailResponse } from "@/lib/auth-utils"
 
 export default function VerifyEmailContent() {
   const searchParams = useSearchParams()
@@ -14,7 +14,7 @@ export default function VerifyEmailContent() {
     [searchParams]
   )
   const [resendLoading, setResendLoading] = useState(false)
-  const [resendResult, setResendResult] = useState<ResendEmailResponse | null>(null)
+  const [resendResult, setResendResult] = useState<AuthEmailResponse | null>(null)
 
   const handleResend = async () => {
     setResendLoading(true)
@@ -25,7 +25,7 @@ export default function VerifyEmailContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(emailFromUrl ? { email: emailFromUrl } : {}),
       })
-      const data: ResendEmailResponse = await res.json()
+      const data: AuthEmailResponse = await res.json()
       setResendResult(data)
     } catch {
       setResendResult({ ok: false, code: "failed", message: "Could not resend. Try again." })
