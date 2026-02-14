@@ -69,24 +69,38 @@ Detailed instructions available in SETUP.md
      SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
      ```
 
-6. **Set up SerpAPI for image search (Optional)**
+6. **Set up Captcha with Cloudflare Turnstile (Optional)**
+   - This website implements captcha integration for Cloudflare Turnstile
+   - Follow Supabase's guide [here](https://supabase.com/docs/guides/auth/auth-captcha?queryGroups=captcha-method&captcha-method=turnstile-1) up until you inputted your secret key and copied your site key
+   - Add to `.env.local`:
+     ```
+     TURNSTILE_SITEKEY=your-turnstile-sitekey-here
+     ```
+   - If you turn off Captcha in Supabase, this step is optional
+
+7. **Set up SerpAPI for image search (Optional)**
    - Uses the **Google Images Light** engine (minimal data, faster). Sign up at [serpapi.com](https://serpapi.com) and get your API key from [manage-api-key](https://serpapi.com/manage-api-key)
-   - Add to `.env.local` (server-side only; do not use `NEXT_PUBLIC_`):
+   - Add to `.env.local`:
      ```
      SERPAPI_API_KEY=your_serpapi_api_key
      ```
 
-7. **Run the development server**
+8. **Run the development server**
    ```bash
    npm run dev
    ```
 
-8. **Open your browser**
+9. **Open your browser**
    - Navigate to [http://localhost:3000](http://localhost:3000)
 
 ## Deployment
 
 ### Deploy to Vercel
+Before this, make sure to run this at least once:
+   ```bash
+   npm run build
+   ```
+Then, fix any errors if needed.
 
 1. Push your code to GitHub
 2. Import your repository in [Vercel](https://vercel.com)

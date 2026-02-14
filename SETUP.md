@@ -90,7 +90,19 @@ When logging in using Google, configuration is needed to allow redirecting after
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
    ```
 
-## Step 4: Set Up SerpAPI for Image Search (Optional)
+## Step 4: Set up Captcha with Cloudflare Turnstile (Optional)
+
+This website implements captcha integration for Cloudflare Turnstile.
+
+1. Follow Supabase's guide [here](https://supabase.com/docs/guides/auth/auth-captcha?queryGroups=captcha-method&captcha-method=turnstile-1) up until you have input your secret key and copied your site key
+2. Add to `.env.local`:
+   ```
+   TURNSTILE_SITEKEY=your-turnstile-sitekey-here
+   ```
+
+If you turn off Captcha in Supabase, this step is optional.
+
+## Step 5: Set Up SerpAPI for Image Search (Optional)
 
 This is optional but enables the image search feature (search the web for item thumbnails). The app uses SerpAPI’s **Google Images Light** engine (minimal data, faster responses).
 
@@ -104,7 +116,7 @@ This is optional but enables the image search feature (search the web for item t
 
 The free tier includes a limited number of searches per month.
 
-## Step 5: Run the Development Server
+## Step 6: Run the Development Server
 
 ```bash
 npm run dev
@@ -112,7 +124,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Step 6: Create Your First Account
+## Step 7: Create Your First Account
 
 1. Click **Sign up**
 2. Enter a name, email, and password
