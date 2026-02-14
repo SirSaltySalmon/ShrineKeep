@@ -333,7 +333,7 @@ export default function ItemDialog({
         description: description.trim() || null,
         current_value: currentValueNum && !Number.isNaN(currentValueNum) ? currentValueNum : null,
         acquisition_date: isWishlist ? null : (acquisitionDate || null),
-        acquisition_price: isWishlist ? null : (acquisitionPriceNum && !Number.isNaN(acquisitionPriceNum) ? acquisitionPriceNum : null),
+        acquisition_price: isWishlist ? null : (acquisitionPriceNum != null && !Number.isNaN(acquisitionPriceNum) ? acquisitionPriceNum : null),
         expected_price: isWishlist ? (expectedPriceNum && !Number.isNaN(expectedPriceNum) ? expectedPriceNum : null) : null,
         thumbnail_url: photos.find((p) => p.is_thumbnail)?.url ?? null,
         box_id: isWishlist ? null : boxId,

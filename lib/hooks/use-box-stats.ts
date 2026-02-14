@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { format } from "date-fns"
 
 export interface ValuePoint {
   date: string
@@ -78,13 +77,29 @@ export function useBoxStats(
 
   const profit = currentValue - totalAcquisition
   const valueChartData: ValueChartPoint[] = valueHistory.map((p) => ({
-    date: format(new Date(p.date), "MMM dd"),
+    date: p.date,
     value: p.value,
   }))
-  const acquisitionChartData: AcquisitionChartPoint[] = acquisitionHistory.map((p) => ({
-    date: format(new Date(p.date), "MMM dd"),
-    cumulativeAcquisition: p.cumulativeAcquisition,
-  }))
+  const acquisitionChartData: AcquisitionChartPoint[] = (() => {
+    const base = acquisitionHistory.map((p) => ({
+      date: p.date,
+      cumulativeAcquisition: p.cumulativeAcquisition,
+    }))
+    const allDates = [
+      ...valueHistory.map((p) => p.date),
+      ...acquisitionHistory.map((p) => p.date),
+    ].filter(Boolean)
+    if (allDates.length === 0 || base.length === 0) return base
+    const endDate = allDates.reduce((a, b) => (a >= b ? a : b))
+    const last = base[base.length - 1]
+    if (last && last.date < endDate) {
+      return [
+        ...base,
+        { date: endDate, cumulativeAcquisition: last.cumulativeAcquisition },
+      ]
+    }
+    return base
+  })()
 
   return {
     valueHistory,

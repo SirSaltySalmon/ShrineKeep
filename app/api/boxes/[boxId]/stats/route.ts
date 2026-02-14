@@ -136,10 +136,10 @@ export async function GET(
     }))
 
     const acquisitionEntries = items
-      .filter((i) => i.acquisition_date && i.acquisition_price != null)
+      .filter((i) => i.acquisition_date)
       .map((i) => ({
         date: i.acquisition_date!,
-        price: parseFloat(String(i.acquisition_price)),
+        price: Number(i.acquisition_price) || 0,
       }))
       .sort((a, b) => a.date.localeCompare(b.date))
 

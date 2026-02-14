@@ -10,6 +10,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts"
+import { format } from "date-fns"
 import { formatCurrency } from "@/lib/utils"
 import type { ValueChartPoint, AcquisitionChartPoint } from "@/lib/hooks/use-box-stats"
 
@@ -45,8 +46,9 @@ function getGraphAcquisitionColor(): string {
 // Export functions (these are now functions, not constants, to read CSS variables dynamically)
 export { getValueColor, getAcquisitionColor, getGraphValueColor, getGraphAcquisitionColor }
 
-/** Short format for Y-axis so labels fit (e.g. $900, $1.2k). */
+/** Short format for Y-axis so labels fit (e.g. $900, $1.2k, $2.5M). */
 function formatAxisCurrency(value: number): string {
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1000) return `$${(value / 1000).toFixed(1)}k`
   return `$${Math.round(value)}`
 }
@@ -121,6 +123,9 @@ export function BoxStatsSummary({
   )
 }
 
+/** Data point with numeric time for shared X scale. */
+type ChartPointWithMs<T> = T & { dateMs: number }
+
 /** Shared line chart for currency-over-time (value or acquisition). */
 interface CurrencyLineChartProps<T extends { date: string }> {
   data: T[]
@@ -130,6 +135,8 @@ interface CurrencyLineChartProps<T extends { date: string }> {
   lineName: string
   color: string
   tooltipProps?: { wrapperStyle: object; contentStyle: object }
+  /** When set, both charts share this time scale [minMs, maxMs]. */
+  xDomain?: [number, number]
 }
 
 function CurrencyLineChart<T extends { date: string }>({
@@ -140,6 +147,7 @@ function CurrencyLineChart<T extends { date: string }>({
   lineName,
   color,
   tooltipProps,
+  xDomain,
 }: CurrencyLineChartProps<T>) {
   if (data.length === 0) {
     return (
@@ -149,13 +157,23 @@ function CurrencyLineChart<T extends { date: string }>({
       </div>
     )
   }
+  const dataWithMs: ChartPointWithMs<T>[] = data.map((d) => ({
+    ...d,
+    dateMs: new Date(d.date).getTime(),
+  }))
   return (
     <div>
       <h3 className="text-sm font-semibold mb-2">{title}</h3>
       <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={data}>
+        <LineChart data={dataWithMs}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" />
+          <XAxis
+            dataKey="dateMs"
+            type="number"
+            domain={xDomain}
+            tick={{ fontSize: 12 }}
+            tickFormatter={(ms) => format(new Date(ms), "MMM d")}
+          />
           <YAxis
             width={40}
             tickFormatter={formatAxisCurrency}
@@ -163,6 +181,7 @@ function CurrencyLineChart<T extends { date: string }>({
           />
           <Tooltip
             formatter={(value: number) => formatCurrency(value)}
+            labelFormatter={(label) => format(new Date(Number(label)), "MMM d, yyyy")}
             {...(tooltipProps ?? {})}
           />
           <Legend />
@@ -186,6 +205,19 @@ interface BoxStatsChartsProps {
   tooltipInModal?: boolean
 }
 
+function getSharedTimeDomain(
+  valueData: ValueChartPoint[],
+  acquisitionData: AcquisitionChartPoint[]
+): [number, number] | undefined {
+  const dates = [
+    ...valueData.map((p) => p.date),
+    ...acquisitionData.map((p) => p.date),
+  ].filter(Boolean)
+  if (dates.length === 0) return undefined
+  const ms = dates.map((d) => new Date(d).getTime())
+  return [Math.min(...ms), Math.max(...ms)]
+}
+
 export function BoxStatsCharts({
   valueChartData,
   acquisitionChartData,
@@ -197,6 +229,7 @@ export function BoxStatsCharts({
 
   const graphValueColor = getGraphValueColor()
   const graphAcquisitionColor = getGraphAcquisitionColor()
+  const xDomain = getSharedTimeDomain(valueChartData, acquisitionChartData)
 
   return (
     <div className="space-y-6">
@@ -208,6 +241,7 @@ export function BoxStatsCharts({
         lineName="Total value"
         color={graphValueColor}
         tooltipProps={tooltipProps}
+        xDomain={xDomain}
       />
       <CurrencyLineChart
         data={acquisitionChartData}
@@ -217,6 +251,7 @@ export function BoxStatsCharts({
         lineName="Acquisition cost"
         color={graphAcquisitionColor}
         tooltipProps={tooltipProps}
+        xDomain={xDomain}
       />
     </div>
   )
