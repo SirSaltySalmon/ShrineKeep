@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -24,6 +24,7 @@ export default function ImageSearch({
   const [images, setImages] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set())
+  const selectedByPointerRef = useRef(false)
 
   const searchImages = async () => {
     if (!searchQuery.trim()) return
@@ -66,7 +67,10 @@ export default function ImageSearch({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto min-w-0">
+      <DialogContent
+        className="max-w-4xl max-h-[90vh] overflow-y-auto min-w-0 z-[100]"
+        onPointerDownOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader className="min-w-0">
           <DialogTitle>Search for Images</DialogTitle>
           <DialogDescription>
@@ -99,8 +103,32 @@ export default function ImageSearch({
               {images.map((url, index) => (
                 <div
                   key={`${index}-${url.slice(0, 40)}`}
-                  className="relative aspect-square cursor-pointer hover:opacity-80 transition-opacity border rounded-lg overflow-hidden bg-muted"
-                  onClick={() => !failedUrls.has(url) && onSelectImage(url)}
+                  role="button"
+                  tabIndex={0}
+                  className="relative aspect-square cursor-pointer hover:opacity-80 active:opacity-90 transition-opacity border rounded-lg overflow-hidden bg-muted touch-manipulation"
+                  onClick={() => {
+                    // Skip if we already handled via pointer down (avoids double-add on mobile).
+                    if (selectedByPointerRef.current) {
+                      selectedByPointerRef.current = false
+                      return
+                    }
+                    if (!failedUrls.has(url)) onSelectImage(url)
+                  }}
+                  onPointerDown={(e) => {
+                    // Handle selection on pointer down so it works on mobile before
+                    // any "interact outside" logic can close the dialog.
+                    if (failedUrls.has(url)) return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    selectedByPointerRef.current = true
+                    onSelectImage(url)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      if (!failedUrls.has(url)) onSelectImage(url)
+                    }
+                  }}
                 >
                   {failedUrls.has(url) ? (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-2 text-center text-muted-foreground text-fluid-sm">
@@ -112,7 +140,7 @@ export default function ImageSearch({
                       src={url}
                       alt={`Search result ${index + 1}`}
                       fill
-                      className="object-cover"
+                      className="object-cover pointer-events-none"
                       unoptimized
                       onError={() => handleImageError(url)}
                     />
