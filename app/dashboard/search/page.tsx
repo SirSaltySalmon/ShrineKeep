@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import SearchResultsClient from "./search-results-client"
@@ -24,5 +25,9 @@ export default async function DashboardSearchPage({
 
   const { q } = await searchParams
 
-  return <SearchResultsClient user={user} initialQuery={q ?? ""} />
+  return (
+    <Suspense fallback={<div className="container mx-auto px-4 py-8 min-w-0">Loading search…</div>}>
+      <SearchResultsClient user={user} initialQuery={q ?? ""} />
+    </Suspense>
+  )
 }
