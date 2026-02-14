@@ -24,7 +24,38 @@ export default function ImageSearch({
   const [images, setImages] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set())
+  /** Tracks selection handled in pointerdown to avoid double-add when click also fires (e.g. desktop). */
   const selectedByPointerRef = useRef(false)
+
+  const handleSelectImage = useCallback(
+    (url: string) => {
+      if (failedUrls.has(url)) return
+      onSelectImage(url)
+    },
+    [failedUrls, onSelectImage]
+  )
+
+  const handleImagePointerDown = useCallback(
+    (url: string, e: React.PointerEvent) => {
+      if (failedUrls.has(url)) return
+      e.preventDefault()
+      e.stopPropagation()
+      selectedByPointerRef.current = true
+      handleSelectImage(url)
+    },
+    [failedUrls, handleSelectImage]
+  )
+
+  const handleImageClick = useCallback(
+    (url: string) => {
+      if (selectedByPointerRef.current) {
+        selectedByPointerRef.current = false
+        return
+      }
+      handleSelectImage(url)
+    },
+    [handleSelectImage]
+  )
 
   const searchImages = async () => {
     if (!searchQuery.trim()) return
@@ -106,27 +137,12 @@ export default function ImageSearch({
                   role="button"
                   tabIndex={0}
                   className="relative aspect-square cursor-pointer hover:opacity-80 active:opacity-90 transition-opacity border rounded-lg overflow-hidden bg-muted touch-manipulation"
-                  onClick={() => {
-                    // Skip if we already handled via pointer down (avoids double-add on mobile).
-                    if (selectedByPointerRef.current) {
-                      selectedByPointerRef.current = false
-                      return
-                    }
-                    if (!failedUrls.has(url)) onSelectImage(url)
-                  }}
-                  onPointerDown={(e) => {
-                    // Handle selection on pointer down so it works on mobile before
-                    // any "interact outside" logic can close the dialog.
-                    if (failedUrls.has(url)) return
-                    e.preventDefault()
-                    e.stopPropagation()
-                    selectedByPointerRef.current = true
-                    onSelectImage(url)
-                  }}
+                  onClick={() => handleImageClick(url)}
+                  onPointerDown={(e) => handleImagePointerDown(url, e)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault()
-                      if (!failedUrls.has(url)) onSelectImage(url)
+                      handleSelectImage(url)
                     }
                   }}
                 >

@@ -435,8 +435,6 @@ export default function ItemDialog({
         <DialogContent
           className="max-w-2xl max-h-[90vh] overflow-y-auto min-w-0"
           onInteractOutside={(e) => {
-            // Prevent closing when a nested overlay (gallery or image search) is open—
-            // on mobile, touch can be reported as "outside" and close the dialog.
             if (galleryOpen || showImageSearch) e.preventDefault()
           }}
         >
@@ -602,12 +600,12 @@ export default function ItemDialog({
                 ))}
               </div>
               {photos.length < MAX_PHOTOS && (
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" onClick={() => setShowImageSearch(true)}>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <Button type="button" variant="outline" onClick={() => setShowImageSearch(true)} className="shrink-0">
                     <SearchIcon className="h-4 w-4 mr-2" />
                     Search Images
                   </Button>
-                  <label className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2 cursor-pointer disabled:pointer-events-none disabled:opacity-50 relative min-w-0">
+                  <label className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer disabled:pointer-events-none disabled:opacity-50 relative shrink-0 min-w-0 touch-manipulation">
                     <Upload className="h-4 w-4 mr-2" />
                     {uploading ? "Uploading…" : "Upload"}
                     <input
@@ -617,7 +615,7 @@ export default function ItemDialog({
                       multiple
                       onChange={handleFileUpload}
                       disabled={uploading}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer touch-manipulation"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                       aria-label="Upload images"
                     />
                   </label>

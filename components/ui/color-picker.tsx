@@ -72,7 +72,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 h-10 px-3 rounded-md border border-input bg-background text-sm"
+          className="flex-1 h-10 px-3 rounded-md border border-input bg-background text-base sm:text-sm"
           placeholder="222.2 47.4% 11.2%"
         />
       </div>

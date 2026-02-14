@@ -67,18 +67,27 @@ export default function ImageGalleryCarousel({
   const current = images[index]
   const hasMultiple = images.length > 1
 
-  const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation()
+  const isGalleryControl = (target: EventTarget | null): boolean =>
+    target instanceof Element && target.closest("[data-gallery-control]") !== null
+
+  const blockNonControlInteraction = (e: React.PointerEvent | React.MouseEvent) => {
+    if (isGalleryControl(e.target)) return
+    e.preventDefault()
+    e.stopPropagation()
+  }
 
   const content = (
     <div
-      className="fixed inset-0 flex flex-col bg-black/95"
+      className="fixed inset-0 flex flex-col bg-black/95 pointer-events-auto"
       style={{ zIndex: 9999 }}
       role="dialog"
       aria-modal="true"
       aria-label="Image gallery"
-      onClick={stopPropagation}
-      onMouseDown={stopPropagation}
-      onPointerDown={stopPropagation}
+      onPointerDownCapture={blockNonControlInteraction}
+      onPointerUpCapture={blockNonControlInteraction}
+      onClickCapture={blockNonControlInteraction}
+      onMouseDownCapture={blockNonControlInteraction}
+      onMouseUpCapture={blockNonControlInteraction}
     >
       <div className="absolute right-2 top-2 z-20 shrink-0">
         <Button
@@ -88,6 +97,7 @@ export default function ImageGalleryCarousel({
           className="relative z-20 h-10 w-10 rounded-full text-white hover:bg-white/20 pointer-events-auto"
           onClick={() => onOpenChange(false)}
           aria-label="Close gallery"
+          data-gallery-control
         >
           <X className="h-6 w-6" />
         </Button>
@@ -101,6 +111,7 @@ export default function ImageGalleryCarousel({
             size="icon"
             className="absolute left-2 top-1/2 z-20 -translate-y-1/2 h-12 w-12 shrink-0 rounded-full text-white hover:bg-white/20 pointer-events-auto"
             onClick={goPrev}
+            data-gallery-control
             aria-label="Previous image"
           >
             <ChevronLeft className="h-8 w-8" />
@@ -127,15 +138,16 @@ export default function ImageGalleryCarousel({
             className="absolute right-2 top-1/2 z-20 -translate-y-1/2 h-12 w-12 shrink-0 rounded-full text-white hover:bg-white/20 pointer-events-auto"
             onClick={goNext}
             aria-label="Next image"
+            data-gallery-control
           >
             <ChevronRight className="h-8 w-8" />
           </Button>
         )}
       </div>
 
-      {hasMultiple && (
-        <div className="flex justify-center gap-1.5 pb-6 pt-2 shrink-0 pointer-events-auto">
-          {images.slice(0, MAX_IMAGES).map((img, i) => (
+        {hasMultiple && (
+          <div className="flex justify-center gap-1.5 pb-6 pt-2 shrink-0 pointer-events-auto" data-gallery-control>
+            {images.slice(0, MAX_IMAGES).map((img, i) => (
             <button
               key={i}
               type="button"
