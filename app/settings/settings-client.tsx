@@ -16,7 +16,6 @@ import {
   type ColorSchemePreset,
 } from "@/lib/settings"
 import { UserSettings, ColorScheme } from "@/lib/types"
-import { generateShareToken } from "@/lib/settings"
 import { Upload } from "lucide-react"
 
 export interface InitialProfile {
@@ -89,7 +88,6 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
           color_scheme: colorScheme,
           wishlist_is_public: wishlistIsPublic,
           wishlist_apply_colors: wishlistApplyColors,
-          wishlist_share_token: wishlistShareToken,
           use_custom_display_name: useCustomDisplayName,
           name: displayName,
         }),
@@ -170,10 +168,6 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   }
 
   const handleRegenerateToken = async () => {
-    const newToken = generateShareToken()
-    setWishlistShareToken(newToken)
-
-    // Save immediately
     try {
       const response = await fetch("/api/settings", {
         method: "PUT",
@@ -181,13 +175,16 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          wishlist_share_token: newToken,
+          regenerate_wishlist_token: true,
         }),
       })
 
+      const updated = await response.json()
       if (!response.ok) {
-        throw new Error("Failed to regenerate token")
+        throw new Error(updated?.error ?? "Failed to regenerate token")
       }
+      setWishlistShareToken(updated.wishlist_share_token ?? null)
+      router.refresh()
     } catch (error) {
       console.error("Error regenerating token:", error)
       alert("Failed to regenerate token. Please try again.")

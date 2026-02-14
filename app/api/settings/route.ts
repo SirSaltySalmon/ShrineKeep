@@ -66,7 +66,7 @@ export async function PUT(request: NextRequest) {
       color_scheme,
       wishlist_is_public,
       wishlist_apply_colors,
-      wishlist_share_token,
+      regenerate_wishlist_token,
       use_custom_display_name,
       name: displayName,
       avatar_url: avatarUrl,
@@ -101,19 +101,14 @@ export async function PUT(request: NextRequest) {
       updateData.color_scheme = color_scheme
     }
 
-    // Handle wishlist_share_token if explicitly provided
-    if (wishlist_share_token !== undefined) {
-      updateData.wishlist_share_token = wishlist_share_token
-    }
-
-    if (wishlist_is_public !== undefined) {
+    // Wishlist share token is server-only: never accept from client; generate or clear on server.
+    if (regenerate_wishlist_token) {
+      updateData.wishlist_share_token = generateShareToken()
+    } else if (wishlist_is_public !== undefined) {
       updateData.wishlist_is_public = wishlist_is_public
-
-      // Generate share token if making public and token doesn't exist (only if not already set above)
-      if (wishlist_is_public && !existing?.wishlist_share_token && wishlist_share_token === undefined) {
+      if (wishlist_is_public && !existing?.wishlist_share_token) {
         updateData.wishlist_share_token = generateShareToken()
-      } else if (!wishlist_is_public && wishlist_share_token === undefined) {
-        // Clear token when making private (only if not explicitly set)
+      } else if (!wishlist_is_public) {
         updateData.wishlist_share_token = null
       }
     }
@@ -158,7 +153,14 @@ export async function PUT(request: NextRequest) {
       userUpdates.name = displayName.trim()
     }
     if (avatarUrl !== undefined) {
-      userUpdates.avatar_url = typeof avatarUrl === "string" ? avatarUrl : null
+      const allowed =
+        avatarUrl === null ||
+        avatarUrl === "" ||
+        (typeof avatarUrl === "string" &&
+          avatarUrl.startsWith(
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""}/storage/v1/object/public/avatars/${user.id}/`
+          ))
+      userUpdates.avatar_url = allowed ? (avatarUrl || null) : null
     }
     if (userUpdates.name !== undefined || userUpdates.avatar_url !== undefined) {
       await supabase.from("users").update(userUpdates).eq("id", user.id)

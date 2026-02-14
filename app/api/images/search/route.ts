@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 /**
  * SerpAPI image search proxy (google_images_light engine).
  * Light engine returns minimal data (thumbnails/URLs only)—sufficient for picking a thumbnail.
- * Keeps SERPAPI_API_KEY server-side; client calls this route with ?q=query.
+ * Keeps SERPAPI_API_KEY server-side; requires authentication.
  */
 export async function GET(request: NextRequest) {
+  const supabase = await createSupabaseServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   const apiKey = process.env.SERPAPI_API_KEY
   if (!apiKey) {
     return NextResponse.json(
