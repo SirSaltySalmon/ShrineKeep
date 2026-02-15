@@ -22,8 +22,8 @@ export function LandingHeroImage({ src_index = 0 }: { src_index?: number }) {
       src={src}
       alt="ShrineKeep Dashboard"
       fill
-      className="object-cover"
-      sizes="(max-width: 761px) 1649px, 761px"
+      className="object-cover object-top"
+      sizes="(max-width: 1649px) 100vw, 1649px"
       unoptimized
     />
   )

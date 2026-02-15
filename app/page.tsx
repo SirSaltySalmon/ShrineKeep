@@ -90,10 +90,15 @@ export default async function Home() {
             </div>
           </div>
 
-          {/* Featured Image - add /hero.png to public folder for your dashboard preview */}
-          <div className="mt-12 rounded-2xl overflow-hidden shadow-2xl max-w-4xl border border-border bg-muted">
-            <div className="aspect-video w-full relative">
-              <LandingHeroImage />
+          {/* Featured images: 1649×761 (wide banner) */}
+          <div className="mt-12 rounded-2xl overflow-hidden shadow-2xl border border-border bg-muted w-full max-w-[1649px]">
+            <div className="w-full relative" style={{ aspectRatio: "1649 / 761" }}>
+              <LandingHeroImage src_index={0} />
+            </div>
+          </div>
+          <div className="mt-12 rounded-2xl overflow-hidden shadow-2xl border border-border bg-muted w-full max-w-[1649px] ml-auto">
+            <div className="w-full relative" style={{ aspectRatio: "1649 / 761" }}>
+              <LandingHeroImage src_index={1} />
             </div>
           </div>
 
