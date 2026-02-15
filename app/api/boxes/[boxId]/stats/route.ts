@@ -26,6 +26,10 @@ export async function GET(
       return NextResponse.json({ error: "boxId required" }, { status: 400 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const fromDate = searchParams.get("fromDate") ?? undefined // YYYY-MM-DD
+    const toDate = searchParams.get("toDate") ?? undefined
+
     const userId = user.id
     const isRoot = boxId === "root"
 
@@ -130,7 +134,7 @@ export async function GET(
       return dateStr >= today ? (itemCurrentValue.get(itemId) ?? 0) : 0
     }
 
-    const valueHistory: ValuePoint[] = sortedDates.map((date) => ({
+    let valueHistory: ValuePoint[] = sortedDates.map((date) => ({
       date,
       value: itemIds.reduce((sum, id) => sum + getValueAsOf(id, date), 0),
     }))
@@ -149,9 +153,18 @@ export async function GET(
       cumulative += e.price
       byDate.set(e.date.slice(0, 10), cumulative)
     }
-    const acquisitionHistory: AcquisitionPoint[] = Array.from(byDate.entries())
+    let acquisitionHistory: AcquisitionPoint[] = Array.from(byDate.entries())
       .map(([date, cumulativeAcquisition]) => ({ date, cumulativeAcquisition }))
       .sort((a, b) => a.date.localeCompare(b.date))
+
+    if (fromDate) {
+      valueHistory = valueHistory.filter((p) => p.date >= fromDate)
+      acquisitionHistory = acquisitionHistory.filter((p) => p.date >= fromDate)
+    }
+    if (toDate) {
+      valueHistory = valueHistory.filter((p) => p.date <= toDate)
+      acquisitionHistory = acquisitionHistory.filter((p) => p.date <= toDate)
+    }
 
     return NextResponse.json({
       valueHistory,

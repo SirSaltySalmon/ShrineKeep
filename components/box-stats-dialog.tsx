@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -9,12 +10,14 @@ import {
 } from "@/components/ui/dialog"
 import { useBoxStats } from "@/lib/hooks/use-box-stats"
 import { BoxStatsSummary, BoxStatsCharts } from "@/components/box-stats-content"
+import { DateRangeFilter } from "@/components/date-range-filter"
 
 interface BoxStatsDialogProps {
   boxId: string
   boxName: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  graphOverlay?: boolean
 }
 
 export default function BoxStatsDialog({
@@ -22,7 +25,10 @@ export default function BoxStatsDialog({
   boxName,
   open,
   onOpenChange,
+  graphOverlay = true,
 }: BoxStatsDialogProps) {
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
   const {
     currentValue,
     totalAcquisition,
@@ -30,7 +36,11 @@ export default function BoxStatsDialog({
     valueChartData,
     acquisitionChartData,
     loading,
-  } = useBoxStats(boxId, { enabled: open })
+  } = useBoxStats(boxId, {
+    enabled: open,
+    fromDate: fromDate || undefined,
+    toDate: toDate || undefined,
+  })
 
   const scopeLabel = boxId === "root" ? "Root" : "Box"
 
@@ -55,10 +65,23 @@ export default function BoxStatsDialog({
               profit={profit}
               variant="cards"
             />
+            <DateRangeFilter
+              fromDate={fromDate}
+              toDate={toDate}
+              onFromDateChange={setFromDate}
+              onToDateChange={setToDate}
+              onReset={() => {
+                setFromDate("")
+                setToDate("")
+              }}
+            />
             <BoxStatsCharts
               valueChartData={valueChartData}
               acquisitionChartData={acquisitionChartData}
+              graphOverlay={graphOverlay}
               tooltipInModal
+              fromDate={fromDate || undefined}
+              toDate={toDate || undefined}
             />
           </div>
         )}

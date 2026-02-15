@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Copy, RefreshCw } from "lucide-react"
 
 interface WishlistSettingsProps {
@@ -48,27 +50,21 @@ export function WishlistSettings({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
-            <label className="text-fluid-sm font-medium">
-              Make wishlist public
-            </label>
+            <Label>Make wishlist public</Label>
             <p className="text-fluid-xs text-muted-foreground">
               Allow others to view your wishlist via a shareable link
             </p>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={wishlistIsPublic}
-              onChange={(e) => onPublicChange(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-          </label>
+          <Switch
+            checked={wishlistIsPublic}
+            onCheckedChange={onPublicChange}
+            aria-label="Make wishlist public"
+          />
         </div>
 
         {wishlistIsPublic && (
           <div className="space-y-2">
-            <label className="text-fluid-sm font-medium">Shareable link</label>
+            <Label>Shareable link</Label>
             <div className="flex gap-2">
               <Input
                 value={shareUrl || "Save settings to get link"}
@@ -112,22 +108,16 @@ export function WishlistSettings({
         {wishlistIsPublic && (
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <label className="text-fluid-sm font-medium">
-                Apply custom colors to public view
-              </label>
+              <Label>Apply custom colors to public view</Label>
               <p className="text-fluid-xs text-muted-foreground">
                 Visitors will see your wishlist with your custom color scheme
               </p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={wishlistApplyColors}
-                onChange={(e) => onApplyColorsChange(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-            </label>
+            <Switch
+              checked={wishlistApplyColors}
+              onCheckedChange={onApplyColorsChange}
+              aria-label="Apply custom colors to public view"
+            />
           </div>
         )}
       </div>

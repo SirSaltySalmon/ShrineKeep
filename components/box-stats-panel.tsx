@@ -5,15 +5,19 @@ import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronUp } from "lucide-react"
 import { useBoxStats } from "@/lib/hooks/use-box-stats"
 import { BoxStatsSummary, BoxStatsCharts } from "@/components/box-stats-content"
+import { DateRangeFilter } from "@/components/date-range-filter"
 
 interface BoxStatsPanelProps {
   boxId: string
   boxName: string
   refreshKey?: number
+  graphOverlay?: boolean
 }
 
-export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0 }: BoxStatsPanelProps) {
+export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0, graphOverlay = true }: BoxStatsPanelProps) {
   const [expanded, setExpanded] = useState(false)
+  const [fromDate, setFromDate] = useState("")
+  const [toDate, setToDate] = useState("")
   const {
     currentValue,
     totalAcquisition,
@@ -21,7 +25,12 @@ export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0 }: BoxSta
     valueChartData,
     acquisitionChartData,
     loading,
-  } = useBoxStats(boxId, { enabled: true, refreshKey })
+  } = useBoxStats(boxId, {
+    enabled: true,
+    refreshKey,
+    fromDate: fromDate || undefined,
+    toDate: toDate || undefined,
+  })
 
   if (loading) {
     return (
@@ -65,10 +74,23 @@ export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0 }: BoxSta
       </div>
 
       {expanded && (
-        <div className="border-t bg-muted/20 px-4 py-4">
+        <div className="border-t bg-muted/20 px-4 py-4 space-y-4">
+          <DateRangeFilter
+            fromDate={fromDate}
+            toDate={toDate}
+            onFromDateChange={setFromDate}
+            onToDateChange={setToDate}
+            onReset={() => {
+              setFromDate("")
+              setToDate("")
+            }}
+          />
           <BoxStatsCharts
             valueChartData={valueChartData}
             acquisitionChartData={acquisitionChartData}
+            graphOverlay={graphOverlay}
+            fromDate={fromDate || undefined}
+            toDate={toDate || undefined}
           />
         </div>
       )}

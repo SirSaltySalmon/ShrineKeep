@@ -4,6 +4,9 @@ import * as React from "react"
 import { HexColorPicker } from "react-colorful"
 import { cn } from "@/lib/utils"
 import { hslToHex, hexToHsl } from "@/lib/settings"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 // Re-export for convenience
 export { hslToHex, hexToHsl }
@@ -58,22 +61,24 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
   return (
     <div ref={containerRef} className={cn("relative", className)}>
       {label && (
-        <label className="text-fluid-sm font-medium mb-2 block">{label}</label>
+        <Label className="mb-2 block">{label}</Label>
       )}
       <div className="flex items-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="icon"
           onClick={() => setIsOpen(!isOpen)}
-          className="w-10 h-10 rounded border-2 border-border cursor-pointer hover:opacity-80 transition-opacity"
+          className="w-10 h-10 shrink-0 border-2"
           style={{ backgroundColor: `hsl(${value})` }}
           aria-label={`Pick color for ${label || "color"}`}
         />
-        <input
+        <Input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-1 h-10 px-3 rounded-md border border-input bg-background text-base sm:text-sm"
           placeholder="222.2 47.4% 11.2%"
+          className="flex-1 min-w-0"
         />
       </div>
       {isOpen && (

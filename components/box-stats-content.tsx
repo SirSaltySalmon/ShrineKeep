@@ -1,20 +1,10 @@
 "use client"
 
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts"
-import { format } from "date-fns"
 import { formatCurrency } from "@/lib/utils"
 import type { ValueChartPoint, AcquisitionChartPoint } from "@/lib/hooks/use-box-stats"
+import { ValueAcquisitionCharts } from "./value-acquisition-charts"
 
-// Get colors from CSS variables with fallbacks
+// Get colors from CSS variables with fallbacks (used by summary cards and other components)
 function getValueColor(): string {
   if (typeof window === "undefined") return "#22c55e"
   const root = document.documentElement
@@ -29,32 +19,8 @@ function getAcquisitionColor(): string {
   return value ? `hsl(${value})` : "#ef4444"
 }
 
-function getGraphValueColor(): string {
-  if (typeof window === "undefined") return "#22c55e"
-  const root = document.documentElement
-  const value = getComputedStyle(root).getPropertyValue("--graph-value-color").trim()
-  return value ? `hsl(${value})` : "#22c55e"
-}
-
-function getGraphAcquisitionColor(): string {
-  if (typeof window === "undefined") return "#ef4444"
-  const root = document.documentElement
-  const value = getComputedStyle(root).getPropertyValue("--graph-acquisition-color").trim()
-  return value ? `hsl(${value})` : "#ef4444"
-}
-
-// Export functions (these are now functions, not constants, to read CSS variables dynamically)
-export { getValueColor, getAcquisitionColor, getGraphValueColor, getGraphAcquisitionColor }
-
-/** Short format for Y-axis so labels fit (e.g. $900, $1.2k, $2.5M). */
-function formatAxisCurrency(value: number): string {
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
-  if (value >= 1000) return `$${(value / 1000).toFixed(1)}k`
-  return `$${Math.round(value)}`
-}
-
-const tooltipWrapperStyle = { maxWidth: "90vw", minWidth: 120, overflowX: "auto" as const }
-const tooltipContentStyle = { minWidth: 0 }
+export { getValueColor, getAcquisitionColor }
+export { getGraphValueColor, getGraphAcquisitionColor } from "./value-acquisition-charts"
 
 interface BoxStatsSummaryProps {
   currentValue: number
@@ -123,136 +89,34 @@ export function BoxStatsSummary({
   )
 }
 
-/** Data point with numeric time for shared X scale. */
-type ChartPointWithMs<T> = T & { dateMs: number }
-
-/** Shared line chart for currency-over-time (value or acquisition). */
-interface CurrencyLineChartProps<T extends { date: string }> {
-  data: T[]
-  dataKey: keyof T & string
-  title: string
-  emptyMessage: string
-  lineName: string
-  color: string
-  tooltipProps?: { wrapperStyle: object; contentStyle: object }
-  /** When set, both charts share this time scale [minMs, maxMs]. */
-  xDomain?: [number, number]
-}
-
-function CurrencyLineChart<T extends { date: string }>({
-  data,
-  dataKey,
-  title,
-  emptyMessage,
-  lineName,
-  color,
-  tooltipProps,
-  xDomain,
-}: CurrencyLineChartProps<T>) {
-  if (data.length === 0) {
-    return (
-      <div>
-        <h3 className="text-sm font-semibold mb-2">{title}</h3>
-        <p className="text-sm text-muted-foreground py-4">{emptyMessage}</p>
-      </div>
-    )
-  }
-  const dataWithMs: ChartPointWithMs<T>[] = data.map((d) => ({
-    ...d,
-    dateMs: new Date(d.date).getTime(),
-  }))
-  return (
-    <div>
-      <h3 className="text-sm font-semibold mb-2">{title}</h3>
-      <ResponsiveContainer width="100%" height={220}>
-        <LineChart data={dataWithMs}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis
-            dataKey="dateMs"
-            type="number"
-            domain={xDomain}
-            tick={{ fontSize: 12 }}
-            tickFormatter={(ms) => format(new Date(ms), "MMM d")}
-          />
-          <YAxis
-            width={40}
-            tickFormatter={formatAxisCurrency}
-            tick={{ fontSize: 12 }}
-          />
-          <Tooltip
-            formatter={(value: number) => formatCurrency(value)}
-            labelFormatter={(label) => format(new Date(Number(label)), "MMM d, yyyy")}
-            {...(tooltipProps ?? {})}
-          />
-          <Legend />
-          <Line
-            type="monotone"
-            dataKey={dataKey}
-            stroke={color}
-            strokeWidth={2}
-            name={lineName}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  )
-}
-
 interface BoxStatsChartsProps {
   valueChartData: ValueChartPoint[]
   acquisitionChartData: AcquisitionChartPoint[]
+  /** When true, draw value and acquisition on one chart; when false, two separate charts. */
+  graphOverlay?: boolean
   /** Use true in dialog for tooltip overflow. */
   tooltipInModal?: boolean
-}
-
-function getSharedTimeDomain(
-  valueData: ValueChartPoint[],
-  acquisitionData: AcquisitionChartPoint[]
-): [number, number] | undefined {
-  const dates = [
-    ...valueData.map((p) => p.date),
-    ...acquisitionData.map((p) => p.date),
-  ].filter(Boolean)
-  if (dates.length === 0) return undefined
-  const ms = dates.map((d) => new Date(d).getTime())
-  return [Math.min(...ms), Math.max(...ms)]
+  /** When both set, x-axis shows this full range even if there are no points on some dates. */
+  fromDate?: string
+  toDate?: string
 }
 
 export function BoxStatsCharts({
   valueChartData,
   acquisitionChartData,
+  graphOverlay = true,
   tooltipInModal = false,
+  fromDate,
+  toDate,
 }: BoxStatsChartsProps) {
-  const tooltipProps = tooltipInModal
-    ? { wrapperStyle: tooltipWrapperStyle, contentStyle: tooltipContentStyle }
-    : undefined
-
-  const graphValueColor = getGraphValueColor()
-  const graphAcquisitionColor = getGraphAcquisitionColor()
-  const xDomain = getSharedTimeDomain(valueChartData, acquisitionChartData)
-
   return (
-    <div className="space-y-6">
-      <CurrencyLineChart
-        data={valueChartData}
-        dataKey="value"
-        title="Total value over time"
-        emptyMessage="No value history. Update item values to see the graph."
-        lineName="Total value"
-        color={graphValueColor}
-        tooltipProps={tooltipProps}
-        xDomain={xDomain}
-      />
-      <CurrencyLineChart
-        data={acquisitionChartData}
-        dataKey="cumulativeAcquisition"
-        title="Cumulative acquisition cost"
-        emptyMessage="No acquisition data. Add acquisition date and price to items to see the graph."
-        lineName="Acquisition cost"
-        color={graphAcquisitionColor}
-        tooltipProps={tooltipProps}
-        xDomain={xDomain}
-      />
-    </div>
+    <ValueAcquisitionCharts
+      valueChartData={valueChartData}
+      acquisitionChartData={acquisitionChartData}
+      graphOverlay={graphOverlay}
+      tooltipInModal={tooltipInModal}
+      fromDate={fromDate}
+      toDate={toDate}
+    />
   )
 }

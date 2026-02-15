@@ -27,6 +27,10 @@ export interface UseBoxStatsOptions {
   enabled?: boolean
   /** Change to refetch (e.g. panel refresh). */
   refreshKey?: number
+  /** Filter series to dates >= fromDate (YYYY-MM-DD). */
+  fromDate?: string
+  /** Filter series to dates <= toDate (YYYY-MM-DD). */
+  toDate?: string
 }
 
 export interface UseBoxStatsResult {
@@ -44,7 +48,7 @@ export function useBoxStats(
   boxId: string,
   options: UseBoxStatsOptions = {}
 ): UseBoxStatsResult {
-  const { enabled = true, refreshKey = 0 } = options
+  const { enabled = true, refreshKey = 0, fromDate, toDate } = options
 
   const [valueHistory, setValueHistory] = useState<ValuePoint[]>([])
   const [acquisitionHistory, setAcquisitionHistory] = useState<AcquisitionPoint[]>([])
@@ -55,7 +59,11 @@ export function useBoxStats(
   useEffect(() => {
     if (!enabled || !boxId) return
     setLoading(true)
-    fetch(`/api/boxes/${boxId}/stats`)
+    const params = new URLSearchParams()
+    if (fromDate) params.set("fromDate", fromDate)
+    if (toDate) params.set("toDate", toDate)
+    const query = params.toString()
+    fetch(`/api/boxes/${boxId}/stats${query ? `?${query}` : ""}`)
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load")
         return res.json()
@@ -73,7 +81,7 @@ export function useBoxStats(
         setTotalAcquisition(0)
       })
       .finally(() => setLoading(false))
-  }, [enabled, boxId, refreshKey])
+  }, [enabled, boxId, refreshKey, fromDate, toDate])
 
   const profit = currentValue - totalAcquisition
   const valueChartData: ValueChartPoint[] = valueHistory.map((p) => ({

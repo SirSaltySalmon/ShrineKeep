@@ -7,6 +7,7 @@ import { createSupabaseClient } from "@/lib/supabase/client"
 import { Box, Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Search, Grid3x3, Trash2, Sword } from "lucide-react"
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
@@ -22,9 +23,11 @@ import Breadcrumbs from "@/components/breadcrumbs"
 
 interface DashboardClientProps {
   user: any
+  /** Theme (color_scheme) from user_settings for chart overlay preference. */
+  initialTheme?: { graphOverlay?: boolean } | null
 }
 
-export default function DashboardClient({ user }: DashboardClientProps) {
+export default function DashboardClient({ user, initialTheme }: DashboardClientProps) {
   const router = useRouter()
   const supabase = createSupabaseClient()
   const [currentBoxId, setCurrentBoxId] = useState<string | null>(null)
@@ -354,7 +357,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 </DialogHeader>
                 <div className="space-y-4 py-4 min-w-0 overflow-visible">
                   <div className="min-w-0">
-                    <label className="text-fluid-sm font-medium">Name</label>
+                    <Label>Name</Label>
                     <Input
                       value={editBoxName}
                       onChange={(e) => setEditBoxName(e.target.value)}
@@ -362,7 +365,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     />
                   </div>
                   <div className="min-w-0">
-                    <label className="text-fluid-sm font-medium">Description (optional)</label>
+                    <Label>Description (optional)</Label>
                     <Input
                       value={editBoxDescription}
                       onChange={(e) => setEditBoxDescription(e.target.value)}
@@ -381,8 +384,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                           Choose how to handle contents:
                         </p>
                         <div className="flex flex-col gap-2 min-w-0 overflow-hidden">
-                          <label className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
+                          <Label htmlFor="delete-mode-delete-all" className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
                             <input
+                              id="delete-mode-delete-all"
                               type="radio"
                               name="delete-mode"
                               checked={deleteMode === "delete-all"}
@@ -392,9 +396,10 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                             <span className="min-w-0 overflow-hidden">
                               <strong>Delete all:</strong> Permanently delete this box and all child items, sub-boxes, and their data (value history, photos, etc.).
                             </span>
-                          </label>
-                          <label className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
+                          </Label>
+                          <Label htmlFor="delete-mode-move-to-root" className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
                             <input
+                              id="delete-mode-move-to-root"
                               type="radio"
                               name="delete-mode"
                               checked={deleteMode === "move-to-root"}
@@ -404,7 +409,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                             <span className="min-w-0 overflow-hidden">
                               <strong>Move to root:</strong> Move all child items and sub-boxes to the root level, then delete this box.
                             </span>
-                          </label>
+                          </Label>
                         </div>
                       </div>
                     ) : (
@@ -415,9 +420,9 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                             : "Child boxes and items will become root-level, then this box will be removed."}
                         </p>
                         <div className="min-w-0 overflow-hidden">
-                          <label className="text-fluid-sm font-medium min-w-0">
+                          <Label className="text-fluid-sm font-medium min-w-0">
                             Type the box name to confirm: <strong className="break-all">{editBox?.name}</strong>
-                          </label>
+                          </Label>
                           <Input
                             value={deleteConfirmName}
                             onChange={(e) => setDeleteConfirmName(e.target.value)}
@@ -479,6 +484,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               boxId={currentBoxId ?? "root"}
               boxName={currentBox?.name ?? "Root"}
               refreshKey={statsRefreshKey}
+              graphOverlay={initialTheme?.graphOverlay ?? true}
             />
             <div className="mb-8 min-w-0 overflow-visible">
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
@@ -500,7 +506,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                     </DialogHeader>
                     <div className="space-y-4 py-4 min-w-0 overflow-visible">
                       <div className="min-w-0">
-                        <label className="text-fluid-sm font-medium">Name</label>
+                        <Label>Name</Label>
                         <Input
                           value={newBoxName}
                           onChange={(e) => setNewBoxName(e.target.value)}
@@ -508,7 +514,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                         />
                       </div>
                       <div className="min-w-0">
-                        <label className="text-fluid-sm font-medium">Description (optional)</label>
+                        <Label>Description (optional)</Label>
                         <Input
                           value={newBoxDescription}
                           onChange={(e) => setNewBoxDescription(e.target.value)}
@@ -584,6 +590,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
           boxName={statsBoxName}
           open={showStatsDialog}
           onOpenChange={setShowStatsDialog}
+          graphOverlay={initialTheme?.graphOverlay ?? true}
         />
       </main>
     </>

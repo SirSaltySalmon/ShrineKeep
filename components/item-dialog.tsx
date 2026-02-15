@@ -6,8 +6,10 @@ import { Item, Photo } from "@/lib/types"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Upload, Search as SearchIcon, Trash2, Star, LayoutGrid } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { Upload, Search as SearchIcon, Trash2, LayoutGrid } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
+import { ThumbnailBadge, ThumbnailActionButtons } from "./thumbnail-content"
 import ImageSearch from "./image-search"
 import ImageGalleryCarousel from "./image-gallery-carousel"
 import ValueGraph from "./value-graph"
@@ -80,6 +82,7 @@ export default function ItemDialog({
   const [unsavedUploadedPhotos, setUnsavedUploadedPhotos] = useState<Set<string>>(new Set())
   // Use ref to track unsaved uploads for cleanup (avoids stale closure issues)
   const unsavedUploadsRef = useRef<Set<string>>(new Set())
+  const uploadInputRef = useRef<HTMLInputElement>(null)
 
   // Update ref whenever state changes
   useEffect(() => {
@@ -446,7 +449,7 @@ export default function ItemDialog({
           </DialogHeader>
           <div className="space-y-4 py-4 min-w-0 overflow-visible">
             <div className="min-w-0">
-              <label className="text-fluid-sm font-medium">Name *</label>
+              <Label>Name *</Label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -454,7 +457,7 @@ export default function ItemDialog({
               />
             </div>
             <div className="min-w-0">
-              <label className="text-fluid-sm font-medium">Description</label>
+              <Label>Description</Label>
               <Input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -465,7 +468,7 @@ export default function ItemDialog({
               <>
                 <div className="grid grid-cols-2 gap-4 min-w-0">
                   <div className="min-w-0 overflow-visible">
-                    <label className="text-fluid-sm font-medium">Current Value</label>
+                    <Label>Current Value</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -475,7 +478,7 @@ export default function ItemDialog({
                     />
                   </div>
                   <div className="min-w-0 overflow-visible">
-                    <label className="text-fluid-sm font-medium">Expected Price</label>
+                    <Label>Expected Price</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -490,7 +493,7 @@ export default function ItemDialog({
               <>
                 <div className="grid grid-cols-2 gap-4 min-w-0">
                   <div className="min-w-0 overflow-visible">
-                    <label className="text-fluid-sm font-medium">Current Value</label>
+                    <Label>Current Value</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -500,7 +503,7 @@ export default function ItemDialog({
                     />
                   </div>
                   <div className="min-w-0 overflow-visible">
-                    <label className="text-fluid-sm font-medium">Acquisition Price</label>
+                    <Label>Acquisition Price</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -511,7 +514,7 @@ export default function ItemDialog({
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <label className="text-fluid-sm font-medium">Acquisition Date</label>
+                  <Label>Acquisition Date</Label>
                   <Input
                     type="date"
                     value={acquisitionDate}
@@ -523,7 +526,7 @@ export default function ItemDialog({
 
             <div className="min-w-0 overflow-hidden">
               <div className="flex items-center justify-between gap-2 mb-2">
-                <label className="text-fluid-sm font-medium">Images (up to {MAX_PHOTOS})</label>
+                <Label>Images (up to {MAX_PHOTOS})</Label>
                 {photos.length > 0 && (
                   <Button
                     type="button"
@@ -559,42 +562,22 @@ export default function ItemDialog({
                         className="object-cover"
                       />
                     </div>
-                    <div className="absolute inset-0 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-white hover:bg-white/20"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setThumbnailIndex(i)
-                        }}
-                        title="Set as thumbnail"
-                        aria-label="Set as thumbnail"
-                      >
-                        <Star className={`h-4 w-4 ${p.is_thumbnail ? "fill-amber-400" : ""}`} />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-white hover:bg-red-500/80"
-                        onClick={async (e) => {
-                          e.stopPropagation()
+                    <div
+                      className="absolute inset-0 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ThumbnailActionButtons
+                        isThumbnail={p.is_thumbnail}
+                        onSetThumbnail={() => setThumbnailIndex(i)}
+                        onRemove={() => {
                           if (window.confirm("Remove this image?")) {
-                            await removePhoto(i)
+                            removePhoto(i)
                           }
                         }}
-                        title="Remove image"
-                        aria-label="Remove image"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      />
                     </div>
                     {p.is_thumbnail && (
-                      <span className="absolute bottom-0 left-0 right-0 bg-amber-500/90 text-fluid-xs text-center text-white py-0.5">
-                        Thumbnail
-                      </span>
+                      <ThumbnailBadge className="absolute bottom-0 left-0 right-0 opacity-90 text-center py-0.5" />
                     )}
                   </div>
                 ))}
@@ -605,20 +588,29 @@ export default function ItemDialog({
                     <SearchIcon className="h-4 w-4 mr-2" />
                     Search Images
                   </Button>
-                  <label className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer disabled:pointer-events-none disabled:opacity-50 relative shrink-0 min-w-0 touch-manipulation">
-                    <Upload className="h-4 w-4 mr-2" />
-                    {uploading ? "Uploading…" : "Upload"}
+                  <>
                     <input
                       id="item-dialog-upload-input"
+                      ref={uploadInputRef}
                       type="file"
                       accept="image/*"
                       multiple
                       onChange={handleFileUpload}
                       disabled={uploading}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      className="hidden"
                       aria-label="Upload images"
                     />
-                  </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => uploadInputRef.current?.click()}
+                      disabled={uploading}
+                      className="shrink-0"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {uploading ? "Uploading…" : "Upload"}
+                    </Button>
+                  </>
                 </div>
               )}
             </div>

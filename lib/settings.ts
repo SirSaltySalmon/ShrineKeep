@@ -27,6 +27,15 @@ export const DEFAULT_COLOR_SCHEME: ColorScheme = {
   acquisitionColor: "0 84% 60%", // #ef4444 converted to HSL
   graphValueColor: "142 76% 36%", // #22c55e converted to HSL
   graphAcquisitionColor: "0 84% 60%", // #ef4444 converted to HSL
+  graphAxisColor: "214.3 31.8% 91.4%", // Axis lines and tick labels (muted)
+  graphGridColor: "214.3 31.8% 91.4%", // Grid/divider lines
+  graphTooltipBackground: "0 0% 100%", // Tooltip background
+  graphTooltipForeground: "222.2 84% 4.9%", // Tooltip text
+  thumbnailColor: "38 92% 50%", // Thumbnail fill (star and badge background)
+  thumbnailForeground: "0 0% 100%", // Thumbnail badge text (white)
+  thumbnailHighlight: "0 0% 100% / 0.2", // Hover for overlay icons (white 20%)
+  radius: "0.5rem",
+  graphOverlay: true,
 }
 
 // Dark mode color scheme from globals.css
@@ -55,6 +64,15 @@ export const DARK_COLOR_SCHEME: ColorScheme = {
   acquisitionColor: "0 72% 65%", // Lighter red for dark mode
   graphValueColor: "142 70% 50%",
   graphAcquisitionColor: "0 72% 65%",
+  graphAxisColor: "217.2 32.6% 17.5%", // Axis in dark mode
+  graphGridColor: "217.2 32.6% 22%", // Grid lines (slightly lighter than axis)
+  graphTooltipBackground: "222.2 84% 4.9%", // Tooltip bg dark
+  graphTooltipForeground: "210 40% 98%", // Tooltip text light
+  thumbnailColor: "38 92% 55%", // Slightly lighter amber for dark mode
+  thumbnailForeground: "0 0% 100%", // Thumbnail badge text (white)
+  thumbnailHighlight: "0 0% 100% / 0.2", // Hover for overlay icons
+  radius: "0.5rem",
+  graphOverlay: true,
 }
 
 export type ColorSchemePreset = "light" | "dark" | "custom"
@@ -129,15 +147,30 @@ export function parseImportedColorScheme(jsonString: string): ColorScheme | null
       "acquisitionColor",
       "graphValueColor",
       "graphAcquisitionColor",
+      "graphAxisColor",
+      "graphGridColor",
+      "graphTooltipBackground",
+      "graphTooltipForeground",
+      "thumbnailColor",
+      "thumbnailForeground",
+      "thumbnailHighlight",
+      "radius",
     ]
 
     for (const key of validKeys) {
       if (parsed[key] && typeof parsed[key] === "string") {
-        // Validate HSL format (should be "H S% L%" or "hsl(H, S%, L%)")
-        const hslValue = parsed[key].trim()
-        if (hslValue.match(/^\d+\.?\d*\s+\d+\.?\d*%\s+\d+\.?\d*%$/) || 
-            hslValue.match(/^hsl\([\d.]+,\s*[\d.]+%,\s*[\d.]+%\)$/)) {
-          scheme[key] = hslToCssVariable(hslValue)
+        const str = (parsed[key] as string).trim()
+        if (key === "radius") {
+          // CSS length: number + unit (rem, px, em)
+          if (/^\d*(\.\d+)?(rem|px|em)$/.test(str) || str === "0") {
+            scheme.radius = str
+          }
+        } else {
+          // Validate HSL format
+          if (str.match(/^\d+\.?\d*\s+\d+\.?\d*%\s+\d+\.?\d*%$/) || 
+              str.match(/^hsl\([\d.]+,\s*[\d.]+%,\s*[\d.]+%\)$/)) {
+            scheme[key as keyof ColorScheme] = hslToCssVariable(str)
+          }
         }
       }
     }
@@ -348,6 +381,14 @@ export function applyColorScheme(colors: ColorScheme): Record<string, string> {
     acquisitionColor: "--acquisition-color",
     graphValueColor: "--graph-value-color",
     graphAcquisitionColor: "--graph-acquisition-color",
+    thumbnailColor: "--thumbnail-color",
+    thumbnailForeground: "--thumbnail-foreground",
+    thumbnailHighlight: "--thumbnail-highlight",
+    graphAxisColor: "--graph-axis-color",
+    graphGridColor: "--graph-grid-color",
+    graphTooltipBackground: "--graph-tooltip-background",
+    graphTooltipForeground: "--graph-tooltip-foreground",
+    radius: "--radius",
   }
 
   Object.entries(merged).forEach(([key, value]) => {

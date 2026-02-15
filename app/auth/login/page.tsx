@@ -6,6 +6,7 @@ import Link from "next/link"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import TurnstileWidget, { type TurnstileWidgetRef } from "@/components/turnstile-widget"
 
@@ -82,9 +83,7 @@ export default function LoginPage() {
         <CardContent className="space-y-4 min-w-0 overflow-visible">
           <form onSubmit={handleEmailLogin} className="space-y-4 min-w-0 overflow-visible">
             <div className="space-y-2 min-w-0">
-              <label htmlFor="email" className="text-fluid-sm font-medium">
-                Email
-              </label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
@@ -96,9 +95,7 @@ export default function LoginPage() {
             </div>
             <div className="space-y-2 min-w-0">
               <div className="flex items-center justify-between">
-                <label htmlFor="password" className="text-fluid-sm font-medium">
-                  Password
-                </label>
+                <Label htmlFor="password">Password</Label>
                 <Link
                   href="/auth/forgot-password"
                   className="text-fluid-xs text-primary hover:underline"

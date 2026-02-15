@@ -7,6 +7,7 @@ import { createSupabaseClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, PASSWORD_LENGTH_MESSAGE } from "@/lib/validation"
 
 export default function ResetPasswordPage() {
@@ -125,9 +126,7 @@ export default function ResetPasswordPage() {
         <CardContent className="space-y-4 min-w-0 overflow-visible">
           <form onSubmit={handleSubmit} className="space-y-4 min-w-0">
             <div className="space-y-2 min-w-0">
-              <label htmlFor="password" className="text-fluid-sm font-medium">
-                New password
-              </label>
+              <Label htmlFor="password">New password</Label>
               <Input
                 id="password"
                 type="password"
@@ -141,9 +140,7 @@ export default function ResetPasswordPage() {
               />
             </div>
             <div className="space-y-2 min-w-0">
-              <label htmlFor="confirm" className="text-fluid-sm font-medium">
-                Confirm password
-              </label>
+              <Label htmlFor="confirm">Confirm password</Label>
               <Input
                 id="confirm"
                 type="password"

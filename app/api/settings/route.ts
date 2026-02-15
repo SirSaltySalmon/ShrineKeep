@@ -63,6 +63,7 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json()
     const {
+      theme,
       color_scheme,
       wishlist_is_public,
       wishlist_apply_colors,
@@ -72,11 +73,11 @@ export async function PUT(request: NextRequest) {
       avatar_url: avatarUrl,
     } = body
 
-    // Validate color_scheme if provided
-    if (color_scheme !== undefined && color_scheme !== null) {
-      if (typeof color_scheme !== "object") {
+    const themePayload = theme ?? color_scheme
+    if (themePayload !== undefined && themePayload !== null) {
+      if (typeof themePayload !== "object") {
         return NextResponse.json(
-          { error: "Invalid color_scheme format" },
+          { error: "Invalid theme format" },
           { status: 400 }
         )
       }
@@ -97,8 +98,8 @@ export async function PUT(request: NextRequest) {
       use_custom_display_name?: boolean
     } = {}
 
-    if (color_scheme !== undefined) {
-      updateData.color_scheme = color_scheme
+    if (themePayload !== undefined) {
+      updateData.color_scheme = themePayload
     }
 
     // Wishlist share token is server-only: never accept from client; generate or clear on server.

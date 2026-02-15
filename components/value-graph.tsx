@@ -3,27 +3,27 @@
 import { useState, useEffect } from "react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { ValueHistory } from "@/lib/types"
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts"
 import { formatCurrency } from "@/lib/utils"
 import { format } from "date-fns"
 import { Calendar, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
 
-// Get graph value color from CSS variables
-function getGraphValueColor(): string {
-  if (typeof window === "undefined") return "#22c55e"
-  const root = document.documentElement
-  const value = getComputedStyle(root).getPropertyValue("--graph-value-color").trim()
-  return value ? `hsl(${value})` : "#22c55e"
+const valueChartConfig: ChartConfig = {
+  value: {
+    label: "Value",
+    color: "hsl(var(--graph-value-color))",
+  },
 }
 
 interface ValueGraphProps {
@@ -165,24 +165,28 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
           Record current value
         </Button>
       </div>
-      <ResponsiveContainer width="100%" height={300}>
+      <ChartContainer config={valueChartConfig} className="w-full" style={{ height: 300 }}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="date" />
-          <YAxis />
-          <Tooltip
-            formatter={(value: number) => formatCurrency(value)}
+          <YAxis tickFormatter={(v) => formatCurrency(Number(v))} />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                formatter={(value) => formatCurrency(Number(value))}
+              />
+            }
           />
-          <Legend />
+          <ChartLegend content={<ChartLegendContent />} />
           <Line
             type="monotone"
             dataKey="value"
-            stroke={getGraphValueColor()}
+            stroke="var(--color-value)"
             strokeWidth={2}
             name="Value"
           />
         </LineChart>
-      </ResponsiveContainer>
+      </ChartContainer>
       <div className="space-y-2">
         {history.map((record) => (
           <div
@@ -191,12 +195,12 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
           >
             <div className="shrink-0">
               <div className="font-medium">{formatCurrency(parseFloat(record.value.toString()))}</div>
-              <label className="text-fluid-xs text-muted-foreground block mt-1">Date & time</label>
+              <Label className="text-fluid-xs text-muted-foreground block mt-1">Date & time</Label>
               <div className="mt-0.5 flex items-center gap-1">
-                <input
+                <Input
                   key={`${record.id}-${record.recorded_at}`}
                   type="datetime-local"
-                  className="text-fluid-sm border rounded px-2 py-1 bg-background w-[200px] min-w-0 max-w-[calc(100vw-12rem)]"
+                  className="text-fluid-sm w-[300px] min-w-0 max-w-[calc(100vw-12rem)]"
                   defaultValue={formatRecordedAtForInput(record.recorded_at)}
                   onBlur={(e) => {
                     const v = e.target.value
@@ -206,25 +210,29 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
                   }}
                 />
                 {acquisitionDate && (
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="icon"
                     onClick={() => setRecordToAcquisitionDate(record.id)}
-                    className="p-1.5 rounded border border-input bg-background hover:bg-accent hover:text-accent-foreground shrink-0"
+                    className="shrink-0 h-9 w-9"
                     title="Set date & time to acquisition date"
                     aria-label="Set date & time to acquisition date"
                   >
                     <Calendar className="h-4 w-4" />
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
             <div className="flex-1 min-w-2" aria-hidden />
-            <button
+            <Button
+              type="button"
+              variant="link"
+              className="text-destructive hover:underline text-fluid-sm shrink-0 p-0 h-auto"
               onClick={() => deleteRecord(record.id)}
-              className="text-destructive hover:underline text-fluid-sm shrink-0"
             >
               Delete
-            </button>
+            </Button>
           </div>
         ))}
       </div>

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import type { ColorScheme } from "@/lib/types"
 import DashboardClient from "./dashboard-client"
 
 export default async function DashboardPage() {
@@ -12,11 +13,12 @@ export default async function DashboardPage() {
     redirect("/auth/login")
   }
 
-  const { data: user } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", authUser.id)
-    .single()
+  const [{ data: user }, { data: settings }] = await Promise.all([
+    supabase.from("users").select("*").eq("id", authUser.id).single(),
+    supabase.from("user_settings").select("color_scheme").eq("user_id", authUser.id).single(),
+  ])
 
-  return <DashboardClient user={user} />
+  const theme = (settings?.color_scheme as ColorScheme | null) ?? null
+
+  return <DashboardClient user={user} initialTheme={theme} />
 }

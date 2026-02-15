@@ -4,6 +4,8 @@ import { useState, useRef } from "react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   NAME_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -341,9 +343,9 @@ export function PersonalSettings({
               update it everywhere.
             </p>
             <div className="space-y-2">
-              <label htmlFor="display-name" className="text-fluid-sm font-medium">
+              <Label htmlFor="display-name">
                 Display name
-              </label>
+              </Label>
               <Input
                 id="display-name"
                 type="text"
@@ -370,20 +372,16 @@ export function PersonalSettings({
                     : `Showing provider name${providerName ? `: ${providerName}` : ""}.`}
                 </p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                <input
-                  type="checkbox"
-                  checked={useCustomDisplayName}
-                  onChange={(e) => onUseCustomDisplayNameChange(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
-              </label>
+              <Switch
+                checked={useCustomDisplayName}
+                onCheckedChange={onUseCustomDisplayNameChange}
+                aria-label="Use custom display name"
+              />
             </div>
             <div className="space-y-2">
-              <label htmlFor="display-name" className="text-fluid-sm font-medium">
+              <Label htmlFor="display-name">
                 Custom display name
-              </label>
+              </Label>
               <Input
                 id="display-name"
                 type="text"
@@ -407,9 +405,9 @@ export function PersonalSettings({
             </p>
             <form onSubmit={handleChangePassword} className="space-y-3 max-w-sm">
               <div className="space-y-2">
-                <label htmlFor="current-password" className="text-fluid-sm font-medium">
+                <Label htmlFor="current-password">
                   Current password
-                </label>
+                </Label>
                 <Input
                   id="current-password"
                   type="password"
@@ -420,9 +418,9 @@ export function PersonalSettings({
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="new-password" className="text-fluid-sm font-medium">
+                <Label htmlFor="new-password">
                   New password
-                </label>
+                </Label>
                 <Input
                   id="new-password"
                   type="password"
@@ -435,9 +433,9 @@ export function PersonalSettings({
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="confirm-password" className="text-fluid-sm font-medium">
+                <Label htmlFor="confirm-password">
                   Confirm new password
-                </label>
+                </Label>
                 <Input
                   id="confirm-password"
                   type="password"
@@ -472,9 +470,9 @@ export function PersonalSettings({
             <form onSubmit={handleUpdateEmail} className="space-y-3 max-w-sm">
               <p className="text-fluid-sm text-muted-foreground">Current email: {email}</p>
               <div className="space-y-2">
-                <label htmlFor="new-email" className="text-fluid-sm font-medium">
+                <Label htmlFor="new-email">
                   New email
-                </label>
+                </Label>
                 <Input
                   id="new-email"
                   type="email"

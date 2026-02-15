@@ -6,6 +6,7 @@ import Link from "next/link"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import TurnstileWidget from "@/components/turnstile-widget"
 import { NAME_MAX_LENGTH, PASSWORD_MAX_LENGTH } from "@/lib/validation"
@@ -97,9 +98,9 @@ export default function SignupPage() {
         <CardContent className="space-y-4 min-w-0 overflow-hidden">
           <form onSubmit={handleSignup} className="space-y-4 min-w-0 overflow-visible">
             <div className="space-y-2 min-w-0">
-              <label htmlFor="name" className="text-fluid-sm font-medium">
+              <Label htmlFor="name">
                 Name
-              </label>
+              </Label>
               <Input
                 id="name"
                 type="text"
@@ -111,9 +112,9 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2 min-w-0">
-              <label htmlFor="email" className="text-fluid-sm font-medium">
+              <Label htmlFor="email">
                 Email
-              </label>
+              </Label>
               <Input
                 id="email"
                 type="email"
@@ -124,9 +125,9 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2 min-w-0">
-              <label htmlFor="password" className="text-fluid-sm font-medium">
+              <Label htmlFor="password">
                 Password
-              </label>
+              </Label>
               <Input
                 id="password"
                 type="password"

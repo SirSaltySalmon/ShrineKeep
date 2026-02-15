@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import TurnstileWidget from "@/components/turnstile-widget"
 import type { AuthEmailResponse } from "@/lib/auth-utils"
 
@@ -52,9 +53,7 @@ export default function ForgotPasswordPage() {
         <CardContent className="space-y-4 min-w-0 overflow-visible">
           <form onSubmit={handleSubmit} className="space-y-4 min-w-0">
             <div className="space-y-2 min-w-0">
-              <label htmlFor="email" className="text-fluid-sm font-medium">
-                Email
-              </label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"

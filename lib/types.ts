@@ -85,7 +85,7 @@ export interface WishList {
   updated_at: string
 }
 
-export interface ColorScheme {
+export interface Theme {
   background?: string
   foreground?: string
   card?: string
@@ -110,6 +110,17 @@ export interface ColorScheme {
   acquisitionColor?: string // Color for displaying acquisition prices
   graphValueColor?: string // Color for value lines in graphs
   graphAcquisitionColor?: string // Color for acquisition lines in graphs
+  graphAxisColor?: string // Axis lines and tick labels
+  graphGridColor?: string // Grid/divider lines in graph
+  graphTooltipBackground?: string // Tooltip background when hovering
+  graphTooltipForeground?: string // Tooltip text color
+  thumbnailColor?: string // Thumbnail fill (star and badge background in item dialog)
+  thumbnailForeground?: string // Thumbnail badge text and icon color
+  thumbnailHighlight?: string // Hover background for thumbnail overlay icons (star)
+  thumbnailHover?: string // Hover icon color
+  radius?: string // Border radius for cards, buttons, inputs (e.g. "0.5rem")
+  /** When true, draw value and acquisition lines on one chart; when false, two separate charts. */
+  graphOverlay?: boolean
 }
 
 export interface UserSettings {

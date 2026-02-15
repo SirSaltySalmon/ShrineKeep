@@ -3,7 +3,15 @@
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { ColorPicker } from "@/components/ui/color-picker"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { ThemeEditor } from "@/components/settings/theme-editor"
 import { WishlistSettings } from "@/components/settings/wishlist-settings"
 import { PersonalSettings } from "@/components/settings/personal-settings"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -35,7 +43,7 @@ interface SettingsClientProps {
 
 export default function SettingsClient({ initialSettings, initialProfile }: SettingsClientProps) {
   const router = useRouter()
-  const [colorScheme, setColorScheme] = useState<ColorScheme>(
+  const [theme, setTheme] = useState<ColorScheme>(
     initialSettings?.color_scheme || getDefaultColorScheme()
   )
   const [selectedPreset, setSelectedPreset] = useState<ColorSchemePreset>(
@@ -60,9 +68,9 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   const [saved, setSaved] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Apply colors immediately for preview
+  // Apply theme immediately for preview
   useEffect(() => {
-    const cssVars = applyColorScheme(colorScheme)
+    const cssVars = applyColorScheme(theme)
     const root = document.documentElement
 
     Object.entries(cssVars).forEach(([property, value]) => {
@@ -72,7 +80,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     return () => {
       // Don't reset on unmount - let ThemeProvider handle it
     }
-  }, [colorScheme])
+  }, [theme])
 
   const handleSave = async () => {
     setSaving(true)
@@ -85,7 +93,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          color_scheme: colorScheme,
+          theme,
           wishlist_is_public: wishlistIsPublic,
           wishlist_apply_colors: wishlistApplyColors,
           use_custom_display_name: useCustomDisplayName,
@@ -112,19 +120,19 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     }
   }
 
-  const handleResetColors = () => {
-    setColorScheme(getDefaultColorScheme())
+  const handleResetTheme = () => {
+    setTheme(getDefaultColorScheme())
     setSelectedPreset("light")
   }
 
   const handlePresetChange = (preset: ColorSchemePreset) => {
     setSelectedPreset(preset)
     if (preset !== "custom") {
-      setColorScheme(getColorSchemeByPreset(preset))
+      setTheme(getColorSchemeByPreset(preset))
     }
   }
 
-  const handleImportColors = () => {
+  const handleImportTheme = () => {
     fileInputRef.current?.click()
   }
 
@@ -137,30 +145,29 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
       const importedScheme = parseImportedColorScheme(text)
 
       if (importedScheme) {
-        setColorScheme(importedScheme)
+        setTheme(importedScheme)
         setSelectedPreset("custom")
-        alert("Color scheme imported successfully!")
+        alert("Theme imported successfully!")
       } else {
-        alert("Invalid color scheme format. Please ensure the file contains valid JSON with HSL color values.")
+        alert("Invalid theme format. Please ensure the file contains valid JSON with HSL color values.")
       }
     } catch (error) {
-      console.error("Error importing colors:", error)
-      alert("Failed to import color scheme. Please check the file format.")
+      console.error("Error importing theme:", error)
+      alert("Failed to import theme. Please check the file format.")
     } finally {
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
     }
   }
 
-  const handleExportColors = () => {
-    const json = JSON.stringify(colorScheme, null, 2)
+  const handleExportTheme = () => {
+    const json = JSON.stringify(theme, null, 2)
     const blob = new Blob([json], { type: "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = "color-scheme.json"
+    a.download = "theme.json"
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -200,7 +207,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
           <div className="overflow-x-auto -mx-4 px-4 mb-6">
             <TabsList className="inline-flex w-auto min-w-full">
               <TabsTrigger value="personal" className="whitespace-nowrap shrink-0">Personal</TabsTrigger>
-              <TabsTrigger value="colors" className="whitespace-nowrap shrink-0">Color</TabsTrigger>
+              <TabsTrigger value="theme" className="whitespace-nowrap shrink-0">Theme</TabsTrigger>
               <TabsTrigger value="wishlist" className="whitespace-nowrap shrink-0">Wishlist</TabsTrigger>
             </TabsList>
           </div>
@@ -225,34 +232,37 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
             />
           </TabsContent>
 
-          <TabsContent value="colors" className="space-y-6 mt-6 min-w-0">
+          <TabsContent value="theme" className="space-y-6 mt-6 min-w-0">
             <div>
-              <h2 className="text-fluid-xl font-semibold mb-2">Color Scheme</h2>
+              <h2 className="text-fluid-xl font-semibold mb-2">Theme</h2>
               <p className="text-fluid-sm text-muted-foreground mb-4">
                 Customize the appearance of your ShrineKeep interface. Changes
                 are applied immediately for preview.
               </p>
             </div>
 
-            {/* Preset Selector */}
             <div className="space-y-2">
-              <label className="text-fluid-sm font-medium">Color Scheme Preset</label>
+              <Label>Theme preset</Label>
               <div className="flex gap-2 items-center">
-                <select
+                <Select
                   value={selectedPreset}
-                  onChange={(e) => handlePresetChange(e.target.value as ColorSchemePreset)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  onValueChange={(value) => handlePresetChange(value as ColorSchemePreset)}
                 >
-                  {Object.entries(COLOR_SCHEME_PRESETS).map(([key, preset]) => (
-                    <option key={key} value={key}>
-                      {preset.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="flex-1 min-w-0">
+                    <SelectValue placeholder="Select preset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(COLOR_SCHEME_PRESETS).map(([key, preset]) => (
+                      <SelectItem key={key} value={key}>
+                        {preset.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleImportColors}
+                  onClick={handleImportTheme}
                   className="shrink-0"
                 >
                   <Upload className="h-4 w-4 mr-2" />
@@ -261,7 +271,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleExportColors}
+                  onClick={handleExportTheme}
                   className="shrink-0"
                 >
                   Export
@@ -275,214 +285,18 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
                 />
               </div>
               <p className="text-fluid-xs text-muted-foreground">
-                Select a preset or import a custom color scheme JSON file
+                Select a preset or import a custom theme JSON file
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ColorPicker
-                label="Background"
-                value={colorScheme.background || "0 0% 100%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, background: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Foreground"
-                value={colorScheme.foreground || "222.2 84% 4.9%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, foreground: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Card"
-                value={colorScheme.card || "0 0% 100%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, card: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Card Foreground"
-                value={colorScheme.cardForeground || "222.2 84% 4.9%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, cardForeground: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Popover"
-                value={colorScheme.popover || "0 0% 100%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, popover: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Popover Foreground"
-                value={colorScheme.popoverForeground || "222.2 84% 4.9%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, popoverForeground: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Primary"
-                value={colorScheme.primary || "222.2 47.4% 11.2%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, primary: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Primary Foreground"
-                value={colorScheme.primaryForeground || "210 40% 98%"}
-                onChange={(value) => {
-                  setColorScheme({
-                    ...colorScheme,
-                    primaryForeground: value,
-                  })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Secondary"
-                value={colorScheme.secondary || "210 40% 96.1%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, secondary: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Secondary Foreground"
-                value={colorScheme.secondaryForeground || "222.2 47.4% 11.2%"}
-                onChange={(value) => {
-                  setColorScheme({
-                    ...colorScheme,
-                    secondaryForeground: value,
-                  })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Muted"
-                value={colorScheme.muted || "210 40% 96.1%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, muted: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Muted Foreground"
-                value={colorScheme.mutedForeground || "215.4 16.3% 46.9%"}
-                onChange={(value) => {
-                  setColorScheme({
-                    ...colorScheme,
-                    mutedForeground: value,
-                  })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Accent"
-                value={colorScheme.accent || "210 40% 96.1%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, accent: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Accent Foreground"
-                value={colorScheme.accentForeground || "222.2 47.4% 11.2%"}
-                onChange={(value) => {
-                  setColorScheme({
-                    ...colorScheme,
-                    accentForeground: value,
-                  })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Destructive"
-                value={colorScheme.destructive || "0 84.2% 60.2%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, destructive: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Destructive Foreground"
-                value={colorScheme.destructiveForeground || "210 40% 98%"}
-                onChange={(value) => {
-                  setColorScheme({
-                    ...colorScheme,
-                    destructiveForeground: value,
-                  })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Border"
-                value={colorScheme.border || "214.3 31.8% 91.4%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, border: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Input"
-                value={colorScheme.input || "214.3 31.8% 91.4%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, input: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Ring"
-                value={colorScheme.ring || "222.2 84% 4.9%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, ring: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Value Color"
-                value={colorScheme.valueColor || "142 76% 36%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, valueColor: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Acquisition Color"
-                value={colorScheme.acquisitionColor || "0 84% 60%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, acquisitionColor: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Graph Value Color"
-                value={colorScheme.graphValueColor || "142 76% 36%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, graphValueColor: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-              <ColorPicker
-                label="Graph Acquisition Color"
-                value={colorScheme.graphAcquisitionColor || "0 84% 60%"}
-                onChange={(value) => {
-                  setColorScheme({ ...colorScheme, graphAcquisitionColor: value })
-                  setSelectedPreset("custom")
-                }}
-              />
-            </div>
+            <ThemeEditor
+              theme={theme}
+              setTheme={setTheme}
+              setSelectedPreset={setSelectedPreset}
+            />
 
             <div className="flex gap-2">
-              <Button onClick={handleResetColors} variant="outline">
+              <Button onClick={handleResetTheme} variant="outline">
                 Reset to Light Mode
               </Button>
             </div>

@@ -5,6 +5,7 @@ import { createSupabaseClient } from "@/lib/supabase/client"
 import { Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -151,7 +152,7 @@ export default function WishlistClient() {
             </DialogHeader>
             <div className="grid gap-4 py-4 min-w-0 overflow-hidden">
               <div className="grid gap-2 min-w-0">
-                <label className="text-fluid-sm font-medium">Acquisition date</label>
+                <Label>Acquisition date</Label>
                 <Input
                   type="date"
                   value={acquisitionDate}
@@ -159,7 +160,7 @@ export default function WishlistClient() {
                 />
               </div>
               <div className="grid gap-2 min-w-0">
-                <label className="text-fluid-sm font-medium">Acquisition price</label>
+                <Label>Acquisition price</Label>
                 <Input
                   type="number"
                   step="0.01"
