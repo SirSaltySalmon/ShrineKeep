@@ -130,14 +130,25 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   }
 
   const handleResetTheme = () => {
-    setTheme((prev) => ({ ...getDefaultColorScheme(), graphOverlay: prev?.graphOverlay ?? true }))
+    setTheme((prev) => ({
+      ...getDefaultColorScheme(),
+      radius: "0.5rem",
+      graphOverlay: prev?.graphOverlay ?? true,
+    }))
+    setFontFamily(DEFAULT_FONT_FAMILY)
     setSelectedPreset("light")
   }
 
   const handlePresetChange = (preset: ThemePreset) => {
     setSelectedPreset(preset)
     if (preset !== "custom") {
-      setTheme((prev) => ({ ...getColorSchemeByPreset(preset), graphOverlay: prev?.graphOverlay ?? true }))
+      const presetScheme = getColorSchemeByPreset(preset)
+      setTheme((prev) => ({
+        ...presetScheme,
+        radius: "0.5rem",
+        graphOverlay: prev?.graphOverlay ?? true,
+      }))
+      setFontFamily(DEFAULT_FONT_FAMILY)
     }
   }
 

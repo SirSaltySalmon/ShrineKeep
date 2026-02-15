@@ -7,6 +7,7 @@ import {
   Figtree,
   Roboto,
   Raleway,
+  Bebas_Neue,
   DM_Sans,
   Public_Sans,
   Outfit,
@@ -39,6 +40,7 @@ const lora = Lora({ subsets: ["latin"], variable: "--font-lora", weight: ["400",
 const merriweather = Merriweather({ subsets: ["latin"], variable: "--font-merriweather", weight: ["400", "700"] })
 const playfairDisplay = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair-display", weight: ["400", "500", "600", "700"] })
 const sourceSerif4 = Source_Serif_4({ subsets: ["latin"], variable: "--font-source-serif-4", weight: ["400", "500", "600", "700"] })
+const bebasNeue = Bebas_Neue({ subsets: ["latin"], variable: "--font-bebas-neue", weight: "400" })
 
 const fontVariableClasses = cn(
   inter.variable,
@@ -56,7 +58,8 @@ const fontVariableClasses = cn(
   lora.variable,
   merriweather.variable,
   playfairDisplay.variable,
-  sourceSerif4.variable
+  sourceSerif4.variable,
+  bebasNeue.variable
 )
 
 export const metadata: Metadata = {

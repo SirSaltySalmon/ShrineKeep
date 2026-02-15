@@ -341,7 +341,7 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
           <Breadcrumbs currentBoxId={currentBoxId} onBoxClick={handleBoxClick} />
           <div className="flex flex-col gap-2 min-w-0 w-full">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="relative min-w-0 flex-1 sm:w-auto sm:min-w-[12rem]">
+              <div className="relative min-w-0 flex-1 min-w-[12rem]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground shrink-0" />
                 <Input
                   placeholder="Search items..."
@@ -353,7 +353,7 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                       router.push(buildSearchUrl(searchQuery.trim(), searchFilters))
                     }
                   }}
-                  className="pl-10 w-full min-w-0 sm:w-64"
+                  className="pl-10 w-full min-w-0"
                 />
               </div>
               <Button

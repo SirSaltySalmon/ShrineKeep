@@ -22,6 +22,7 @@ export const FONT_OPTIONS = [
   { value: "Merriweather", label: "Merriweather" },
   { value: "Playfair Display", label: "Playfair Display" },
   { value: "Source Serif 4", label: "Source Serif 4" },
+  { value: "Bebas Neue", label: "Bebas Neue" },
 ] as const
 
 export type FontFamilyId = (typeof FONT_OPTIONS)[number]["value"]
@@ -52,4 +53,5 @@ export const FONT_FAMILY_CSS: Record<FontFamilyId, string> = {
   Merriweather: "var(--font-merriweather), Georgia, serif",
   "Playfair Display": "var(--font-playfair-display), Georgia, serif",
   "Source Serif 4": "var(--font-source-serif-4), Georgia, serif",
+  "Bebas Neue": "var(--font-bebas-neue), ui-sans-serif, system-ui, sans-serif",
 }

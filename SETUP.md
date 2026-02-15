@@ -69,15 +69,18 @@ To use “Sign in with Google” you must enable the Google provider in Supabase
 
 For local dev, you can also add `http://localhost:3000` as an authorized origin in the Google OAuth client if needed.
 
-### Configure Redirections (Optional)
-When logging in using Google, configuration is needed to allow redirecting after log in.
-1. Go to **Authentication**
-2. Go to **URL Configuration**
-3. Fill out **Site URL** with the URL you are deploying on.
-4. For auths to work frictionlessly, add URL to **Redirect URLs** as well, in this format:
-- https://shrinekeep.com/* (or your own domain replacing shrinekeep.com)
-- http://localhost:3000/* (for testing on your local device)
-   These same URLs are used for Google sign-in and for **forgot password** reset links (e.g. `/auth/reset-password`).
+### Configure Redirect URLs (required for Google sign-in)
+
+If you use Google sign-in, you **must** add your app’s callback URL to Supabase. Otherwise Supabase will send users back to your **Site URL** (e.g. the homepage) instead of completing sign-in.
+
+1. In Supabase, go to **Authentication** → **URL Configuration**
+2. Set **Site URL** to your app’s root (e.g. `https://shrinekeep.com` or `http://localhost:3000`)
+3. Under **Redirect URLs**, add these **exact** URLs (one per line):
+   - **Local:** `http://localhost:3000/auth/callback`
+   - **Production:** `https://yourdomain.com/auth/callback` (replace with your real domain)
+4. Click **Save**
+
+You can also use wildcards (e.g. `http://localhost:3000/*`, `https://shrinekeep.com/*`) so the same list works for password reset links (e.g. `/auth/reset-password`).
 
 ### Log in with custom SMTP (Optional)
 1. Go to **Authentication**
@@ -171,6 +174,12 @@ If you want to access your site from the internet, you can use cloud deployment 
 - Make sure you added `SERPAPI_API_KEY` to `.env.local`
 - Restart the dev server after adding the key
 - Check your [SerpAPI dashboard](https://serpapi.com/manage-api-key) for quota and errors
+
+### Google sign-in takes me back to the homepage
+- Supabase is redirecting to your **Site URL** because the auth callback URL is not allowed. Add it in Supabase: **Authentication** → **URL Configuration** → **Redirect URLs**. Add exactly:
+  - `http://localhost:3000/auth/callback` (local)
+  - `https://yourdomain.com/auth/callback` (production)
+- Save, then try signing in with Google again.
 
 ### "Unsupported provider: provider is not enabled" (Google sign-in)
 - Google sign-in must be enabled in your Supabase project
