@@ -1,4 +1,5 @@
-import { notFound } from "next/navigation"
+import { headers } from "next/headers"
+import NotFound from "@/app/not-found"
 import PublicWishlistClient from "./public-wishlist-client"
 
 interface PublicWishlistPageProps {
@@ -12,13 +13,15 @@ export default async function PublicWishlistPage(
   const { token } = params
 
   if (!token) {
-    notFound()
+    return <NotFound />
   }
 
-  // Fetch wishlist data from API route
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
-  
+  // Use the request host so the same origin is used (works for www vs non-www and any domain)
+  const headersList = await headers()
+  const host = headersList.get("host") ?? "localhost:3000"
+  const proto = headersList.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https")
+  const baseUrl = `${proto}://${host}`
+
   let data
   try {
     const response = await fetch(`${baseUrl}/api/wishlist/${token}`, {
@@ -26,13 +29,13 @@ export default async function PublicWishlistPage(
     })
 
     if (!response.ok) {
-      notFound()
+      return <NotFound />
     }
 
     data = await response.json()
   } catch (error) {
     console.error("Error fetching wishlist from API:", error)
-    notFound()
+    return <NotFound />
   }
 
   // Ensure user object has required fields

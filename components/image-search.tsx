@@ -108,7 +108,7 @@ export default function ImageSearch({
             Search the web for images to use as a thumbnail for your item
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4 min-w-0 overflow-visible">
+        <div className="space-y-4 py-4 layout-shrink-visible">
           <div className="flex flex-nowrap items-center gap-2 min-w-0">
             <Input
               value={searchQuery}
@@ -117,11 +117,11 @@ export default function ImageSearch({
               placeholder="Search for images..."
               className="flex-1 min-w-0"
             />
-            <Button onClick={searchImages} disabled={loading} className="shrink-0 bg-secondary text-secondary-foreground">
+            <Button onClick={searchImages} disabled={loading} className="shrink-0" variant="outline">
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin text-secondary-foreground" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <SearchIcon className="h-4 w-4 text-secondary-foreground" />
+                <SearchIcon className="h-4 w-4" />
               )}
             </Button>
           </div>

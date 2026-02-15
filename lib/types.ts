@@ -59,6 +59,14 @@ export interface ItemCopyPayload {
   tag_ids: string[]
 }
 
+/** Recursive payload for copying a box and its full subtree (children + items per node). */
+export interface BoxCopyPayload {
+  name: string
+  description?: string | null
+  children: BoxCopyPayload[]
+  items: ItemCopyPayload[]
+}
+
 export interface Photo {
   id: string
   item_id: string
@@ -111,14 +119,14 @@ export interface Theme {
   cardForeground?: string
   popover?: string
   popoverForeground?: string
-  /** Highlight for selected item cards (multi-select). */
-  itemSelected?: string
   primary?: string
   primaryForeground?: string
   secondary?: string
   secondaryForeground?: string
   muted?: string
   mutedForeground?: string
+  /** Light muted: flattened equivalent of muted at ~20% on background. Used for subtle panels/boxes (no opacity). */
+  lightMuted?: string
   accent?: string
   accentForeground?: string
   destructive?: string
@@ -126,6 +134,8 @@ export interface Theme {
   border?: string
   input?: string
   ring?: string
+  /** Selection hover ring (items/boxes in selection mode). Same as primary at lower opacity by default. */
+  selectableHoverRing?: string
   // Value-related colors
   valueColor?: string // Color for displaying current values
   acquisitionColor?: string // Color for displaying acquisition prices
@@ -140,8 +150,6 @@ export interface Theme {
   thumbnailHighlight?: string // Hover background for thumbnail overlay icons (star)
   thumbnailHover?: string // Hover icon color
   radius?: string // Border radius for cards, buttons, inputs (e.g. "0.5rem")
-  /** When true, draw value and acquisition lines on one chart; when false, two separate charts. */
-  graphOverlay?: boolean
   // Tag colors (theme-customizable; used for tag chips)
   tagRed?: string
   tagOrange?: string

@@ -20,12 +20,8 @@ export default async function DashboardPage() {
 
   const colorScheme = settings?.color_scheme as Theme | null | undefined
   const theme: Theme | null =
-    colorScheme && typeof colorScheme === "object"
-      ? {
-          ...colorScheme,
-          graphOverlay: settings?.graph_overlay ?? colorScheme.graphOverlay ?? true,
-        }
-      : null
+    colorScheme && typeof colorScheme === "object" ? { ...colorScheme } : null
+  const graphOverlay = settings?.graph_overlay ?? true
 
-  return <DashboardClient user={user} initialTheme={theme} />
+  return <DashboardClient user={user} initialTheme={theme} initialGraphOverlay={graphOverlay} />
 }

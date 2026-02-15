@@ -189,7 +189,7 @@ export default function TagSettings() {
       </div>
 
       {showCreate ? (
-        <div className="rounded-lg border p-4 space-y-2 bg-muted/20">
+        <div className="rounded-lg border p-4 space-y-2 bg-light-muted">
           <Label className="text-fluid-sm">New tag</Label>
           <div className="flex flex-wrap gap-2 items-end">
             <Input

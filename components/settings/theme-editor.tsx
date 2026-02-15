@@ -1,6 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import type { CSSProperties } from "react"
+import { useRouter } from "next/navigation"
 import { ColorPicker } from "@/components/ui/color-picker"
 import { Label } from "@/components/ui/label"
 import {
@@ -15,8 +17,10 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { Theme } from "@/lib/types"
 import { THEME_EDITOR_GROUPS, getThemeColorMeta, type ThemeColorKey } from "@/lib/theme-colors"
-import { FONT_OPTIONS, FONT_FAMILY_CSS, type FontFamilyId } from "@/lib/fonts"
+import { FONT_OPTIONS, FONT_FAMILY_CSS, DEFAULT_FONT_FAMILY, type FontFamilyId } from "@/lib/fonts"
+import { applyColorScheme, getDefaultColorScheme, type ThemePreset } from "@/lib/settings"
 import { cn } from "@/lib/utils"
+import { Selectable } from "@/components/selectable"
 import { ThumbnailPreview } from "@/components/thumbnail-content"
 import { ValueAcquisitionCharts } from "@/components/value-acquisition-charts"
 import type { ValueChartPoint, AcquisitionChartPoint } from "@/lib/hooks/use-box-stats"
@@ -50,16 +54,18 @@ const RADIUS_OPTIONS = [
 export interface ThemeEditorProps {
   theme: Theme
   setTheme: (s: Theme | ((prev: Theme) => Theme)) => void
-  setSelectedPreset: (p: "light" | "dark" | "custom") => void
+  setSelectedPreset: (p: ThemePreset) => void
   fontFamily: FontFamilyId
   setFontFamily: (f: FontFamilyId) => void
+  /** Chart overlay preference (Options); used only for graph preview in this editor. */
+  graphOverlay?: boolean
 }
 
 function PreviewBox({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div
       className={cn(
-        "flex items-center justify-center min-h-[2.5rem] p-3 rounded-lg border border-border bg-muted/20",
+        "flex items-center justify-center min-h-[2.5rem] p-3 rounded-lg border border-border bg-light-muted",
         className
       )}
     >
@@ -85,7 +91,72 @@ function DropdownPreview() {
   )
 }
 
-export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, setFontFamily }: ThemeEditorProps) {
+/** Border preview: click to toggle selection, shows selection ring when selected (like item cards). */
+function BorderPreviewSelectable() {
+  const [selected, setSelected] = useState(false)
+  return (
+    <Selectable
+      role="button"
+      tabIndex={0}
+      selected={selected}
+      selectionMode={true}
+      isOver={false}
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setSelected((prev) => !prev)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          setSelected((prev) => !prev)
+        }
+      }}
+    >
+      <div className="rounded-md flex items-center justify-center text-fluid-sm bg-light-muted border-2 border-border px-4 py-2 min-w-[100px] h-10">
+        Selectable
+      </div>
+    </Selectable>
+  )
+}
+
+export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, setFontFamily, graphOverlay = true }: ThemeEditorProps) {
+  const router = useRouter()
+  const [savingTheme, setSavingTheme] = useState(false)
+  const [savedTheme, setSavedTheme] = useState(false)
+
+  const handleSaveTheme = async () => {
+    setSavingTheme(true)
+    setSavedTheme(false)
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme, font_family: fontFamily }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error ?? "Failed to save theme")
+      setSavedTheme(true)
+      setTimeout(() => setSavedTheme(false), 3000)
+      router.refresh()
+    } catch (err) {
+      console.error("Error saving theme:", err)
+      alert(err instanceof Error ? err.message : "Failed to save theme. Please try again.")
+    } finally {
+      setSavingTheme(false)
+    }
+  }
+
+  const handleResetTheme = () => {
+    setTheme({
+      ...getDefaultColorScheme(),
+      radius: "0.5rem",
+    })
+    setFontFamily(DEFAULT_FONT_FAMILY)
+    setSelectedPreset("light")
+  }
+  
+
   const handleColorChange = (key: ThemeColorKey, value: string) => {
     setTheme((prev) => ({ ...prev, [key]: value }))
     setSelectedPreset("custom")
@@ -114,6 +185,9 @@ export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, se
       <Button type="button" onClick={(e) => e.preventDefault()}>
         Save
       </Button>
+      <Button type="button" variant="secondary" onClick={(e) => e.preventDefault()}>
+        Copy
+      </Button>
       <Button type="button" variant="outline" onClick={(e) => e.preventDefault()}>
         Cancel
       </Button>
@@ -125,9 +199,7 @@ export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, se
       </Button>
     </div>,
     <div key="borders" className="flex flex-wrap items-center gap-3 w-full">
-      <div className="rounded-md flex items-center justify-center text-fluid-sm bg-background border-2 border-border px-4 py-2 min-w-[100px] h-10">
-        Border
-      </div>
+      <BorderPreviewSelectable />
       <Input
         className="h-10 min-w-[180px] flex-1 max-w-[240px]"
         placeholder="Input text"
@@ -166,18 +238,15 @@ export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, se
         <div key={group.id} className="space-y-3">
           <div>
             <h3 className="text-fluid-lg font-semibold">{group.title}</h3>
-            {group.description && (
-              <p className="text-fluid-sm text-muted-foreground mt-0.5">{group.description}</p>
-            )}
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,2fr)_1fr] gap-4 items-start">
+          <div className="space-y-4">
             <PreviewBox className="w-full min-w-0">
               {group.id === "graph" ? (
                 <div className="w-full">
                   <ValueAcquisitionCharts
                     valueChartData={GRAPH_PREVIEW_VALUE_DATA}
                     acquisitionChartData={GRAPH_PREVIEW_ACQUISITION_DATA}
-                    graphOverlay={theme.graphOverlay !== false}
+                    graphOverlay={graphOverlay}
                     height={220}
                   />
                 </div>
@@ -185,7 +254,7 @@ export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, se
                 GROUP_PREVIEWS[i]
               )}
             </PreviewBox>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
               {group.keys.map((key) => {
                 const meta = getThemeColorMeta(key)
                 return (
@@ -266,6 +335,27 @@ export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, se
             Preview
           </Card>
         </div>
+        <div 
+          className="rounded-md"
+          style={
+                applyColorScheme(getDefaultColorScheme(), {
+                  fontFamily: FONT_FAMILY_CSS[DEFAULT_FONT_FAMILY],
+                }) as CSSProperties
+              }
+        >
+          <Button onClick={handleResetTheme} variant="outline">
+            Reset to Light Mode
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 border-t pt-4">
+        {savedTheme && (
+          <span className="text-fluid-sm text-muted-foreground self-center">Theme saved!</span>
+        )}
+        <Button type="button" onClick={handleSaveTheme} disabled={savingTheme}>
+          {savingTheme ? "Saving..." : "Save theme"}
+        </Button>
       </div>
     </div>
   )

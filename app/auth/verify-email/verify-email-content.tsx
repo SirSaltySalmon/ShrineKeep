@@ -43,7 +43,7 @@ export default function VerifyEmailContent() {
             Please check your email for a verification link, then click below to log in again.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 min-w-0 text-center overflow-visible">
+        <CardContent className="space-y-4 layout-shrink-visible text-center">
           <Button asChild className="w-full">
             <Link href="/auth/login">Sign In</Link>
           </Button>

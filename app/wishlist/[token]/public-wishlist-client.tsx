@@ -88,7 +88,7 @@ export default function PublicWishlistClient({
                   )}
                 </div>
                 <CardHeader>
-                  <CardTitle className="text-fluid-lg line-clamp-1 truncate">
+                  <CardTitle className="text-fluid-lg">
                     {item.name}
                   </CardTitle>
                   {item.description && (

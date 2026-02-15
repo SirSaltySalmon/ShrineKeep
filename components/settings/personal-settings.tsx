@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +13,7 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_LENGTH_MESSAGE,
 } from "@/lib/validation"
+import TurnstileWidget, { type TurnstileWidgetRef } from "@/components/turnstile-widget"
 import { User } from "lucide-react"
 
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024 // 2MB
@@ -78,9 +80,9 @@ export interface PersonalSettingsProps {
   useCustomDisplayName: boolean
   /** Name from auth provider (e.g. Google); shown when useCustomDisplayName is false. */
   providerName: string | null
-  /** Current email (for display and update). */
+  /** Current email (for display). */
   email: string
-  /** True if user signed up with email/password (can change password and email). */
+  /** True if user signed up with email/password (can change password). */
   isEmailProvider: boolean
   /** Current avatar URL (from public.users or provider). */
   avatarUrl: string | null
@@ -118,11 +120,37 @@ export function PersonalSettings({
   const [passwordLoading, setPasswordLoading] = useState(false)
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const turnstileRef = useRef<TurnstileWidgetRef>(null)
 
-  const [newEmail, setNewEmail] = useState("")
-  const [emailLoading, setEmailLoading] = useState(false)
-  const [emailError, setEmailError] = useState<string | null>(null)
-  const [emailSuccess, setEmailSuccess] = useState(false)
+  const router = useRouter()
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [savedProfile, setSavedProfile] = useState(false)
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true)
+    setSavedProfile(false)
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          use_custom_display_name: useCustomDisplayName,
+          name: displayName,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error ?? "Failed to save profile")
+      setSavedProfile(true)
+      setTimeout(() => setSavedProfile(false), 3000)
+      router.refresh()
+    } catch (err) {
+      console.error("Error saving profile:", err)
+      alert(err instanceof Error ? err.message : "Failed to save profile. Please try again.")
+    } finally {
+      setSavingProfile(false)
+    }
+  }
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -136,22 +164,26 @@ export function PersonalSettings({
       setPasswordError(PASSWORD_LENGTH_MESSAGE)
       return
     }
+    if (!captchaToken) {
+      setPasswordError("Please complete the captcha verification.")
+      return
+    }
     setPasswordLoading(true)
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: currentPassword,
+      const res = await fetch("/api/auth/password/change", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+          captchaToken,
+        }),
       })
-      if (signInError) {
-        setPasswordError(signInError.message)
-        setPasswordLoading(false)
-        return
-      }
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      })
-      if (updateError) {
-        setPasswordError(updateError.message)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPasswordError(data?.error ?? "Failed to update password.")
+        setCaptchaToken(null)
+        turnstileRef.current?.reset()
         setPasswordLoading(false)
         return
       }
@@ -159,34 +191,13 @@ export function PersonalSettings({
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
+      setCaptchaToken(null)
+      turnstileRef.current?.reset()
       setTimeout(() => setPasswordSuccess(false), 3000)
     } catch {
       setPasswordError("Something went wrong. Please try again.")
     } finally {
       setPasswordLoading(false)
-    }
-  }
-
-  const handleUpdateEmail = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setEmailError(null)
-    setEmailSuccess(false)
-    if (!newEmail.trim()) return
-    setEmailLoading(true)
-    try {
-      const { error } = await supabase.auth.updateUser({ email: newEmail.trim() })
-      if (error) {
-        setEmailError(error.message)
-        setEmailLoading(false)
-        return
-      }
-      setEmailSuccess(true)
-      setNewEmail("")
-      setTimeout(() => setEmailSuccess(false), 3000)
-    } catch {
-      setEmailError("Something went wrong. Please try again.")
-    } finally {
-      setEmailLoading(false)
     }
   }
 
@@ -339,23 +350,9 @@ export function PersonalSettings({
         {isEmailProvider ? (
           <>
             <p className="text-fluid-sm text-muted-foreground mb-4">
-              This is the name you set when you signed up. Change it below and save settings to
+              This is the name you set when you signed up. Change it below and click Save profile to
               update it everywhere.
             </p>
-            <div className="space-y-2">
-              <Label htmlFor="display-name">
-                Display name
-              </Label>
-              <Input
-                id="display-name"
-                type="text"
-                value={displayName}
-                onChange={(e) => onDisplayNameChange(e.target.value)}
-                placeholder="Your name"
-                className="max-w-sm"
-                maxLength={NAME_MAX_LENGTH}
-              />
-            </div>
           </>
         ) : (
           <>
@@ -378,22 +375,28 @@ export function PersonalSettings({
                 aria-label="Use custom display name"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="display-name">
-                Custom display name
-              </Label>
-              <Input
-                id="display-name"
-                type="text"
-                value={displayName}
-                onChange={(e) => onDisplayNameChange(e.target.value)}
-                placeholder={providerName || "Your name"}
-                className="max-w-sm"
-                maxLength={NAME_MAX_LENGTH}
-              />
-            </div>
           </>
         )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="display-name">Display name</Label>
+        <Input
+          id="display-name"
+          type="text"
+          value={displayName}
+          onChange={(e) => onDisplayNameChange(e.target.value)}
+          placeholder={providerName || "Your name"}
+          className="max-w-sm"
+          maxLength={NAME_MAX_LENGTH}
+        />
+      </div>
+      <div className="flex gap-2">
+        {savedProfile && (
+          <span className="text-fluid-sm text-muted-foreground self-center">Profile saved!</span>
+        )}
+        <Button type="button" onClick={handleSaveProfile} disabled={savingProfile}>
+          {savingProfile ? "Saving..." : "Save profile"}
+        </Button>
       </div>
 
       {isEmailProvider && (
@@ -401,7 +404,7 @@ export function PersonalSettings({
           <div>
             <h3 className="text-fluid-lg font-semibold mb-2">Change password</h3>
             <p className="text-fluid-sm text-muted-foreground mb-4">
-              Enter your current password and choose a new one.
+              Enter your current password and choose a new one. Complete the captcha to continue.
             </p>
             <form onSubmit={handleChangePassword} className="space-y-3 max-w-sm">
               <div className="space-y-2">
@@ -447,50 +450,26 @@ export function PersonalSettings({
                   autoComplete="new-password"
                 />
               </div>
+              <div className="space-y-2 flex justify-start">
+                <TurnstileWidget ref={turnstileRef} onSuccess={setCaptchaToken} />
+              </div>
               {passwordError && (
-                <p className="text-fluid-sm text-destructive">{passwordError}</p>
+                <div className="space-y-1 form-error-message">
+                  <p className="text-fluid-sm text-destructive">{passwordError}</p>
+                  {passwordError !== "Please complete the captcha verification." && (
+                    <p className="text-fluid-xs text-muted-foreground">
+                      Complete the captcha again to try again.
+                    </p>
+                  )}
+                </div>
               )}
               {passwordSuccess && (
                 <p className="text-fluid-sm text-green-600 dark:text-green-400">
                   Password updated.
                 </p>
               )}
-              <Button type="submit" disabled={passwordLoading}>
+              <Button type="submit" disabled={passwordLoading || !captchaToken}>
                 {passwordLoading ? "Updating…" : "Update password"}
-              </Button>
-            </form>
-          </div>
-
-          <div>
-            <h3 className="text-fluid-lg font-semibold mb-2">Update email</h3>
-            <p className="text-fluid-sm text-muted-foreground mb-4">
-              Change the email address for this account. A confirmation link will be sent to the new
-              address.
-            </p>
-            <form onSubmit={handleUpdateEmail} className="space-y-3 max-w-sm">
-              <p className="text-fluid-sm text-muted-foreground">Current email: {email}</p>
-              <div className="space-y-2">
-                <Label htmlFor="new-email">
-                  New email
-                </Label>
-                <Input
-                  id="new-email"
-                  type="email"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="new@example.com"
-                />
-              </div>
-              {emailError && (
-                <p className="text-fluid-sm text-destructive">{emailError}</p>
-              )}
-              {emailSuccess && (
-                <p className="text-fluid-sm text-green-600 dark:text-green-400">
-                  Check the new email for a confirmation link.
-                </p>
-              )}
-              <Button type="submit" disabled={emailLoading || !newEmail.trim()}>
-                {emailLoading ? "Sending…" : "Send confirmation to new email"}
               </Button>
             </form>
           </div>

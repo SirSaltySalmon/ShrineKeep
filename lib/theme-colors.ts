@@ -1,7 +1,7 @@
 import type { Theme } from "./types"
 
-/** Theme keys that are editable colors (excludes radius and graphOverlay). */
-export type ThemeColorKey = keyof Omit<Theme, "radius" | "graphOverlay">
+/** Theme keys that are editable colors (excludes radius). */
+export type ThemeColorKey = keyof Omit<Theme, "radius">
 
 export interface ThemeColorEntry {
   key: ThemeColorKey
@@ -22,20 +22,21 @@ export const THEME_COLOR_REGISTRY: ThemeColorEntry[] = [
   { key: "cardForeground", label: "Card text", defaultLight: "222.2 84% 4.9%", defaultDark: "210 40% 98%" },
   { key: "popover", label: "Popover", defaultLight: "0 0% 100%", defaultDark: "222.2 84% 4.9%" },
   { key: "popoverForeground", label: "Popover text", defaultLight: "222.2 84% 4.9%", defaultDark: "210 40% 98%" },
-  { key: "itemSelected", label: "Selected item", defaultLight: "214 95% 93%", defaultDark: "214 32% 28%" },
   // Buttons & actions
   { key: "primary", label: "Primary (e.g. Save)", defaultLight: "222.2 47.4% 11.2%", defaultDark: "210 40% 98%" },
   { key: "primaryForeground", label: "Primary text", defaultLight: "210 40% 98%", defaultDark: "222.2 47.4% 11.2%" },
-  { key: "secondary", label: "Secondary (e.g. Cancel)", defaultLight: "210 40% 96.1%", defaultDark: "217.2 32.6% 17.5%" },
+  { key: "secondary", label: "Secondary", defaultLight: "210 40% 96.1%", defaultDark: "217.2 32.6% 17.5%" },
   { key: "secondaryForeground", label: "Secondary text", defaultLight: "222.2 47.4% 11.2%", defaultDark: "210 40% 98%" },
   { key: "muted", label: "Muted", defaultLight: "210 40% 96.1%", defaultDark: "217.2 32.6% 17.5%" },
   { key: "mutedForeground", label: "Muted text", defaultLight: "215.4 16.3% 46.9%", defaultDark: "215 20.2% 65.1%" },
+  { key: "lightMuted", label: "Light muted", defaultLight: "210 25% 98.2%", defaultDark: "228 50% 7.8%" },
   { key: "accent", label: "Accent (hover)", defaultLight: "210 40% 96.1%", defaultDark: "217.2 32.6% 17.5%" },
   { key: "accentForeground", label: "Accent text", defaultLight: "222.2 47.4% 11.2%", defaultDark: "210 40% 98%" },
   // Borders & focus
   { key: "border", label: "Border", defaultLight: "214.3 31.8% 91.4%", defaultDark: "217.2 32.6% 17.5%" },
   { key: "input", label: "Input border", defaultLight: "214.3 31.8% 91.4%", defaultDark: "217.2 32.6% 17.5%" },
   { key: "ring", label: "Focus ring", defaultLight: "222.2 84% 4.9%", defaultDark: "212.7 26.8% 83.9%" },
+  { key: "selectableHoverRing", label: "Selection hover ring", defaultLight: "222.2 25% 88%", defaultDark: "217 20% 28%" },
   // Destructive
   { key: "destructive", label: "Destructive", defaultLight: "0 84.2% 60.2%", defaultDark: "0 62.8% 30.6%" },
   { key: "destructiveForeground", label: "Destructive text", defaultLight: "210 40% 98%", defaultDark: "210 40% 98%" },
@@ -52,7 +53,7 @@ export const THEME_COLOR_REGISTRY: ThemeColorEntry[] = [
   // Thumbnail
   { key: "thumbnailColor", label: "Thumbnail fill", defaultLight: "38 92% 50%", defaultDark: "38 92% 55%" },
   { key: "thumbnailForeground", label: "Thumbnail text & icons", defaultLight: "0 0% 100%", defaultDark: "0 0% 100%" },
-  { key: "thumbnailHighlight", label: "Thumbnail highlight", defaultLight: "0 0% 100% / 0.2", defaultDark: "0 0% 100% / 0.2" },
+  { key: "thumbnailHighlight", label: "Thumbnail highlight", defaultLight: "0 0% 100%", defaultDark: "0 0% 100%" },
   { key: "thumbnailHover", label: "Thumbnail icon hover", defaultLight: "0 0% 100%", defaultDark: "0 0% 100%" },
   // Tag colors
   { key: "tagRed", label: "Red", defaultLight: "0 84% 60%", defaultDark: "0 72% 65%" },
@@ -87,7 +88,7 @@ export const THEME_KEY_TO_CSS_VAR: Record<ThemeColorKey | "radius", string> = {
   radius: "--radius",
 } as Record<ThemeColorKey | "radius", string>
 
-/** Build a full Theme from registry defaults plus radius and graphOverlay. */
+/** Build a full Theme from registry defaults plus radius. */
 function buildScheme(
   getDefault: (e: ThemeColorEntry) => string,
   overrides: Partial<Theme> = {}
@@ -97,31 +98,54 @@ function buildScheme(
     (scheme as Record<string, string>)[e.key] = getDefault(e)
   }
   scheme.radius = overrides.radius ?? "0.5rem"
-  scheme.graphOverlay = overrides.graphOverlay ?? true
   return scheme
 }
 
 export const DEFAULT_COLOR_SCHEME: Theme = buildScheme((e) => e.defaultLight)
 export const DARK_COLOR_SCHEME: Theme = buildScheme((e) => e.defaultDark)
 
+/** Pink Mode: light theme based on light pink. */
+export const PINK_COLOR_SCHEME: Theme = {
+  ...buildScheme((e) => e.defaultLight),
+  background: "340 45% 98%",
+  foreground: "340 30% 14%",
+  card: "340 40% 99%",
+  cardForeground: "340 30% 14%",
+  popover: "340 40% 99%",
+  popoverForeground: "340 30% 14%",
+  primary: "340 70% 48%",
+  primaryForeground: "0 0% 100%",
+  secondary: "340 35% 94%",
+  secondaryForeground: "340 45% 28%",
+  muted: "340 30% 95%",
+  mutedForeground: "340 20% 42%",
+  lightMuted: "340 28% 97%",
+  accent: "340 35% 93%",
+  accentForeground: "340 45% 28%",
+  border: "340 25% 90%",
+  input: "340 25% 90%",
+  ring: "340 60% 45%",
+  selectableHoverRing: "340 35% 82%",
+  radius: "0.5rem",
+}
+
 /**
- * Editor group config: title, description, and which color keys to show.
+ * Editor group config: title and which color keys to show.
  * Preview JSX stays in the theme-editor component.
  */
 export interface ThemeEditorGroupConfig {
   id: string
   title: string
-  description?: string
   keys: ThemeColorKey[]
 }
 
 export const THEME_EDITOR_GROUPS: ThemeEditorGroupConfig[] = [
-  { id: "page", title: "Page & surfaces", description: "Background and main surfaces", keys: ["background", "foreground", "card", "cardForeground", "popover", "popoverForeground", "itemSelected"] },
-  { id: "buttons", title: "Buttons & actions", description: "Primary and secondary buttons; hover to see accent", keys: ["primary", "primaryForeground", "secondary", "secondaryForeground", "muted", "mutedForeground", "accent", "accentForeground"] },
-  { id: "borders", title: "Borders & focus", description: "Border, input border, and focus ring. You can type in the input.", keys: ["border", "input", "ring"] },
-  { id: "destructive", title: "Destructive", description: "Delete and danger actions", keys: ["destructive", "destructiveForeground"] },
-  { id: "values", title: "Values & data", description: "Value and acquisition prices in the app", keys: ["valueColor", "acquisitionColor"] },
-  { id: "graph", title: "Graph", description: "Value history chart: axes, grid, tooltip, and lines. Toggle below to show one graph (overlay) or two separate.", keys: ["graphValueColor", "graphAcquisitionColor", "graphAxisColor", "graphGridColor", "graphTooltipBackground", "graphTooltipForeground"] },
-  { id: "thumbnail", title: "Thumbnail", description: "Thumbnail star and badge in item dialog; highlight is hover on overlay icons. Delete icon will use destructive color, however.", keys: ["thumbnailColor", "thumbnailForeground", "thumbnailHighlight", "thumbnailHover"] },
-  { id: "tags", title: "Tag colors", description: "Colors for item tags (Red, Orange, Yellow, Green, Blue, Indigo, Violet). Used in tag chips and filters.", keys: ["tagRed", "tagOrange", "tagYellow", "tagGreen", "tagBlue", "tagIndigo", "tagViolet", "tagForeground"] },
+  { id: "page", title: "Page & surfaces", keys: ["background", "foreground", "card", "cardForeground", "popover", "popoverForeground", "lightMuted"] },
+  { id: "buttons", title: "Buttons & actions", keys: ["primary", "primaryForeground", "secondary", "secondaryForeground", "muted", "mutedForeground", "accent", "accentForeground"] },
+  { id: "borders", title: "Borders & focus", keys: ["border", "input", "ring", "selectableHoverRing"] },
+  { id: "destructive", title: "Destructive", keys: ["destructive", "destructiveForeground"] },
+  { id: "values", title: "Values & data", keys: ["valueColor", "acquisitionColor"] },
+  { id: "graph", title: "Graph", keys: ["graphValueColor", "graphAcquisitionColor", "graphAxisColor", "graphGridColor", "graphTooltipBackground", "graphTooltipForeground"] },
+  { id: "thumbnail", title: "Thumbnail", keys: ["thumbnailColor", "thumbnailForeground", "thumbnailHighlight", "thumbnailHover"] },
+  { id: "tags", title: "Tag colors", keys: ["tagRed", "tagOrange", "tagYellow", "tagGreen", "tagBlue", "tagIndigo", "tagViolet", "tagForeground"] },
 ]

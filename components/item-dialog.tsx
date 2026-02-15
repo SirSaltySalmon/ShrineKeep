@@ -473,7 +473,7 @@ export default function ItemDialog({
               {isNew ? "Add a new item to your collection" : "Update item details"}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4 min-w-0 overflow-visible">
+          <div className="space-y-4 py-4 layout-shrink-visible">
             <div className="min-w-0">
               <Label>Name *</Label>
               <Input
@@ -493,7 +493,7 @@ export default function ItemDialog({
             {isWishlist ? (
               <>
                 <div className="grid grid-cols-2 gap-4 min-w-0">
-                  <div className="min-w-0 overflow-visible">
+                  <div className="layout-shrink-visible">
                     <Label>Current Value</Label>
                     <Input
                       type="number"
@@ -503,7 +503,7 @@ export default function ItemDialog({
                       placeholder="0.00"
                     />
                   </div>
-                  <div className="min-w-0 overflow-visible">
+                  <div className="layout-shrink-visible">
                     <Label>Expected Price</Label>
                     <Input
                       type="number"
@@ -518,7 +518,7 @@ export default function ItemDialog({
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-4 min-w-0">
-                  <div className="min-w-0 overflow-visible">
+                  <div className="layout-shrink-visible">
                     <Label>Current Value</Label>
                     <Input
                       type="number"
@@ -528,7 +528,7 @@ export default function ItemDialog({
                       placeholder="0.00"
                     />
                   </div>
-                  <div className="min-w-0 overflow-visible">
+                  <div className="layout-shrink-visible">
                     <Label>Acquisition Price</Label>
                     <Input
                       type="number"
@@ -588,7 +588,7 @@ export default function ItemDialog({
                 )}
               </div>
               {tagsDropdownOpen && !showCreateTag && (
-                <div className="mt-2 p-2 border rounded-md bg-muted/30 space-y-1 max-h-40 overflow-y-auto">
+                <div className="mt-2 p-2 border rounded-md bg-light-muted space-y-1 max-h-40 overflow-y-auto">
                   {userTags
                     .filter((t) => !selectedTagIds.includes(t.id))
                     .map((t) => (
@@ -621,7 +621,7 @@ export default function ItemDialog({
                 </div>
               )}
               {showCreateTag && (
-                <div className="mt-2 p-3 border rounded-md bg-muted/30 space-y-2">
+                <div className="mt-2 p-3 border rounded-md bg-light-muted space-y-2">
                   <div className="flex gap-2 flex-wrap items-end">
                     <div className="min-w-0 flex-1">
                       <Label className="text-fluid-xs">Tag name</Label>
@@ -688,7 +688,7 @@ export default function ItemDialog({
               )}
             </div>
 
-            <div className="min-w-0 overflow-visible">
+            <div className="layout-shrink-visible">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <Label>Images (up to {MAX_PHOTOS})</Label>
                 {photos.length > 0 && (

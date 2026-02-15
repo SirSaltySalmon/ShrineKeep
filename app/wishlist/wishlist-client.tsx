@@ -211,7 +211,7 @@ export default function WishlistClient() {
                   : ""}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4 min-w-0 overflow-visible">
+            <div className="grid gap-4 py-4 layout-shrink-visible">
               <div className="grid gap-2 min-w-0">
                 <Label>Acquisition date</Label>
                 <Input

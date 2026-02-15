@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Box } from "@/lib/types"
+import { cn } from "@/lib/utils"
 import { ChevronRight, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -47,7 +48,7 @@ export default function Breadcrumbs({ currentBoxId, onBoxClick }: BreadcrumbsPro
   }
 
   return (
-    <nav className="flex items-center space-x-2 text-fluid-sm min-w-0 overflow-visible flex-wrap gap-y-1">
+    <nav className="flex items-center space-x-2 text-fluid-sm layout-shrink-visible">
       <Button
         variant="ghost"
         size="sm"
@@ -56,16 +57,24 @@ export default function Breadcrumbs({ currentBoxId, onBoxClick }: BreadcrumbsPro
       >
         <Home className="h-4 w-4" />
       </Button>
-      {path.map((box) => (
-        <div key={box.id} className="flex items-center space-x-2 min-w-0">
+      {path.map((box, index) => (
+        <div
+          key={box.id}
+          className={cn(
+            "flex items-center layout-shrink-visible",
+            index === path.length - 1 && "min-w-0 flex-1"
+          )}
+        >
           <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
           <Button
             variant="ghost"
             size="sm"
             onClick={() => onBoxClick(box)}
-            className="h-8 min-w-0 max-w-full truncate"
+            className="h-8 min-w-0 max-w-full overflow-hidden"
           >
-            {box.name}
+            <span className="block min-w-0 truncate-line text-left">
+              {box.name}
+            </span>
           </Button>
         </div>
       ))}

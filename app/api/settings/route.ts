@@ -44,13 +44,12 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Merge stored display prefs into color_scheme for clients
+    // Merge stored display prefs into color_scheme for clients (graph_overlay is separate)
     const colorScheme = settings.color_scheme as Theme | null | undefined
     if (colorScheme && typeof colorScheme === "object") {
       settings.color_scheme = {
         ...colorScheme,
         radius: settings.border_radius ?? colorScheme.radius ?? "0.5rem",
-        graphOverlay: settings.graph_overlay ?? colorScheme.graphOverlay ?? true,
       }
     }
 
@@ -114,7 +113,6 @@ export async function PUT(request: NextRequest) {
     if (themePayload !== undefined) {
       updateData.color_scheme = themePayload
       updateData.border_radius = themePayload.radius ?? undefined
-      updateData.graph_overlay = themePayload.graphOverlay ?? undefined
     }
 
     const validFontValues = new Set(FONT_OPTIONS.map((o) => o.value))

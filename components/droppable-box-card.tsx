@@ -2,17 +2,23 @@
 
 import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
+import { useCallback } from "react"
 import { Box } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency } from "@/lib/utils"
 import { Package, Pencil, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Selectable } from "@/components/selectable"
 
 interface DroppableBoxCardProps {
   box: Box
-  onBoxClick: (box: Box) => void
+  onBoxClick: (box: Box, e: React.MouseEvent) => void
   onRename?: (box: Box) => void
   onShowStats?: (box: Box) => void
+  /** When true, show selection ring (focus ring). */
+  selected?: boolean
+  /** When true, show lighter ring on hover (selection mode). */
+  selectionMode?: boolean
 }
 
 const DROP_ID_PREFIX = "box-"
@@ -26,7 +32,7 @@ export function getBoxDragId(boxId: string) {
   return DRAG_ID_PREFIX + boxId
 }
 
-export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStats }: DroppableBoxCardProps) {
+export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStats, selected = false, selectionMode = false }: DroppableBoxCardProps) {
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: getBoxDropId(box.id),
     data: { type: "box", box },
@@ -46,27 +52,34 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
   const style = {
     transform: CSS.Translate.toString(transform),
     opacity: isDragging ? 0.5 : 1,
+    touchAction: "none" as const,
   }
 
+  const mergedRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setDropRef(node)
+      setDragRef(node)
+    },
+    [setDropRef, setDragRef]
+  )
+
   return (
-    <Card
-      ref={(node) => {
-        setDropRef(node)
-        setDragRef(node)
-      }}
+    <Selectable
+      ref={mergedRef}
+      selected={selected}
+      selectionMode={selectionMode}
+      isOver={isOver}
       style={style}
-      className={`cursor-pointer hover:shadow-lg transition-shadow ${
-        isOver ? "ring-2 ring-primary ring-offset-2" : ""
-      }`}
-      onClick={() => onBoxClick(box)}
+      onClick={(e) => onBoxClick(box, e)}
       {...attributes}
       {...listeners}
     >
+      <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-2 min-w-0">
-          <div className="flex items-center space-x-2 min-w-0 overflow-visible">
+          <div className="flex items-center space-x-2 layout-shrink-visible">
             <Package className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-muted-foreground" />
-            <CardTitle className="text-fluid-lg truncate">{box.name}</CardTitle>
+            <CardTitle className="text-fluid-lg min-w-0" title={box.name}>{box.name}</CardTitle>
           </div>
           <div className="flex shrink-0 gap-0.5">
             {onShowStats && (
@@ -107,7 +120,7 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
         )}
       </CardHeader>
       <CardContent>
-        <div className="space-y-1 text-fluid-sm text-muted-foreground min-w-0 overflow-visible">
+        <div className="space-y-1 text-fluid-sm text-muted-foreground layout-shrink-visible">
           {box.total_value !== undefined && (
             <div className="truncate">Total Value: {formatCurrency(box.total_value)}</div>
           )}
@@ -120,5 +133,6 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
         </div>
       </CardContent>
     </Card>
+    </Selectable>
   )
 }

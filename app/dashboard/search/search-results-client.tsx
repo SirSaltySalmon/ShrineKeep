@@ -333,7 +333,7 @@ export default function SearchResultsClient({
   )
 
   return (
-    <main className="container mx-auto px-4 py-8 min-w-0 overflow-hidden">
+    <main className="container mx-auto px-4 py-8 layout-shrink-visible">
       <Link
         href="/dashboard"
         className="inline-flex items-center text-fluid-sm text-muted-foreground hover:text-foreground mb-6 min-w-0"

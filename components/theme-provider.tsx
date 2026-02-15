@@ -8,6 +8,15 @@ import { Theme } from "@/lib/types"
 import { FONT_FAMILY_CSS, DEFAULT_FONT_FAMILY } from "@/lib/fonts"
 import type { FontFamilyId } from "@/lib/fonts"
 
+/** Paths that must not use the account's custom theme (use default theme only). */
+function isExcludedFromAccountTheme(pathname: string): boolean {
+  if (!pathname) return false
+  if (pathname.startsWith("/auth/")) return true
+  if (pathname === "/landing" || pathname.startsWith("/landing/")) return true
+  if (pathname.startsWith("/wishlist/") && pathname !== "/wishlist") return true
+  return false
+}
+
 interface ThemeProviderProps {
   children: React.ReactNode
   attribute?: string
@@ -31,16 +40,7 @@ export function ThemeProvider({
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Don't apply custom colors on landing page or auth pages
-    if (pathname === "/" || pathname.startsWith("/auth/")) {
-      setCustomColors(null)
-      setFontFamily(DEFAULT_FONT_FAMILY)
-      setIsLoading(false)
-      return
-    }
-
-    // Don't apply custom colors on public wishlist pages (they handle their own colors)
-    if (pathname.startsWith("/wishlist/") && pathname !== "/wishlist") {
+    if (isExcludedFromAccountTheme(pathname)) {
       setCustomColors(null)
       setFontFamily(DEFAULT_FONT_FAMILY)
       setIsLoading(false)
@@ -77,17 +77,11 @@ export function ThemeProvider({
 
     const root = document.documentElement
 
-    // Don't apply on landing page or auth pages
-    if (pathname === "/" || pathname.startsWith("/auth/")) {
-      const defaultCssVars = applyColorScheme(getDefaultColorScheme())
-      Object.keys(defaultCssVars).forEach((property) => {
+    if (isExcludedFromAccountTheme(pathname)) {
+      Object.keys(applyColorScheme(getDefaultColorScheme())).forEach((property) => {
         root.style.removeProperty(property)
       })
       root.style.removeProperty("--font-sans")
-      return
-    }
-
-    if (pathname.startsWith("/wishlist/") && pathname !== "/wishlist") {
       return
     }
 

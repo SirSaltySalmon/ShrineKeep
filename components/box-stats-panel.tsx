@@ -34,7 +34,7 @@ export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0, graphOve
 
   if (loading) {
     return (
-      <div className="rounded-lg border bg-muted/30 p-4 mb-6 min-w-0 overflow-visible">
+      <div className="rounded-lg border bg-light-muted p-4 mb-6 layout-shrink-visible">
         <div className="text-fluid-sm text-muted-foreground">Loading stats...</div>
       </div>
     )
@@ -42,7 +42,7 @@ export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0, graphOve
 
   return (
     <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
-      <div className="p-4 min-w-0 overflow-visible">
+      <div className="p-4 layout-shrink-visible">
         <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
           <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
             <BoxStatsSummary
@@ -74,7 +74,7 @@ export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0, graphOve
       </div>
 
       {expanded && (
-        <div className="border-t bg-muted/20 px-4 py-4 space-y-4">
+        <div className="border-t bg-light-muted px-4 py-4 space-y-4">
           <DateRangeFilter
             fromDate={fromDate}
             toDate={toDate}

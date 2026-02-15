@@ -80,8 +80,8 @@ export default function LoginPage() {
             Sign in to your account to continue
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 min-w-0 overflow-visible">
-          <form onSubmit={handleEmailLogin} className="space-y-4 min-w-0 overflow-visible">
+        <CardContent className="space-y-4 layout-shrink-visible">
+          <form onSubmit={handleEmailLogin} className="space-y-4 layout-shrink-visible">
             <div className="space-y-2 min-w-0">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -115,7 +115,7 @@ export default function LoginPage() {
               <TurnstileWidget ref={turnstileRef} onSuccess={setCaptchaToken} />
             </div>
             {error && (
-              <div className="space-y-1 text-fluid-sm text-destructive bg-destructive/10 p-3 rounded-md min-w-0 overflow-hidden break-words">
+              <div className="space-y-1 form-error-message">
                 <p>{error}</p>
                 {error !== "Please complete the captcha verification." && (
                   <p className="text-muted-foreground text-fluid-xs">

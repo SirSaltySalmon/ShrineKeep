@@ -3,6 +3,7 @@
 import { Item, type TagColor } from "@/lib/types"
 import { getTagChipStyle, formatCurrency, formatDate } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Selectable } from "@/components/selectable"
 import { Button } from "@/components/ui/button"
 import { Image as ImageIcon, Check } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
@@ -26,8 +27,10 @@ function getAcquisitionColor(): string {
 interface ItemCardProps {
   item: Item
   variant: "collection" | "wishlist"
-  /** When true, show selection highlight (theme color). */
+  /** When true, show selection ring (focus ring). */
   selected?: boolean
+  /** When true, show lighter ring on hover (selection mode). */
+  selectionMode?: boolean
   onClick: (item: Item, e: React.MouseEvent) => void
   onMarkAcquired?: (item: Item) => void
 }
@@ -36,14 +39,18 @@ export default function ItemCard({
   item,
   variant,
   selected = false,
+  selectionMode = false,
   onClick,
   onMarkAcquired,
 }: ItemCardProps) {
   return (
-    <Card
-      className={`item-card-no-select cursor-pointer hover:shadow-lg transition-shadow ${selected ? "ring-2 ring-itemSelected" : ""}`}
+    <Selectable
+      selected={selected}
+      selectionMode={selectionMode}
+      className="item-card-no-select"
       onClick={(e) => onClick(item, e)}
     >
+      <Card>
       <div className="relative w-full h-48 bg-muted rounded-t-lg overflow-hidden">
         {item.thumbnail_url ? (
           <ThumbnailImage
@@ -58,7 +65,7 @@ export default function ItemCard({
         )}
       </div>
       <CardHeader>
-        <CardTitle className="text-fluid-lg line-clamp-1 truncate">{item.name}</CardTitle>
+        <CardTitle className="text-fluid-lg">{item.name}</CardTitle>
         {item.description && (
           <CardDescription className={variant === "collection" ? "line-clamp-2" : ""}>
             {item.description}
@@ -67,7 +74,7 @@ export default function ItemCard({
       </CardHeader>
       <CardContent onClick={(e) => e.stopPropagation()}>
         {variant === "collection" ? (
-          <div className="space-y-1 text-fluid-sm min-w-0 overflow-visible">
+          <div className="space-y-1 text-fluid-sm layout-shrink-visible">
             {item.current_value !== null && item.current_value !== undefined && (
               <div className="font-medium truncate" style={{ color: getValueColor() }}>
                 Value: {formatCurrency(item.current_value)}
@@ -98,7 +105,7 @@ export default function ItemCard({
             )}
           </div>
         ) : (
-          <div className="space-y-2 text-fluid-sm min-w-0 overflow-visible">
+          <div className="space-y-2 text-fluid-sm layout-shrink-visible">
             {item.expected_price !== null && item.expected_price !== undefined && (
               <div className="font-medium truncate">
                 Expected: {formatCurrency(item.expected_price)}
@@ -121,5 +128,6 @@ export default function ItemCard({
         )}
       </CardContent>
     </Card>
+    </Selectable>
   )
 }

@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/select"
 import { ThemeEditor } from "@/components/settings/theme-editor"
 import { OptionsSettings } from "@/components/settings/options-settings"
-import { WishlistSettings } from "@/components/settings/wishlist-settings"
 import { PersonalSettings } from "@/components/settings/personal-settings"
 import TagSettings from "@/components/settings/tag-settings"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -27,6 +26,7 @@ import {
   type ThemePreset,
 } from "@/lib/settings"
 import { DEFAULT_FONT_FAMILY, FONT_FAMILY_CSS } from "@/lib/fonts"
+import type { CSSProperties } from "react"
 import type { FontFamilyId } from "@/lib/fonts"
 import { UserSettings, Theme } from "@/lib/types"
 import { Upload } from "lucide-react"
@@ -48,14 +48,20 @@ interface SettingsClientProps {
 
 export default function SettingsClient({ initialSettings, initialProfile }: SettingsClientProps) {
   const router = useRouter()
-  const [theme, setTheme] = useState<Theme>(
-    initialSettings?.color_scheme || getDefaultColorScheme()
-  )
+  const [theme, setTheme] = useState<Theme>(() => {
+    const cs = initialSettings?.color_scheme as Theme | undefined
+    if (!cs || typeof cs !== "object") return getDefaultColorScheme()
+    const { graphOverlay: _, ...rest } = cs as Theme & { graphOverlay?: boolean }
+    return { ...getDefaultColorScheme(), ...rest }
+  })
   const [selectedPreset, setSelectedPreset] = useState<ThemePreset>(
     initialSettings?.color_scheme ? "custom" : "light"
   )
   const [fontFamily, setFontFamily] = useState<FontFamilyId>(
     (initialSettings?.font_family as FontFamilyId) || DEFAULT_FONT_FAMILY
+  )
+  const [graphOverlay, setGraphOverlay] = useState(
+    initialSettings?.graph_overlay ?? true
   )
   const [wishlistIsPublic, setWishlistIsPublic] = useState(
     initialSettings?.wishlist_is_public || false
@@ -72,8 +78,6 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   const [displayName, setDisplayName] = useState(initialProfile.displayName)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(initialProfile.avatarUrl)
   const [avatarVersion, setAvatarVersion] = useState(0)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Apply theme and font immediately for preview
@@ -90,51 +94,11 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     }
   }, [theme, fontFamily])
 
-  const handleSave = async () => {
-    setSaving(true)
-    setSaved(false)
-
-    try {
-      const response = await fetch("/api/settings", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          theme,
-          font_family: fontFamily,
-          wishlist_is_public: wishlistIsPublic,
-          wishlist_apply_colors: wishlistApplyColors,
-          use_custom_display_name: useCustomDisplayName,
-          name: displayName,
-        }),
-      })
-
-      const updated = await response.json()
-
-      if (!response.ok) {
-        throw new Error(updated?.error ?? "Failed to save settings")
-      }
-
-      setWishlistShareToken(updated.wishlist_share_token)
-
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-      router.refresh()
-    } catch (error) {
-      console.error("Error saving settings:", error)
-      alert(error instanceof Error ? error.message : "Failed to save settings. Please try again.")
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleResetTheme = () => {
-    setTheme((prev) => ({
+    setTheme({
       ...getDefaultColorScheme(),
       radius: "0.5rem",
-      graphOverlay: prev?.graphOverlay ?? true,
-    }))
+    })
     setFontFamily(DEFAULT_FONT_FAMILY)
     setSelectedPreset("light")
   }
@@ -143,11 +107,10 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     setSelectedPreset(preset)
     if (preset !== "custom") {
       const presetScheme = getColorSchemeByPreset(preset)
-      setTheme((prev) => ({
+      setTheme({
         ...presetScheme,
         radius: "0.5rem",
-        graphOverlay: prev?.graphOverlay ?? true,
-      }))
+      })
       setFontFamily(DEFAULT_FONT_FAMILY)
     }
   }
@@ -168,7 +131,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
         setTheme((prev) => ({
           ...getDefaultColorScheme(),
           ...imported.theme,
-          graphOverlay: prev?.graphOverlay ?? true,
+          radius: prev?.radius ?? "0.5rem",
         }))
         if (imported.fontFamily) setFontFamily(imported.fontFamily)
         setSelectedPreset("custom")
@@ -200,30 +163,6 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     URL.revokeObjectURL(url)
   }
 
-  const handleRegenerateToken = async () => {
-    try {
-      const response = await fetch("/api/settings", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          regenerate_wishlist_token: true,
-        }),
-      })
-
-      const updated = await response.json()
-      if (!response.ok) {
-        throw new Error(updated?.error ?? "Failed to regenerate token")
-      }
-      setWishlistShareToken(updated.wishlist_share_token ?? null)
-      router.refresh()
-    } catch (error) {
-      console.error("Error regenerating token:", error)
-      alert("Failed to regenerate token. Please try again.")
-    }
-  }
-
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -235,7 +174,6 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
               <TabsTrigger value="personal" className="whitespace-nowrap shrink-0">Personal</TabsTrigger>
               <TabsTrigger value="theme" className="whitespace-nowrap shrink-0">Theme</TabsTrigger>
               <TabsTrigger value="options" className="whitespace-nowrap shrink-0">Options</TabsTrigger>
-              <TabsTrigger value="wishlist" className="whitespace-nowrap shrink-0">Wishlist</TabsTrigger>
               <TabsTrigger value="tags" className="whitespace-nowrap shrink-0">Tags</TabsTrigger>
             </TabsList>
           </div>
@@ -323,30 +261,20 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
               setSelectedPreset={setSelectedPreset}
               fontFamily={fontFamily}
               setFontFamily={setFontFamily}
+              graphOverlay={graphOverlay}
             />
-
-            <div className="flex gap-2">
-              <Button onClick={handleResetTheme} variant="outline">
-                Reset to Light Mode
-              </Button>
-            </div>
           </TabsContent>
 
           <TabsContent value="options" className="mt-6 min-w-0">
             <OptionsSettings
-              graphOverlay={theme.graphOverlay !== false}
-              onGraphOverlayChange={(checked) => setTheme((prev) => ({ ...prev, graphOverlay: checked }))}
-            />
-          </TabsContent>
-
-          <TabsContent value="wishlist" className="mt-6 min-w-0">
-            <WishlistSettings
+              graphOverlay={graphOverlay}
+              onGraphOverlayChange={setGraphOverlay}
               wishlistIsPublic={wishlistIsPublic}
               wishlistShareToken={wishlistShareToken}
               wishlistApplyColors={wishlistApplyColors}
               onPublicChange={setWishlistIsPublic}
               onApplyColorsChange={setWishlistApplyColors}
-              onRegenerateToken={handleRegenerateToken}
+              onShareTokenChange={setWishlistShareToken}
             />
           </TabsContent>
 
@@ -354,18 +282,6 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
             <TagSettings />
           </TabsContent>
         </Tabs>
-
-        {/* Save Button */}
-        <div className="flex justify-end gap-2 border-t pt-4 mt-8">
-          {saved && (
-            <span className="text-fluid-sm text-muted-foreground self-center">
-              Settings saved!
-            </span>
-          )}
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Saving..." : "Save Settings"}
-          </Button>
-        </div>
       </div>
     </div>
   )

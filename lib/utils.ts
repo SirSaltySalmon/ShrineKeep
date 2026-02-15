@@ -1,8 +1,30 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { Item, ItemCopyPayload, Tag, TagColor } from "./types"
+import type { Box, BoxCopyPayload, Item, ItemCopyPayload, Tag, TagColor } from "./types"
 import type { SearchFiltersState } from "./types"
 import { TAG_COLORS } from "./types"
+
+/** Canonical ring: ring-2 ring-primary ring-offset-2. Keep SELECTION_RING_CLASS and FOCUS_RING_CLASS in sync. */
+export const SELECTION_RING_CLASS = "ring-2 ring-primary ring-offset-2"
+
+/** Focus-visible ring for inputs/controls; same ring as SELECTION_RING_CLASS. Update both when changing the ring. */
+export const FOCUS_RING_CLASS =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+
+/** Lighter ring on hover for selectables (items, boxes) when in selection mode. Color from theme (--selectable-hover-ring). Ring only, no offset fill. */
+export const SELECTABLE_HOVER_RING_CLASS =
+  "hover:ring-2 hover:ring-selectable-hover-ring hover:ring-offset-0 hover:relative hover:z-10"
+
+/**
+ * Ring classes for selectable elements (item cards, box cards, theme preview).
+ * When showFullRing (e.g. selected or drop target), returns full selection ring.
+ * Otherwise when selectionMode, returns lighter hover ring.
+ */
+export function getSelectableRingClasses(showFullRing: boolean, selectionMode: boolean): string {
+  if (showFullRing) return SELECTION_RING_CLASS
+  if (selectionMode) return SELECTABLE_HOVER_RING_CLASS
+  return ""
+}
 
 /** Build /dashboard/search URL from query, filters, and optional page. Use from dashboard and search page. */
 export function buildSearchUrl(q: string, filters: SearchFiltersState, page?: number): string {
@@ -75,6 +97,44 @@ export function buildItemCopyPayload(item: Item): ItemCopyPayload {
     photos,
     tag_ids: (item.tags ?? []).map((t) => t.id),
   }
+}
+
+/** Build one BoxCopyPayload node from flat boxes + items (for a given box id). */
+function buildBoxCopyPayloadNode(
+  boxes: Box[],
+  items: Item[],
+  boxId: string
+): BoxCopyPayload {
+  const box = boxes.find((b) => b.id === boxId)
+  if (!box) {
+    return { name: "", description: null, children: [], items: [] }
+  }
+  const nodeItems = items
+    .filter((i) => i.box_id === boxId)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .map(buildItemCopyPayload)
+  const childBoxes = boxes
+    .filter((b) => b.parent_box_id === boxId)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+  return {
+    name: box.name,
+    description: box.description ?? null,
+    children: childBoxes.map((c) => buildBoxCopyPayloadNode(boxes, items, c.id)),
+    items: nodeItems,
+  }
+}
+
+/** Build BoxCopyPayload trees for given root box ids from flat boxes + items (e.g. from /api/boxes/subtree). */
+export function buildBoxCopyPayloadTrees(
+  boxes: Box[],
+  items: Item[],
+  rootIds: string[]
+): BoxCopyPayload[] {
+  return rootIds
+    .map((id) => boxes.find((b) => b.id === id))
+    .filter((b): b is Box => !!b)
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .map((b) => buildBoxCopyPayloadNode(boxes, items, b.id))
 }
 
 /** Supabase returns item_tags as { tag_id, tag: Tag }[]; normalize to item.tags = Tag[] */

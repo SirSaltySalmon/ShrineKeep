@@ -123,7 +123,7 @@ export default function ResetPasswordPage() {
             Enter your new password below.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 min-w-0 overflow-visible">
+        <CardContent className="space-y-4 layout-shrink-visible">
           <form onSubmit={handleSubmit} className="space-y-4 min-w-0">
             <div className="space-y-2 min-w-0">
               <Label htmlFor="password">New password</Label>

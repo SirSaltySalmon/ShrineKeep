@@ -33,7 +33,6 @@ export default async function SettingsPage() {
       color_scheme: {
         ...colorScheme,
         radius: settings.border_radius ?? colorScheme.radius ?? "0.5rem",
-        graphOverlay: settings.graph_overlay ?? colorScheme.graphOverlay ?? true,
       },
     }
   }

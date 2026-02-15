@@ -50,7 +50,7 @@ export default function ForgotPasswordPage() {
             Enter your email and we&apos;ll send you a link to reset your password.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 min-w-0 overflow-visible">
+        <CardContent className="space-y-4 layout-shrink-visible">
           <form onSubmit={handleSubmit} className="space-y-4 min-w-0">
             <div className="space-y-2 min-w-0">
               <Label htmlFor="email">Email</Label>

@@ -11,8 +11,21 @@ import { Label } from "@/components/ui/label"
 // Re-export for convenience
 export { hslToHex, hexToHsl }
 
+/** Normalize to 6-digit hex with #; return null if invalid. */
+function normalizeHex(input: string): string | null {
+  const s = input.replace(/^#/, "").trim()
+  if (/^[0-9A-Fa-f]{6}$/.test(s)) return `#${s}`
+  if (/^[0-9A-Fa-f]{3}$/.test(s)) {
+    const r = s[0] + s[0]
+    const g = s[1] + s[1]
+    const b = s[2] + s[2]
+    return `#${r}${g}${b}`
+  }
+  return null
+}
+
 interface ColorPickerProps {
-  value: string // HSL format: "222.2 47.4% 11.2%"
+  value: string // HSL format: "222.2 47.4% 11.2%" (stored in theme)
   onChange: (value: string) => void
   label?: string
   className?: string
@@ -22,7 +35,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
   const [isOpen, setIsOpen] = React.useState(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
 
-  // Convert HSL to hex for the picker
+  // Canonical hex for picker and display
   const hexValue = React.useMemo(() => {
     try {
       return hslToHex(value)
@@ -31,17 +44,36 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
     }
   }, [value])
 
-  // Convert hex back to HSL format
+  const [inputHex, setInputHex] = React.useState(hexValue)
+  React.useEffect(() => {
+    setInputHex(hexValue)
+  }, [hexValue])
+
+  const handleHexInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value
+    setInputHex(v)
+    const normalized = normalizeHex(v)
+    if (normalized) {
+      try {
+        onChange(hexToHsl(normalized))
+      } catch {
+        // ignore invalid
+      }
+    }
+  }
+
+  const handleHexInputBlur = () => {
+    setInputHex(hexValue)
+  }
+
   const handleColorChange = (hex: string) => {
     try {
-      const hsl = hexToHsl(hex)
-      onChange(hsl)
+      onChange(hexToHsl(hex))
     } catch (error) {
       console.error("Error converting color:", error)
     }
   }
 
-  // Close picker when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -70,15 +102,16 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
           size="icon"
           onClick={() => setIsOpen(!isOpen)}
           className="w-10 h-10 shrink-0 border-2"
-          style={{ backgroundColor: `hsl(${value})` }}
+          style={{ backgroundColor: hexValue }}
           aria-label={`Pick color for ${label || "color"}`}
         />
         <Input
           type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="222.2 47.4% 11.2%"
-          className="flex-1 min-w-0"
+          value={inputHex}
+          onChange={handleHexInputChange}
+          onBlur={handleHexInputBlur}
+          placeholder="#000000"
+          className="flex-1 min-w-0 font-mono text-fluid-sm"
         />
       </div>
       {isOpen && (

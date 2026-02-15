@@ -68,7 +68,7 @@ export default function AdvancedSearchFilters({
 
   return (
     <div className={className}>
-      <div className="rounded-lg border bg-muted/30 p-4 space-y-4 min-w-0">
+      <div className="rounded-lg border bg-light-muted p-4 space-y-4 min-w-0">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <Label className="text-fluid-xs">Value min</Label>

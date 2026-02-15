@@ -15,6 +15,8 @@ export function getItemDragId(itemId: string) {
 interface DraggableItemCardProps {
   item: Item
   selected?: boolean
+  /** When true, show lighter ring on hover (selection mode). */
+  selectionMode?: boolean
   onClick: (item: Item, e: React.MouseEvent) => void
   /** Register this card's root element for marquee intersection. */
   registerCardRef?: (id: string, el: HTMLDivElement | null) => void
@@ -23,6 +25,7 @@ interface DraggableItemCardProps {
 export default function DraggableItemCard({
   item,
   selected = false,
+  selectionMode = false,
   onClick,
   registerCardRef,
 }: DraggableItemCardProps) {
@@ -48,6 +51,7 @@ export default function DraggableItemCard({
   const style = {
     transform: CSS.Translate.toString(transform),
     opacity: isDragging ? 0.5 : 1,
+    touchAction: "none" as const,
   }
 
   return (
@@ -62,6 +66,7 @@ export default function DraggableItemCard({
         item={item}
         variant="collection"
         selected={selected}
+        selectionMode={selectionMode}
         onClick={onClick}
       />
     </div>

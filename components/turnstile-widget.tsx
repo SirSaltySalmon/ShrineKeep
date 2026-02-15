@@ -32,7 +32,7 @@ const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetProps>(
     if (!siteKey) return null
 
     return (
-      <div className="overflow-auto-x flex justify-center">
+      <div className="overflow-x-auto flex justify-center">
         <Turnstile
           ref={ref}
           siteKey={siteKey}
@@ -43,7 +43,7 @@ const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetProps>(
           }}
         />
         {errorMessage && (
-          <div className="w-full text-fluid-sm text-destructive bg-destructive/10 p-3 rounded-md min-w-0 overflow-hidden break-words">
+          <div className="w-full form-error-message">
             {errorMessage}
           </div>
         )}

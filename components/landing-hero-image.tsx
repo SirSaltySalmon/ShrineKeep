@@ -4,7 +4,7 @@ import Image from "next/image"
 import { useState } from "react"
 
 // Next.js serves files from public/ at the root. Use /hero.jpeg or /hero.png (file must live in public/)
-const HERO_SOURCES = ["/hero.jpeg", "/hero2.jpeg"]
+const HERO_SOURCES = ["/hero.jpg", "/hero2.jpg", "/hero3.jpg", "/hero4.jpg"]
 
 export function LandingHeroImage({ src_index = 0 }: { src_index?: number }) {
   const src = HERO_SOURCES[src_index]

@@ -1,7 +1,13 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { deleteOneBox, type BoxDeleteMode } from "@/lib/api/delete-box"
 
+type BoxDeletePayload = { boxId: string; mode: BoxDeleteMode }
+
+/**
+ * Delete one or more boxes. Body: { boxId, mode } or { boxes: { boxId, mode }[] }.
+ */
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createSupabaseServerClient()
@@ -13,77 +19,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { boxId, mode } = await request.json() as { boxId: string; mode: "delete-all" | "move-to-root" }
+    const body = (await request.json()) as { boxId?: string; mode?: BoxDeleteMode; boxes?: BoxDeletePayload[] }
+    const list: BoxDeletePayload[] = body.boxes ?? (body.boxId && body.mode ? [{ boxId: body.boxId, mode: body.mode }] : [])
 
-    if (!boxId || !mode) {
+    if (list.length === 0) {
       return NextResponse.json(
-        { error: "boxId and mode (delete-all | move-to-root) required" },
+        { error: "boxId and mode, or boxes array, required" },
         { status: 400 }
       )
     }
 
-    if (mode !== "delete-all" && mode !== "move-to-root") {
-      return NextResponse.json({ error: "Invalid mode" }, { status: 400 })
+    for (const { boxId, mode } of list) {
+      if (mode !== "delete-all" && mode !== "move-to-root") {
+        return NextResponse.json({ error: "Invalid mode" }, { status: 400 })
+      }
+      await deleteOneBox(supabase, user.id, boxId, mode)
     }
 
-    const userId = user.id
-
-    if (mode === "delete-all") {
-      // CASCADE will delete child boxes and items (and value_history, photos, item_tags)
-      const { error } = await supabase
-        .from("boxes")
-        .delete()
-        .eq("id", boxId)
-        .eq("user_id", userId)
-
-      if (error) throw error
-      return NextResponse.json({ success: true })
-    }
-
-    // mode === "move-to-root": collect all descendant box IDs, move them and their items to root, then delete
-    const descendantIds: string[] = []
-    let currentLevel: string[] = [boxId]
-
-    while (currentLevel.length > 0) {
-      const { data: children } = await supabase
-        .from("boxes")
-        .select("id")
-        .in("parent_box_id", currentLevel)
-        .eq("user_id", userId)
-
-      if (!children?.length) break
-      const ids = children.map((c) => c.id)
-      descendantIds.push(...ids)
-      currentLevel = ids
-    }
-
-    const allBoxIds = [boxId, ...descendantIds]
-
-    const { error: errBoxes } = await supabase
-      .from("boxes")
-      .update({ parent_box_id: null })
-      .in("id", allBoxIds)
-      .eq("user_id", userId)
-
-    if (errBoxes) throw errBoxes
-
-    const { error: errItems } = await supabase
-      .from("items")
-      .update({ box_id: null })
-      .in("box_id", allBoxIds)
-      .eq("user_id", userId)
-
-    if (errItems) throw errItems
-
-    const { error: errDelete } = await supabase
-      .from("boxes")
-      .delete()
-      .eq("id", boxId)
-      .eq("user_id", userId)
-
-    if (errDelete) throw errDelete
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, deletedCount: list.length })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to delete box"
     return NextResponse.json({ error: message }, { status: 500 })

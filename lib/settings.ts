@@ -3,6 +3,7 @@ import { createSupabaseClient } from "./supabase/client"
 import {
   DEFAULT_COLOR_SCHEME,
   DARK_COLOR_SCHEME,
+  PINK_COLOR_SCHEME,
   THEME_COLOR_KEYS,
   THEME_KEY_TO_CSS_VAR,
 } from "./theme-colors"
@@ -12,7 +13,7 @@ import type { FontFamilyId } from "./fonts"
 // Re-export for consumers that import from settings
 export { DEFAULT_COLOR_SCHEME, DARK_COLOR_SCHEME }
 
-export type ThemePreset = "light" | "dark" | "custom"
+export type ThemePreset = "light" | "dark" | "pink" | "custom"
 
 export const COLOR_SCHEME_PRESETS: Record<ThemePreset, { name: string; scheme: Theme }> = {
   light: {
@@ -22,6 +23,10 @@ export const COLOR_SCHEME_PRESETS: Record<ThemePreset, { name: string; scheme: T
   dark: {
     name: "Dark Mode",
     scheme: DARK_COLOR_SCHEME,
+  },
+  pink: {
+    name: "Pink Mode",
+    scheme: PINK_COLOR_SCHEME,
   },
   custom: {
     name: "Custom",
@@ -40,9 +45,7 @@ export function getDefaultColorScheme(): Theme {
  * Get color scheme by preset name
  */
 export function getColorSchemeByPreset(preset: ThemePreset): Theme {
-  if (preset === "custom") {
-    return getDefaultColorScheme()
-  }
+  if (preset === "custom") return getDefaultColorScheme()
   return { ...COLOR_SCHEME_PRESETS[preset].scheme }
 }
 
@@ -281,11 +284,20 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
   return data
 }
 
+export interface ApplyColorSchemeOptions {
+  /** If set, adds --font-sans to the returned style object (e.g. for previews). */
+  fontFamily?: string
+}
+
 /**
- * Apply color scheme to CSS variables
- * Returns a style object that can be injected
+ * Apply color scheme to CSS variables.
+ * Returns a style object that can be injected. Includes `color: hsl(var(--foreground))`
+ * so the element uses the scheme's foreground; pass `fontFamily` in options to also set --font-sans.
  */
-export function applyColorScheme(colors: Theme): Record<string, string> {
+export function applyColorScheme(
+  colors: Theme,
+  options?: ApplyColorSchemeOptions
+): Record<string, string> {
   const merged = mergeColorScheme(colors)
   const cssVars: Record<string, string> = {}
 
@@ -295,6 +307,14 @@ export function applyColorScheme(colors: Theme): Record<string, string> {
       cssVars[cssVar] = value
     }
   })
+
+  if (merged.foreground) {
+    cssVars.color = "hsl(var(--foreground))"
+  }
+
+  if (options?.fontFamily) {
+    cssVars["--font-sans"] = options.fontFamily
+  }
 
   return cssVars
 }

@@ -2,9 +2,10 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export function proxy(request: NextRequest) {
-  // Set pathname header for server components to access
+  // Set pathname/url headers for server components (e.g. not-found) to access
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set("x-pathname", request.nextUrl.pathname)
+  requestHeaders.set("x-url", request.nextUrl.href)
 
   return NextResponse.next({
     request: {

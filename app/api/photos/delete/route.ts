@@ -43,21 +43,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    // Delete from storage if storage_path exists
+    // Delete from storage only if no other item's photo references this path (shared refs after copy/paste)
     if (photo.storage_path) {
-      // Validate path belongs to user (security check)
       const userId = user.id
       const pathParts = photo.storage_path.split("/")
       const isValidPath = pathParts.length >= 2 && pathParts[0] === userId
 
       if (isValidPath) {
-        const { error: storageError } = await supabase.storage
-          .from("item-photos")
-          .remove([photo.storage_path])
+        const { data: otherRefs } = await supabase
+          .from("photos")
+          .select("id, items!inner(user_id)")
+          .eq("storage_path", photo.storage_path)
+          .neq("id", photoId)
+          .eq("items.user_id", userId)
 
-        if (storageError) {
-          console.error("Error deleting photo from storage:", storageError)
-          // Continue with database deletion even if storage deletion fails
+        const stillReferenced = (otherRefs ?? []).length > 0
+        if (!stillReferenced) {
+          const { error: storageError } = await supabase.storage
+            .from("item-photos")
+            .remove([photo.storage_path])
+          if (storageError) {
+            console.error("Error deleting photo from storage:", storageError)
+          }
         }
       }
     }

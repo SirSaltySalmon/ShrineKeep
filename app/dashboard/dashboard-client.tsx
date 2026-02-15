@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Plus, Search, Grid3x3, Trash2, Sword, Filter } from "lucide-react"
-import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { getItemDragId } from "@/components/draggable-item-card"
 import { getBoxDropId } from "@/components/droppable-box-card"
 import { MOVE_TO_PARENT_ZONE_ID } from "@/components/move-to-parent-zone"
@@ -27,14 +27,20 @@ import BoxStatsPanel from "@/components/box-stats-panel"
 import ItemGrid from "@/components/item-grid"
 import MoveToParentZone from "@/components/move-to-parent-zone"
 import Breadcrumbs from "@/components/breadcrumbs"
+import { useDashboardSelection } from "@/lib/hooks/use-dashboard-selection"
+import { SelectionModeToggle } from "@/components/selection-mode-toggle"
+import { SelectionActionBar } from "@/components/selection-action-bar"
+import { useCopiedItem } from "@/lib/copied-item-context"
 
 interface DashboardClientProps {
   user: any
-  /** Theme (color_scheme) from user_settings for chart overlay preference. */
-  initialTheme?: { graphOverlay?: boolean } | null
+  /** Theme (color_scheme) from user_settings; not used for graph overlay. */
+  initialTheme?: Record<string, unknown> | null
+  /** Chart overlay preference from user_settings (separate from theme). */
+  initialGraphOverlay?: boolean
 }
 
-export default function DashboardClient({ user, initialTheme }: DashboardClientProps) {
+export default function DashboardClient({ user, initialTheme, initialGraphOverlay = true }: DashboardClientProps) {
   const router = useRouter()
   const supabase = createSupabaseClient()
   const [currentBoxId, setCurrentBoxId] = useState<string | null>(null)
@@ -61,6 +67,29 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>(DEFAULT_SEARCH_FILTERS)
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [userTags, setUserTags] = useState<Tag[]>([])
+  const [selectionMode, setSelectionMode] = useState(false)
+
+  const {
+    selectedItemIds,
+    setSelectedItemIds,
+    gridRef: itemGridRef,
+    registerCardRef,
+    handleGridMouseDown,
+    marquee,
+    selectedBoxIds,
+    setSelectedBoxIds,
+    clearSelection,
+    hasSelection,
+    toggleBoxSelection,
+    isBoxSelected,
+    isItemSelected,
+    toggleItemSelection,
+  } = useDashboardSelection(currentBoxId)
+  const { copied, copiedBoxTrees } = useCopiedItem()
+  const selectedItems = items.filter((i) => selectedItemIds.has(i.id))
+  const selectedBoxes = boxes.filter((b) => selectedBoxIds.has(b.id))
+  const showSelectionBar =
+    hasSelection || (copied !== null && copied.length > 0) || (copiedBoxTrees !== null && copiedBoxTrees.length > 0)
 
   useEffect(() => {
     loadBoxes()
@@ -187,6 +216,18 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
     setCurrentBox(box)
   }
 
+  const handleBoxCardClick = (box: Box, e: React.MouseEvent) => {
+    if (selectionMode) {
+      toggleBoxSelection(box.id)
+      return
+    }
+    if (e.shiftKey) {
+      toggleBoxSelection(box.id)
+      return
+    }
+    handleBoxClick(box)
+  }
+
   const openEditBox = (box: Box) => {
     setEditBox(box)
     setEditBoxName(box.name)
@@ -260,6 +301,9 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
     })
   )
 
@@ -287,11 +331,20 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
       const currentItemBoxId = draggedItem.box_id ?? null
       if (currentItemBoxId === targetParentBoxId) return
 
+      const moveItemIds =
+        selectedItemIds.has(itemId) && selectedItemIds.size > 0
+          ? items
+              .filter((i) => selectedItemIds.has(i.id) && (i.box_id ?? null) === currentItemBoxId)
+              .map((i) => i.id)
+          : [itemId]
+
+      if (moveItemIds.length === 0) return
+
       try {
         const res = await fetch("/api/items/move", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ itemId, targetBoxId: targetParentBoxId }),
+          body: JSON.stringify({ itemIds: moveItemIds, targetBoxId: targetParentBoxId }),
         })
         if (!res.ok) {
           const err = await res.json()
@@ -336,12 +389,14 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
 
   return (
     <>
-      <main className="container mx-auto px-4 py-8 min-w-0 overflow-hidden">
+      <main className="container mx-auto px-4 py-8 layout-shrink-visible">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 min-w-0">
-          <Breadcrumbs currentBoxId={currentBoxId} onBoxClick={handleBoxClick} />
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Breadcrumbs currentBoxId={currentBoxId} onBoxClick={handleBoxClick} />
+          </div>
           <div className="flex flex-col gap-2 min-w-0 w-full">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="relative min-w-0 flex-1 min-w-[12rem]">
+              <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground shrink-0" />
                 <Input
                   placeholder="Search items..."
@@ -416,7 +471,7 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                     Change the name and description of this box, or delete it.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4 min-w-0 overflow-visible">
+                <div className="space-y-4 py-4 layout-shrink-visible">
                   <div className="min-w-0">
                     <Label>Name</Label>
                     <Input
@@ -434,17 +489,17 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                     />
                   </div>
 
-                  <div className="border-t pt-4 space-y-3 min-w-0 overflow-visible">
+                  <div className="border-t pt-4 space-y-3 layout-shrink-visible">
                     <div className="flex items-center gap-2 text-fluid-sm font-medium text-destructive">
                       <Trash2 className="h-4 w-4" />
                       Delete box
                     </div>
                     {deleteMode == null ? (
-                      <div className="flex flex-col gap-2 min-w-0 overflow-visible">
+                      <div className="flex flex-col gap-2 layout-shrink-visible">
                         <p className="text-fluid-sm text-muted-foreground">
                           Choose how to handle contents:
                         </p>
-                        <div className="flex flex-col gap-2 min-w-0 overflow-visible">
+                        <div className="flex flex-col gap-2 layout-shrink-visible">
                           <Label htmlFor="delete-mode-delete-all" className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
                             <input
                               id="delete-mode-delete-all"
@@ -454,7 +509,7 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                               onChange={() => setDeleteMode("delete-all")}
                               className="mt-1"
                             />
-                            <span className="min-w-0 overflow-visible">
+                            <span className="layout-shrink-visible">
                               <strong>Delete all:</strong> Permanently delete this box and all child items, sub-boxes, and their data (value history, photos, etc.).
                             </span>
                           </Label>
@@ -467,20 +522,20 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                               onChange={() => setDeleteMode("move-to-root")}
                               className="mt-1"
                             />
-                            <span className="min-w-0 overflow-visible">
+                            <span className="layout-shrink-visible">
                               <strong>Move to root:</strong> Move all child items and sub-boxes to the root level, then delete this box.
                             </span>
                           </Label>
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-3 min-w-0 overflow-visible">
+                      <div className="space-y-3 layout-shrink-visible">
                         <p className="text-fluid-sm text-muted-foreground">
                           {deleteMode === "delete-all"
                             ? "All contents will be permanently deleted. This cannot be undone."
                             : "Child boxes and items will become root-level, then this box will be removed."}
                         </p>
-                        <div className="min-w-0 overflow-visible">
+                        <div className="layout-shrink-visible">
                           <Label className="text-fluid-sm font-medium min-w-0">
                             Type the box name to confirm: <strong className="break-all">{editBox?.name}</strong>
                           </Label>
@@ -545,10 +600,10 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
               boxId={currentBoxId ?? "root"}
               boxName={currentBox?.name ?? "Root"}
               refreshKey={statsRefreshKey}
-              graphOverlay={initialTheme?.graphOverlay ?? true}
+              graphOverlay={initialGraphOverlay}
             />
-            <div className="mb-8 min-w-0 overflow-visible">
-              <div className="flex flex-wrap items-center justify-center gap-4 mb-4 min-w-0">
+            <div className="mb-8 layout-shrink-visible rounded-md border bg-light-muted p-4">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
                 <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
                   <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
                   Boxes
@@ -565,7 +620,7 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                         Create a new collection box to organize your items.
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4 min-w-0 overflow-visible">
+                    <div className="space-y-4 py-4 layout-shrink-visible">
                       <div className="min-w-0">
                         <Label>Name</Label>
                         <Input
@@ -592,16 +647,24 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                   </DialogContent>
                 </Dialog>
               </div>
-              <BoxGrid
-                boxes={boxes}
-                onBoxClick={handleBoxClick}
-                onRename={openEditBox}
-                onShowStats={(box) => {
-                  setStatsBoxId(box.id)
-                  setStatsBoxName(box.name)
-                  setShowStatsDialog(true)
-                }}
-              />
+              {!currentBoxId && boxes.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Try adding a new box!
+                </div>
+              ) : (
+                <BoxGrid
+                  boxes={boxes}
+                  onBoxClick={handleBoxCardClick}
+                  onRename={openEditBox}
+                  onShowStats={(box) => {
+                    setStatsBoxId(box.id)
+                    setStatsBoxName(box.name)
+                    setShowStatsDialog(true)
+                  }}
+                  isBoxSelected={isBoxSelected}
+                  selectionMode={selectionMode}
+                />
+              )}
             </div>
             {currentBox != null && (
               <div className="mb-6">
@@ -612,7 +675,7 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
             )}
             <div>
               {searchQuery.trim() && items.length === 0 ? (
-                <div className="text-center py-12 space-y-3 min-w-0 overflow-visible">
+                <div className="text-center py-12 space-y-3 layout-shrink-visible">
                   <h2 className="text-fluid-xl font-semibold flex items-center mb-4 min-w-0 truncate">
                     <Sword className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
                     Items
@@ -640,6 +703,15 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                     setStatsRefreshKey((k) => k + 1)
                   }}
                   sectionTitle="Items"
+                  selectionMode={selectionMode}
+                  selectionProps={{
+                    selectedIds: selectedItemIds,
+                    setSelectedIds: setSelectedItemIds,
+                    gridRef: itemGridRef,
+                    registerCardRef,
+                    handleGridMouseDown,
+                    marquee,
+                  }}
                 />
               )}
             </div>
@@ -651,8 +723,37 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
           boxName={statsBoxName}
           open={showStatsDialog}
           onOpenChange={setShowStatsDialog}
-          graphOverlay={initialTheme?.graphOverlay ?? true}
+          graphOverlay={initialGraphOverlay}
         />
+        <SelectionModeToggle
+          selectionMode={selectionMode}
+          onEnterSelectionMode={() => setSelectionMode(true)}
+          onExitSelectionMode={() => setSelectionMode(false)}
+          actionBarVisible={showSelectionBar}
+          onSelectAllItems={() => setSelectedItemIds(new Set(items.map((i) => i.id)))}
+          onSelectAllBoxes={() => setSelectedBoxIds(new Set(boxes.map((b) => b.id)))}
+          itemCount={items.length}
+          boxCount={boxes.length}
+        />
+        {showSelectionBar && (
+          <SelectionActionBar
+            selectedItems={selectedItems}
+            selectedBoxes={selectedBoxes}
+            pasteTarget={{ boxId: currentBoxId, isWishlist: false }}
+            onDeleteDone={() => {
+              loadItems(currentBoxId)
+              loadBoxes()
+              setStatsRefreshKey((k) => k + 1)
+            }}
+            onPasteDone={() => {
+              loadItems(currentBoxId)
+              loadBoxes()
+              setStatsRefreshKey((k) => k + 1)
+            }}
+            onClearSelection={clearSelection}
+            onExitSelectionMode={() => setSelectionMode(false)}
+          />
+        )}
       </main>
     </>
   )

@@ -29,10 +29,9 @@ export async function GET(request: NextRequest) {
     const colorScheme = (settings?.color_scheme as Theme | null) ?? null
     const fontFamily = (settings?.font_family as FontFamilyId | null) ?? DEFAULT_FONT_FAMILY
     const radius = settings?.border_radius ?? colorScheme?.radius ?? "0.5rem"
-    const graphOverlay = settings?.graph_overlay ?? colorScheme?.graphOverlay ?? true
 
     const theme: Theme | null = colorScheme
-      ? { ...getDefaultColorScheme(), ...colorScheme, radius, graphOverlay }
+      ? { ...getDefaultColorScheme(), ...colorScheme, radius }
       : null
 
     return NextResponse.json({

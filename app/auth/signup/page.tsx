@@ -96,7 +96,7 @@ export default function SignupPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 min-w-0 overflow-hidden">
-          <form onSubmit={handleSignup} className="space-y-4 min-w-0 overflow-visible">
+          <form onSubmit={handleSignup} className="space-y-4 layout-shrink-visible">
             <div className="space-y-2 min-w-0">
               <Label htmlFor="name">
                 Name
@@ -142,7 +142,7 @@ export default function SignupPage() {
               <TurnstileWidget onSuccess={setCaptchaToken} />
             </div>
             {error && (
-              <div className="text-fluid-sm text-destructive bg-destructive/10 p-3 rounded-md min-w-0 overflow-hidden break-words">
+              <div className="form-error-message">
                 {error}
               </div>
             )}
