@@ -4,12 +4,14 @@
 
 @layer base {
   :root {
+    --font-sans: var(--font-inter);
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
+    --item-selected: 214 95% 93%;
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
@@ -36,6 +38,14 @@
     --thumbnail-foreground: 0 0% 100%;
     --thumbnail-highlight: 0 0% 100% / 0.2;
     --thumbnail-hover: 0 0% 100%;
+    --tag-red: 0 84% 60%;
+    --tag-orange: 25 95% 53%;
+    --tag-yellow: 45 93% 47%;
+    --tag-green: 142 76% 36%;
+    --tag-blue: 217 91% 60%;
+    --tag-indigo: 239 84% 67%;
+    --tag-violet: 258 90% 66%;
+    --tag-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -45,6 +55,7 @@
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
+    --item-selected: 214 32% 28%;
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --secondary: 217.2 32.6% 17.5%;
@@ -70,6 +81,14 @@
     --thumbnail-foreground: 0 0% 100%;
     --thumbnail-highlight: 0 0% 100% / 0.2;
     --thumbnail-hover: 0 0% 100%;
+    --tag-red: 0 72% 65%;
+    --tag-orange: 25 90% 60%;
+    --tag-yellow: 45 90% 55%;
+    --tag-green: 142 70% 50%;
+    --tag-blue: 217 85% 65%;
+    --tag-indigo: 239 80% 72%;
+    --tag-violet: 258 85% 72%;
+    --tag-foreground: 0 0% 100%;
   }
 }
 
@@ -79,6 +98,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   }
 }
 
@@ -104,5 +124,15 @@
   }
   .text-fluid-3xl {
     font-size: clamp(1.25rem, 5vw, 1.875rem);
+  }
+
+  /* Shared: block text and image selection on item cards (collection + wishlist) so shift-click selects items only */
+  .item-card-no-select {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .item-card-no-select img {
+    -webkit-user-drag: none;
+    user-drag: none;
   }
 }

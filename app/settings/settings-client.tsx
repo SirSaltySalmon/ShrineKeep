@@ -12,18 +12,23 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ThemeEditor } from "@/components/settings/theme-editor"
+import { OptionsSettings } from "@/components/settings/options-settings"
 import { WishlistSettings } from "@/components/settings/wishlist-settings"
 import { PersonalSettings } from "@/components/settings/personal-settings"
+import TagSettings from "@/components/settings/tag-settings"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   getDefaultColorScheme,
   getColorSchemeByPreset,
   parseImportedColorScheme,
+  buildThemeExport,
   applyColorScheme,
   COLOR_SCHEME_PRESETS,
-  type ColorSchemePreset,
+  type ThemePreset,
 } from "@/lib/settings"
-import { UserSettings, ColorScheme } from "@/lib/types"
+import { DEFAULT_FONT_FAMILY, FONT_FAMILY_CSS } from "@/lib/fonts"
+import type { FontFamilyId } from "@/lib/fonts"
+import { UserSettings, Theme } from "@/lib/types"
 import { Upload } from "lucide-react"
 
 export interface InitialProfile {
@@ -43,11 +48,14 @@ interface SettingsClientProps {
 
 export default function SettingsClient({ initialSettings, initialProfile }: SettingsClientProps) {
   const router = useRouter()
-  const [theme, setTheme] = useState<ColorScheme>(
+  const [theme, setTheme] = useState<Theme>(
     initialSettings?.color_scheme || getDefaultColorScheme()
   )
-  const [selectedPreset, setSelectedPreset] = useState<ColorSchemePreset>(
+  const [selectedPreset, setSelectedPreset] = useState<ThemePreset>(
     initialSettings?.color_scheme ? "custom" : "light"
+  )
+  const [fontFamily, setFontFamily] = useState<FontFamilyId>(
+    (initialSettings?.font_family as FontFamilyId) || DEFAULT_FONT_FAMILY
   )
   const [wishlistIsPublic, setWishlistIsPublic] = useState(
     initialSettings?.wishlist_is_public || false
@@ -68,19 +76,19 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   const [saved, setSaved] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Apply theme immediately for preview
+  // Apply theme and font immediately for preview
   useEffect(() => {
-    const cssVars = applyColorScheme(theme)
     const root = document.documentElement
-
+    const cssVars = applyColorScheme(theme)
     Object.entries(cssVars).forEach(([property, value]) => {
       root.style.setProperty(property, value)
     })
-
+    const fontCss = FONT_FAMILY_CSS[fontFamily]
+    if (fontCss) root.style.setProperty("--font-sans", fontCss)
     return () => {
       // Don't reset on unmount - let ThemeProvider handle it
     }
-  }, [theme])
+  }, [theme, fontFamily])
 
   const handleSave = async () => {
     setSaving(true)
@@ -94,6 +102,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
         },
         body: JSON.stringify({
           theme,
+          font_family: fontFamily,
           wishlist_is_public: wishlistIsPublic,
           wishlist_apply_colors: wishlistApplyColors,
           use_custom_display_name: useCustomDisplayName,
@@ -121,14 +130,14 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   }
 
   const handleResetTheme = () => {
-    setTheme(getDefaultColorScheme())
+    setTheme((prev) => ({ ...getDefaultColorScheme(), graphOverlay: prev?.graphOverlay ?? true }))
     setSelectedPreset("light")
   }
 
-  const handlePresetChange = (preset: ColorSchemePreset) => {
+  const handlePresetChange = (preset: ThemePreset) => {
     setSelectedPreset(preset)
     if (preset !== "custom") {
-      setTheme(getColorSchemeByPreset(preset))
+      setTheme((prev) => ({ ...getColorSchemeByPreset(preset), graphOverlay: prev?.graphOverlay ?? true }))
     }
   }
 
@@ -142,14 +151,19 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
 
     try {
       const text = await file.text()
-      const importedScheme = parseImportedColorScheme(text)
+      const imported = parseImportedColorScheme(text)
 
-      if (importedScheme) {
-        setTheme(importedScheme)
+      if (imported) {
+        setTheme((prev) => ({
+          ...getDefaultColorScheme(),
+          ...imported.theme,
+          graphOverlay: prev?.graphOverlay ?? true,
+        }))
+        if (imported.fontFamily) setFontFamily(imported.fontFamily)
         setSelectedPreset("custom")
         alert("Theme imported successfully!")
       } else {
-        alert("Invalid theme format. Please ensure the file contains valid JSON with HSL color values.")
+        alert("Invalid theme format. Please ensure the file contains valid JSON with colors, optional radius and font_family.")
       }
     } catch (error) {
       console.error("Error importing theme:", error)
@@ -162,7 +176,8 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   }
 
   const handleExportTheme = () => {
-    const json = JSON.stringify(theme, null, 2)
+    const data = buildThemeExport(theme, fontFamily)
+    const json = JSON.stringify(data, null, 2)
     const blob = new Blob([json], { type: "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -208,7 +223,9 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
             <TabsList className="inline-flex w-auto min-w-full">
               <TabsTrigger value="personal" className="whitespace-nowrap shrink-0">Personal</TabsTrigger>
               <TabsTrigger value="theme" className="whitespace-nowrap shrink-0">Theme</TabsTrigger>
+              <TabsTrigger value="options" className="whitespace-nowrap shrink-0">Options</TabsTrigger>
               <TabsTrigger value="wishlist" className="whitespace-nowrap shrink-0">Wishlist</TabsTrigger>
+              <TabsTrigger value="tags" className="whitespace-nowrap shrink-0">Tags</TabsTrigger>
             </TabsList>
           </div>
 
@@ -246,7 +263,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
               <div className="flex gap-2 items-center">
                 <Select
                   value={selectedPreset}
-                  onValueChange={(value) => handlePresetChange(value as ColorSchemePreset)}
+                  onValueChange={(value) => handlePresetChange(value as ThemePreset)}
                 >
                   <SelectTrigger className="flex-1 min-w-0">
                     <SelectValue placeholder="Select preset" />
@@ -293,6 +310,8 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
               theme={theme}
               setTheme={setTheme}
               setSelectedPreset={setSelectedPreset}
+              fontFamily={fontFamily}
+              setFontFamily={setFontFamily}
             />
 
             <div className="flex gap-2">
@@ -300,6 +319,13 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
                 Reset to Light Mode
               </Button>
             </div>
+          </TabsContent>
+
+          <TabsContent value="options" className="mt-6 min-w-0">
+            <OptionsSettings
+              graphOverlay={theme.graphOverlay !== false}
+              onGraphOverlayChange={(checked) => setTheme((prev) => ({ ...prev, graphOverlay: checked }))}
+            />
           </TabsContent>
 
           <TabsContent value="wishlist" className="mt-6 min-w-0">
@@ -311,6 +337,10 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
               onApplyColorsChange={setWishlistApplyColors}
               onRegenerateToken={handleRegenerateToken}
             />
+          </TabsContent>
+
+          <TabsContent value="tags" className="mt-6 min-w-0">
+            <TagSettings />
           </TabsContent>
         </Tabs>
 

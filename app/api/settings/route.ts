@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { generateShareToken } from "@/lib/settings"
-import { ColorScheme } from "@/lib/types"
+import { Theme } from "@/lib/types"
+import { FONT_OPTIONS } from "@/lib/fonts"
+import type { FontFamilyId } from "@/lib/fonts"
 import { NAME_MAX_LENGTH, NAME_MAX_MESSAGE } from "@/lib/validation"
 
 export async function GET(request: NextRequest) {
@@ -27,10 +29,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (!settings) {
-      // Return defaults if no settings exist
       return NextResponse.json({
         user_id: user.id,
         color_scheme: null,
+        font_family: null,
+        border_radius: null,
+        graph_overlay: null,
         wishlist_is_public: false,
         wishlist_share_token: null,
         wishlist_apply_colors: false,
@@ -38,6 +42,16 @@ export async function GET(request: NextRequest) {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
+    }
+
+    // Merge stored display prefs into color_scheme for clients
+    const colorScheme = settings.color_scheme as Theme | null | undefined
+    if (colorScheme && typeof colorScheme === "object") {
+      settings.color_scheme = {
+        ...colorScheme,
+        radius: settings.border_radius ?? colorScheme.radius ?? "0.5rem",
+        graphOverlay: settings.graph_overlay ?? colorScheme.graphOverlay ?? true,
+      }
     }
 
     return NextResponse.json(settings)
@@ -65,6 +79,9 @@ export async function PUT(request: NextRequest) {
     const {
       theme,
       color_scheme,
+      font_family,
+      border_radius,
+      graph_overlay,
       wishlist_is_public,
       wishlist_apply_colors,
       regenerate_wishlist_token,
@@ -83,15 +100,11 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Check if settings exist
-    const { data: existing } = await supabase
-      .from("user_settings")
-      .select("wishlist_share_token")
-      .eq("user_id", user.id)
-      .single()
-
     const updateData: {
-      color_scheme?: ColorScheme | null
+      color_scheme?: Theme | null
+      font_family?: string | null
+      border_radius?: string | null
+      graph_overlay?: boolean | null
       wishlist_is_public?: boolean
       wishlist_share_token?: string | null
       wishlist_apply_colors?: boolean
@@ -100,7 +113,27 @@ export async function PUT(request: NextRequest) {
 
     if (themePayload !== undefined) {
       updateData.color_scheme = themePayload
+      updateData.border_radius = themePayload.radius ?? undefined
+      updateData.graph_overlay = themePayload.graphOverlay ?? undefined
     }
+
+    const validFontValues = new Set(FONT_OPTIONS.map((o) => o.value))
+    if (font_family !== undefined) {
+      updateData.font_family = validFontValues.has(font_family as FontFamilyId) ? font_family : null
+    }
+    if (border_radius !== undefined && typeof border_radius === "string") {
+      updateData.border_radius = border_radius.trim() || null
+    }
+    if (graph_overlay !== undefined) {
+      updateData.graph_overlay = Boolean(graph_overlay)
+    }
+
+    // Check if settings exist
+    const { data: existing } = await supabase
+      .from("user_settings")
+      .select("wishlist_share_token")
+      .eq("user_id", user.id)
+      .single()
 
     // Wishlist share token is server-only: never accept from client; generate or clear on server.
     if (regenerate_wishlist_token) {

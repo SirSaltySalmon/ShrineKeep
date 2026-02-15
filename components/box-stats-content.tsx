@@ -42,22 +42,22 @@ export function BoxStatsSummary({
     return (
       <>
         <div className="grid grid-cols-2 gap-4 min-w-0">
-          <div className="rounded-lg border p-4 text-center min-w-0 overflow-hidden">
+          <div className="rounded-lg border p-4 text-center min-w-0 overflow-visible">
             <div className="text-[clamp(0.65rem,2vw,0.875rem)] font-medium text-muted-foreground mb-1">Current value</div>
-            <div className="text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight min-w-0 overflow-hidden" style={{ color: valueColor }}>
+            <div className="text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight min-w-0 overflow-visible" style={{ color: valueColor }}>
               {formatCurrency(currentValue)}
             </div>
           </div>
-          <div className="rounded-lg border p-4 text-center min-w-0 overflow-hidden">
+          <div className="rounded-lg border p-4 text-center min-w-0 overflow-visible">
             <div className="text-[clamp(0.65rem,2vw,0.875rem)] font-medium text-muted-foreground mb-1">Acquisition cost</div>
-            <div className="text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight min-w-0 overflow-hidden" style={{ color: acquisitionColor }}>
+            <div className="text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight min-w-0 overflow-visible" style={{ color: acquisitionColor }}>
               {formatCurrency(totalAcquisition)}
             </div>
           </div>
         </div>
-        <div className="rounded-lg border border-muted bg-muted/30 p-3 text-center min-w-0 overflow-hidden">
+        <div className="rounded-lg border border-muted bg-muted/30 p-3 text-center min-w-0 overflow-visible">
           <div className="text-[clamp(0.6rem,1.5vw,0.75rem)] font-medium text-muted-foreground mb-0.5">Profit</div>
-          <div className="text-[clamp(0.7rem,3vw,1.125rem)] font-semibold text-foreground leading-tight min-w-0 overflow-hidden">
+          <div className="text-[clamp(0.7rem,3vw,1.125rem)] font-semibold text-foreground leading-tight min-w-0 overflow-visible">
             {formatCurrency(profit)}
           </div>
         </div>

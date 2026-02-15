@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Item } from "@/lib/types"
+import { normalizeItem } from "@/lib/utils"
+import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,9 +19,20 @@ import {
 import { Plus } from "lucide-react"
 import ItemCard from "@/components/item-card"
 import ItemDialog from "@/components/item-dialog"
+import { SelectionActionBar } from "@/components/selection-action-bar"
+import { useCopiedItem } from "@/lib/copied-item-context"
 
 export default function WishlistClient() {
   const supabase = createSupabaseClient()
+  const { copied } = useCopiedItem()
+  const {
+    selectedIds,
+    setSelectedIds,
+    gridRef,
+    registerCardRef,
+    handleGridMouseDown,
+    marquee,
+  } = useMarqueeSelection()
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
@@ -42,14 +55,17 @@ export default function WishlistClient() {
         .from("items")
         .select(`
           *,
-          photos (*)
+          photos (*),
+          item_tags (
+            tag:tags (*)
+          )
         `)
         .eq("user_id", user.id)
         .eq("is_wishlist", true)
         .order("created_at", { ascending: false })
 
       if (error) throw error
-      setItems(data || [])
+      setItems((data || []).map(normalizeItem))
     } catch (error) {
       console.error("Error loading wishlist:", error)
     } finally {
@@ -62,6 +78,23 @@ export default function WishlistClient() {
     setAcquisitionDate(new Date().toISOString().split("T")[0])
     setAcquisitionPrice(item.expected_price?.toString() ?? "")
   }
+
+  const handleItemClick = (item: Item, e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(item.id)) next.delete(item.id)
+        else next.add(item.id)
+        return next
+      })
+      return
+    }
+    setSelectedIds(new Set())
+    setSelectedItem(item)
+    setShowItemDialog(true)
+  }
+
+  const selectedItems = items.filter((i) => selectedIds.has(i.id))
 
   const handleMarkAsAcquiredConfirm = async () => {
     if (!itemToMark) return
@@ -109,20 +142,48 @@ export default function WishlistClient() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div
+          ref={gridRef as React.RefObject<HTMLDivElement>}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative"
+          onMouseDown={handleGridMouseDown}
+        >
           {items.map((item) => (
-            <ItemCard
+            <div
               key={item.id}
-              item={item}
-              variant="wishlist"
-              onClick={(item) => {
-                setSelectedItem(item)
-                setShowItemDialog(true)
-              }}
-              onMarkAcquired={openMarkAsAcquired}
-            />
+              ref={(el) => registerCardRef(item.id, el)}
+              data-item-id={item.id}
+            >
+              <ItemCard
+                item={item}
+                variant="wishlist"
+                selected={selectedIds.has(item.id)}
+                onClick={handleItemClick}
+                onMarkAcquired={openMarkAsAcquired}
+              />
+            </div>
           ))}
         </div>
+        {marquee && (
+          <div
+            className="pointer-events-none fixed border-2 border-primary/50 bg-primary/10 z-50"
+            style={{
+              left: Math.min(marquee.startX, marquee.endX),
+              top: Math.min(marquee.startY, marquee.endY),
+              width: Math.abs(marquee.endX - marquee.startX),
+              height: Math.abs(marquee.endY - marquee.startY),
+            }}
+          />
+        )}
+
+        {(selectedItems.length > 0 || (copied !== null && copied.length > 0)) && (
+          <SelectionActionBar
+            selectedItems={selectedItems}
+            pasteTarget={{ boxId: null, isWishlist: true }}
+            onDeleteDone={loadWishlistItems}
+            onPasteDone={loadWishlistItems}
+            onClearSelection={() => setSelectedIds(new Set())}
+          />
+        )}
 
         {items.length === 0 && (
           <div className="text-center py-12 text-fluid-sm text-muted-foreground min-w-0">
@@ -150,7 +211,7 @@ export default function WishlistClient() {
                   : ""}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4 min-w-0 overflow-hidden">
+            <div className="grid gap-4 py-4 min-w-0 overflow-visible">
               <div className="grid gap-2 min-w-0">
                 <Label>Acquisition date</Label>
                 <Input

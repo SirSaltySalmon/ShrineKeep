@@ -47,7 +47,7 @@ export default function Breadcrumbs({ currentBoxId, onBoxClick }: BreadcrumbsPro
   }
 
   return (
-    <nav className="flex items-center space-x-2 text-fluid-sm min-w-0 overflow-hidden flex-wrap gap-y-1">
+    <nav className="flex items-center space-x-2 text-fluid-sm min-w-0 overflow-visible flex-wrap gap-y-1">
       <Button
         variant="ghost"
         size="sm"

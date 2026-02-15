@@ -1,5 +1,6 @@
 "use client"
 
+import { useCallback } from "react"
 import { useDraggable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { Item } from "@/lib/types"
@@ -13,10 +14,18 @@ export function getItemDragId(itemId: string) {
 
 interface DraggableItemCardProps {
   item: Item
-  onClick: (item: Item) => void
+  selected?: boolean
+  onClick: (item: Item, e: React.MouseEvent) => void
+  /** Register this card's root element for marquee intersection. */
+  registerCardRef?: (id: string, el: HTMLDivElement | null) => void
 }
 
-export default function DraggableItemCard({ item, onClick }: DraggableItemCardProps) {
+export default function DraggableItemCard({
+  item,
+  selected = false,
+  onClick,
+  registerCardRef,
+}: DraggableItemCardProps) {
   const {
     attributes,
     listeners,
@@ -28,16 +37,31 @@ export default function DraggableItemCard({ item, onClick }: DraggableItemCardPr
     data: { type: "item", item },
   })
 
+  const mergedRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      setNodeRef(el)
+      registerCardRef?.(item.id, el)
+    },
+    [setNodeRef, registerCardRef, item.id]
+  )
+
   const style = {
     transform: CSS.Translate.toString(transform),
     opacity: isDragging ? 0.5 : 1,
   }
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div
+      ref={mergedRef}
+      style={style}
+      data-item-id={item.id}
+      {...attributes}
+      {...listeners}
+    >
       <ItemCard
         item={item}
         variant="collection"
+        selected={selected}
         onClick={onClick}
       />
     </div>

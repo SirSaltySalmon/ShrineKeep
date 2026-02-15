@@ -6,7 +6,18 @@ import SearchResultsClient from "./search-results-client"
 export default async function DashboardSearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>
+  searchParams: Promise<{
+    q?: string
+    includeTags?: string
+    excludeTags?: string
+    valueMin?: string
+    valueMax?: string
+    acquisitionMin?: string
+    acquisitionMax?: string
+    dateFrom?: string
+    dateTo?: string
+    tagColors?: string
+  }>
 }) {
   const supabase = await createSupabaseServerClient()
   const {
@@ -23,11 +34,23 @@ export default async function DashboardSearchPage({
     .eq("id", authUser.id)
     .single()
 
-  const { q } = await searchParams
+  const params = await searchParams
 
   return (
     <Suspense fallback={<div className="container mx-auto px-4 py-8 min-w-0">Loading search…</div>}>
-      <SearchResultsClient user={user} initialQuery={q ?? ""} />
+      <SearchResultsClient
+        user={user}
+        initialQuery={params.q ?? ""}
+        initialIncludeTags={params.includeTags?.split(",").filter(Boolean) ?? []}
+        initialExcludeTags={params.excludeTags?.split(",").filter(Boolean) ?? []}
+        initialValueMin={params.valueMin}
+        initialValueMax={params.valueMax}
+        initialAcquisitionMin={params.acquisitionMin}
+        initialAcquisitionMax={params.acquisitionMax}
+        initialDateFrom={params.dateFrom}
+        initialDateTo={params.dateTo}
+        initialTagColors={params.tagColors?.split(",").filter(Boolean) ?? []}
+      />
     </Suspense>
   )
 }

@@ -64,7 +64,7 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
     >
       <CardHeader>
         <div className="flex items-center justify-between gap-2 min-w-0">
-          <div className="flex items-center space-x-2 min-w-0 overflow-hidden">
+          <div className="flex items-center space-x-2 min-w-0 overflow-visible">
             <Package className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-muted-foreground" />
             <CardTitle className="text-fluid-lg truncate">{box.name}</CardTitle>
           </div>
@@ -107,7 +107,7 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
         )}
       </CardHeader>
       <CardContent>
-        <div className="space-y-1 text-fluid-sm text-muted-foreground min-w-0 overflow-hidden">
+        <div className="space-y-1 text-fluid-sm text-muted-foreground min-w-0 overflow-visible">
           {box.total_value !== undefined && (
             <div className="truncate">Total Value: {formatCurrency(box.total_value)}</div>
           )}

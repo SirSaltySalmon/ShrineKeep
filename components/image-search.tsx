@@ -108,19 +108,20 @@ export default function ImageSearch({
             Search the web for images to use as a thumbnail for your item
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4 min-w-0 overflow-hidden">
-          <div className="flex flex-wrap gap-2 min-w-0">
+        <div className="space-y-4 py-4 min-w-0 overflow-visible">
+          <div className="flex flex-nowrap items-center gap-2 min-w-0">
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && searchImages()}
               placeholder="Search for images..."
+              className="flex-1 min-w-0"
             />
-            <Button onClick={searchImages} disabled={loading}>
+            <Button onClick={searchImages} disabled={loading} className="shrink-0 bg-secondary text-secondary-foreground">
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin text-secondary-foreground" />
               ) : (
-                <SearchIcon className="h-4 w-4" />
+                <SearchIcon className="h-4 w-4 text-secondary-foreground" />
               )}
             </Button>
           </div>

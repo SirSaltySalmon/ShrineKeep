@@ -7,7 +7,7 @@ import { Image as ImageIcon } from "lucide-react"
 import ThumbnailImage from "@/components/thumbnail-image"
 import { formatCurrency } from "@/lib/utils"
 import { applyColorScheme, getDefaultColorScheme } from "@/lib/settings"
-import { ColorScheme } from "@/lib/types"
+import { Theme } from "@/lib/types"
 
 interface PublicWishlistClientProps {
   user: {
@@ -17,7 +17,7 @@ interface PublicWishlistClientProps {
   }
   items: Item[]
   applyColors: boolean
-  colorScheme: ColorScheme | null
+  colorScheme: Theme | null
 }
 
 export default function PublicWishlistClient({

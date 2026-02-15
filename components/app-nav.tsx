@@ -25,7 +25,7 @@ export default function AppNav({ name }: AppNavProps) {
       <div className="overflow-x-auto overflow-y-hidden">
         <div className="container mx-auto px-4 py-4 min-w-0">
           <div className="flex items-center justify-between gap-4 flex-nowrap min-w-0">
-            <div className="flex items-center space-x-4 sm:space-x-6 flex-shrink-0 min-w-0 overflow-hidden">
+            <div className="flex items-center space-x-4 sm:space-x-6 flex-shrink-0 min-w-0 overflow-visible">
               <Link href="/dashboard" className="flex items-center space-x-2 hover:opacity-80 shrink-0">
                 <span className="font-semibold text-fluid-sm truncate">ShrineKeep</span>
               </Link>

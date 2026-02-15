@@ -1,83 +1,20 @@
-import { ColorScheme, UserSettings } from "./types"
+import { Theme, UserSettings } from "./types"
 import { createSupabaseClient } from "./supabase/client"
+import {
+  DEFAULT_COLOR_SCHEME,
+  DARK_COLOR_SCHEME,
+  THEME_COLOR_KEYS,
+  THEME_KEY_TO_CSS_VAR,
+} from "./theme-colors"
+import { FONT_OPTIONS } from "./fonts"
+import type { FontFamilyId } from "./fonts"
 
-// Default color scheme from globals.css (Light Mode)
-export const DEFAULT_COLOR_SCHEME: ColorScheme = {
-  background: "0 0% 100%",
-  foreground: "222.2 84% 4.9%",
-  card: "0 0% 100%",
-  cardForeground: "222.2 84% 4.9%",
-  popover: "0 0% 100%",
-  popoverForeground: "222.2 84% 4.9%",
-  primary: "222.2 47.4% 11.2%",
-  primaryForeground: "210 40% 98%",
-  secondary: "210 40% 96.1%",
-  secondaryForeground: "222.2 47.4% 11.2%",
-  muted: "210 40% 96.1%",
-  mutedForeground: "215.4 16.3% 46.9%",
-  accent: "210 40% 96.1%",
-  accentForeground: "222.2 47.4% 11.2%",
-  destructive: "0 84.2% 60.2%",
-  destructiveForeground: "210 40% 98%",
-  border: "214.3 31.8% 91.4%",
-  input: "214.3 31.8% 91.4%",
-  ring: "222.2 84% 4.9%",
-  // Value colors (green for value, red for acquisition)
-  valueColor: "142 76% 36%", // #22c55e converted to HSL
-  acquisitionColor: "0 84% 60%", // #ef4444 converted to HSL
-  graphValueColor: "142 76% 36%", // #22c55e converted to HSL
-  graphAcquisitionColor: "0 84% 60%", // #ef4444 converted to HSL
-  graphAxisColor: "214.3 31.8% 91.4%", // Axis lines and tick labels (muted)
-  graphGridColor: "214.3 31.8% 91.4%", // Grid/divider lines
-  graphTooltipBackground: "0 0% 100%", // Tooltip background
-  graphTooltipForeground: "222.2 84% 4.9%", // Tooltip text
-  thumbnailColor: "38 92% 50%", // Thumbnail fill (star and badge background)
-  thumbnailForeground: "0 0% 100%", // Thumbnail badge text (white)
-  thumbnailHighlight: "0 0% 100% / 0.2", // Hover for overlay icons (white 20%)
-  radius: "0.5rem",
-  graphOverlay: true,
-}
+// Re-export for consumers that import from settings
+export { DEFAULT_COLOR_SCHEME, DARK_COLOR_SCHEME }
 
-// Dark mode color scheme from globals.css
-export const DARK_COLOR_SCHEME: ColorScheme = {
-  background: "222.2 84% 4.9%",
-  foreground: "210 40% 98%",
-  card: "222.2 84% 4.9%",
-  cardForeground: "210 40% 98%",
-  popover: "222.2 84% 4.9%",
-  popoverForeground: "210 40% 98%",
-  primary: "210 40% 98%",
-  primaryForeground: "222.2 47.4% 11.2%",
-  secondary: "217.2 32.6% 17.5%",
-  secondaryForeground: "210 40% 98%",
-  muted: "217.2 32.6% 17.5%",
-  mutedForeground: "215 20.2% 65.1%",
-  accent: "217.2 32.6% 17.5%",
-  accentForeground: "210 40% 98%",
-  destructive: "0 62.8% 30.6%",
-  destructiveForeground: "210 40% 98%",
-  border: "217.2 32.6% 17.5%",
-  input: "217.2 32.6% 17.5%",
-  ring: "212.7 26.8% 83.9%",
-  // Value colors (lighter green/red for dark mode)
-  valueColor: "142 70% 50%", // Lighter green for dark mode
-  acquisitionColor: "0 72% 65%", // Lighter red for dark mode
-  graphValueColor: "142 70% 50%",
-  graphAcquisitionColor: "0 72% 65%",
-  graphAxisColor: "217.2 32.6% 17.5%", // Axis in dark mode
-  graphGridColor: "217.2 32.6% 22%", // Grid lines (slightly lighter than axis)
-  graphTooltipBackground: "222.2 84% 4.9%", // Tooltip bg dark
-  graphTooltipForeground: "210 40% 98%", // Tooltip text light
-  thumbnailColor: "38 92% 55%", // Slightly lighter amber for dark mode
-  thumbnailForeground: "0 0% 100%", // Thumbnail badge text (white)
-  thumbnailHighlight: "0 0% 100% / 0.2", // Hover for overlay icons
-  radius: "0.5rem",
-  graphOverlay: true,
-}
+export type ThemePreset = "light" | "dark" | "custom"
 
-export type ColorSchemePreset = "light" | "dark" | "custom"
-
-export const COLOR_SCHEME_PRESETS: Record<ColorSchemePreset, { name: string; scheme: ColorScheme }> = {
+export const COLOR_SCHEME_PRESETS: Record<ThemePreset, { name: string; scheme: Theme }> = {
   light: {
     name: "Light Mode",
     scheme: DEFAULT_COLOR_SCHEME,
@@ -95,97 +32,93 @@ export const COLOR_SCHEME_PRESETS: Record<ColorSchemePreset, { name: string; sch
 /**
  * Get default color scheme (light mode)
  */
-export function getDefaultColorScheme(): ColorScheme {
+export function getDefaultColorScheme(): Theme {
   return { ...DEFAULT_COLOR_SCHEME }
 }
 
 /**
  * Get color scheme by preset name
  */
-export function getColorSchemeByPreset(preset: ColorSchemePreset): ColorScheme {
+export function getColorSchemeByPreset(preset: ThemePreset): Theme {
   if (preset === "custom") {
     return getDefaultColorScheme()
   }
   return { ...COLOR_SCHEME_PRESETS[preset].scheme }
 }
 
+/** Result of parsing an imported theme JSON (colors, radius, font; no graph_overlay). */
+export interface ParsedThemeImport {
+  theme: Partial<Theme>
+  fontFamily?: FontFamilyId
+}
+
+const VALID_FONT_IDS = new Set(FONT_OPTIONS.map((o) => o.value))
+
 /**
- * Parse imported color scheme from JSON
+ * Parse imported theme JSON. Accepts colors, radius, and font_family.
+ * Does not read or apply graph_overlay (chart overlay preference is not exported).
  */
-export function parseImportedColorScheme(jsonString: string): ColorScheme | null {
+export function parseImportedColorScheme(jsonString: string): ParsedThemeImport | null {
   try {
     const parsed = JSON.parse(jsonString)
-    
-    // Validate it's an object
+
     if (typeof parsed !== "object" || parsed === null) {
       return null
     }
 
-    // Validate and convert color values
-    const scheme: Partial<ColorScheme> = {}
-    const validKeys: (keyof ColorScheme)[] = [
-      "background",
-      "foreground",
-      "card",
-      "cardForeground",
-      "popover",
-      "popoverForeground",
-      "primary",
-      "primaryForeground",
-      "secondary",
-      "secondaryForeground",
-      "muted",
-      "mutedForeground",
-      "accent",
-      "accentForeground",
-      "destructive",
-      "destructiveForeground",
-      "border",
-      "input",
-      "ring",
-      "valueColor",
-      "acquisitionColor",
-      "graphValueColor",
-      "graphAcquisitionColor",
-      "graphAxisColor",
-      "graphGridColor",
-      "graphTooltipBackground",
-      "graphTooltipForeground",
-      "thumbnailColor",
-      "thumbnailForeground",
-      "thumbnailHighlight",
-      "radius",
-    ]
+    const scheme: Partial<Theme> = {}
+    const validKeys: (keyof Theme)[] = [...THEME_COLOR_KEYS, "radius"]
+
+    const hslCssVarRegex = /^\d+\.?\d*\s+\d+\.?\d*%\s+\d+\.?\d*%(?:\s*\/\s*[\d.]+)?$/
+    const hslParenRegex = /^hsl\([\d.]+,\s*[\d.]+%,\s*[\d.]+%\)$/
 
     for (const key of validKeys) {
       if (parsed[key] && typeof parsed[key] === "string") {
         const str = (parsed[key] as string).trim()
         if (key === "radius") {
-          // CSS length: number + unit (rem, px, em)
           if (/^\d*(\.\d+)?(rem|px|em)$/.test(str) || str === "0") {
             scheme.radius = str
           }
         } else {
-          // Validate HSL format
-          if (str.match(/^\d+\.?\d*\s+\d+\.?\d*%\s+\d+\.?\d*%$/) || 
-              str.match(/^hsl\([\d.]+,\s*[\d.]+%,\s*[\d.]+%\)$/)) {
-            scheme[key as keyof ColorScheme] = hslToCssVariable(str)
+          if (hslCssVarRegex.test(str) || hslParenRegex.test(str)) {
+            (scheme as Record<string, string>)[key] = hslToCssVariable(str)
           }
         }
       }
     }
 
-    return Object.keys(scheme).length > 0 ? (scheme as ColorScheme) : null
+    if (Object.keys(scheme).length === 0) return null
+
+    let fontFamily: FontFamilyId | undefined
+    if (typeof parsed.font_family === "string" && VALID_FONT_IDS.has(parsed.font_family as FontFamilyId)) {
+      fontFamily = parsed.font_family as FontFamilyId
+    }
+
+    return { theme: scheme, fontFamily }
   } catch (error) {
-    console.error("Error parsing imported color scheme:", error)
+    console.error("Error parsing imported theme:", error)
     return null
   }
 }
 
 /**
+ * Build the theme export object (colors, radius, font_family). Omits graph_overlay.
+ */
+export function buildThemeExport(theme: Theme, fontFamily: string): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const key of THEME_COLOR_KEYS) {
+    const v = theme[key]
+    if (v != null && typeof v === "string") out[key] = v
+  }
+  if (theme.radius) out.radius = theme.radius
+  out.font_family = fontFamily
+  return out
+}
+
+/**
  * Merge custom colors with defaults
  */
-export function mergeColorScheme(custom?: ColorScheme | null): ColorScheme {
+export function mergeColorScheme(custom?: Theme | null): Theme {
   if (!custom) return getDefaultColorScheme()
   return { ...DEFAULT_COLOR_SCHEME, ...custom }
 }
@@ -352,48 +285,14 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
  * Apply color scheme to CSS variables
  * Returns a style object that can be injected
  */
-export function applyColorScheme(colors: ColorScheme): Record<string, string> {
+export function applyColorScheme(colors: Theme): Record<string, string> {
   const merged = mergeColorScheme(colors)
   const cssVars: Record<string, string> = {}
 
-  // Map ColorScheme keys to CSS variable names
-  const varMap: Record<keyof ColorScheme, string> = {
-    background: "--background",
-    foreground: "--foreground",
-    card: "--card",
-    cardForeground: "--card-foreground",
-    popover: "--popover",
-    popoverForeground: "--popover-foreground",
-    primary: "--primary",
-    primaryForeground: "--primary-foreground",
-    secondary: "--secondary",
-    secondaryForeground: "--secondary-foreground",
-    muted: "--muted",
-    mutedForeground: "--muted-foreground",
-    accent: "--accent",
-    accentForeground: "--accent-foreground",
-    destructive: "--destructive",
-    destructiveForeground: "--destructive-foreground",
-    border: "--border",
-    input: "--input",
-    ring: "--ring",
-    valueColor: "--value-color",
-    acquisitionColor: "--acquisition-color",
-    graphValueColor: "--graph-value-color",
-    graphAcquisitionColor: "--graph-acquisition-color",
-    thumbnailColor: "--thumbnail-color",
-    thumbnailForeground: "--thumbnail-foreground",
-    thumbnailHighlight: "--thumbnail-highlight",
-    graphAxisColor: "--graph-axis-color",
-    graphGridColor: "--graph-grid-color",
-    graphTooltipBackground: "--graph-tooltip-background",
-    graphTooltipForeground: "--graph-tooltip-foreground",
-    radius: "--radius",
-  }
-
   Object.entries(merged).forEach(([key, value]) => {
-    if (value && varMap[key as keyof ColorScheme]) {
-      cssVars[varMap[key as keyof ColorScheme]] = value
+    const cssVar = THEME_KEY_TO_CSS_VAR[key as keyof typeof THEME_KEY_TO_CSS_VAR]
+    if (typeof value === "string" && value && cssVar) {
+      cssVars[cssVar] = value
     }
   })
 

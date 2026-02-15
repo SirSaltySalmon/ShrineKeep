@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { createSupabaseClient } from "@/lib/supabase/client"
-import { Item, Photo } from "@/lib/types"
+import { Item, Photo, Tag, TAG_COLORS, type TagColor } from "@/lib/types"
+import { sortTagsByColorThenName, getTagChipStyle } from "@/lib/utils"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Upload, Search as SearchIcon, Trash2, LayoutGrid } from "lucide-react"
+import { Upload, Search as SearchIcon, Trash2, LayoutGrid, Plus, X } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
 import { ThumbnailBadge, ThumbnailActionButtons } from "./thumbnail-content"
 import ImageSearch from "./image-search"
@@ -15,6 +16,7 @@ import ImageGalleryCarousel from "./image-gallery-carousel"
 import ValueGraph from "./value-graph"
 
 const MAX_PHOTOS = 10
+const MAX_TAGS_PER_USER = 256
 
 /** Local photo for form state (id only present when loaded from DB). */
 interface LocalPhoto {
@@ -78,6 +80,12 @@ export default function ItemDialog({
   const [showImageSearch, setShowImageSearch] = useState(false)
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0)
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  const [userTags, setUserTags] = useState<Tag[]>([])
+  const [tagsDropdownOpen, setTagsDropdownOpen] = useState(false)
+  const [showCreateTag, setShowCreateTag] = useState(false)
+  const [newTagName, setNewTagName] = useState("")
+  const [newTagColor, setNewTagColor] = useState<TagColor>("blue")
   // Track photos uploaded during this session that haven't been saved yet
   const [unsavedUploadedPhotos, setUnsavedUploadedPhotos] = useState<Set<string>>(new Set())
   // Use ref to track unsaved uploads for cleanup (avoids stale closure issues)
@@ -125,6 +133,7 @@ export default function ItemDialog({
       setAcquisitionPrice(item.acquisition_price?.toString() || "")
       setExpectedPrice(item.expected_price?.toString() || "")
       setPhotos(toLocalPhotos(item))
+      setSelectedTagIds(item.tags?.map((t) => t.id) ?? [])
       setUnsavedUploadedPhotos(new Set()) // Clear unsaved uploads when loading existing item
       unsavedUploadsRef.current = new Set()
     } else {
@@ -135,10 +144,26 @@ export default function ItemDialog({
       setAcquisitionPrice("")
       setExpectedPrice("")
       setPhotos([])
+      setSelectedTagIds([])
       setUnsavedUploadedPhotos(new Set()) // Clear unsaved uploads for new items
       unsavedUploadsRef.current = new Set()
     }
+    setShowCreateTag(false)
+    setNewTagName("")
+    setNewTagColor("blue")
   }, [item, isNew, open, isWishlist])
+
+  // Fetch user tags when dialog opens
+  useEffect(() => {
+    if (!open) return
+    const fetchTags = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase.from("tags").select("*").eq("user_id", user.id)
+      setUserTags(sortTagsByColorThenName(data ?? []))
+    }
+    fetchTags()
+  }, [open, supabase])
 
   // Cleanup on dialog close/cancel - delete any unsaved uploaded files
   useEffect(() => {
@@ -346,6 +371,7 @@ export default function ItemDialog({
           storage_path: p.storage_path,
           is_thumbnail: p.is_thumbnail,
         })),
+        tag_ids: selectedTagIds,
       }
 
       const response = await fetch("/api/items", {
@@ -524,7 +550,145 @@ export default function ItemDialog({
               </>
             )}
 
-            <div className="min-w-0 overflow-hidden">
+            <div className="min-w-0">
+              <Label>Tags</Label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {selectedTagIds.map((tagId) => {
+                  const tag = userTags.find((t) => t.id === tagId)
+                  if (!tag) return null
+                  return (
+                    <span
+                      key={tagId}
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-fluid-xs font-medium text-white"
+                      style={getTagChipStyle(tag.color)}
+                    >
+                      {tag.name}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTagIds((prev) => prev.filter((id) => id !== tagId))}
+                        className="hover:opacity-80 rounded p-0.5"
+                        aria-label={`Remove ${tag.name}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )
+                })}
+                {!showCreateTag && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-fluid-xs"
+                    onClick={() => setTagsDropdownOpen((o) => !o)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add tag
+                  </Button>
+                )}
+              </div>
+              {tagsDropdownOpen && !showCreateTag && (
+                <div className="mt-2 p-2 border rounded-md bg-muted/30 space-y-1 max-h-40 overflow-y-auto">
+                  {userTags
+                    .filter((t) => !selectedTagIds.includes(t.id))
+                    .map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className="w-full text-left px-2 py-1.5 rounded text-fluid-sm hover:bg-muted flex items-center gap-2"
+                        onClick={() => {
+                          setSelectedTagIds((prev) => [...prev, t.id])
+                          setTagsDropdownOpen(false)
+                        }}
+                      >
+                        <span className="w-3 h-3 rounded-full shrink-0" style={getTagChipStyle(t.color)} />
+                        {t.name}
+                      </button>
+                    ))}
+                  {userTags.filter((t) => !selectedTagIds.includes(t.id)).length === 0 && (
+                    <p className="text-fluid-xs text-muted-foreground px-2">No other tags. Create one below.</p>
+                  )}
+                  <button
+                    type="button"
+                    className="w-full text-left px-2 py-1.5 rounded text-fluid-sm hover:bg-muted font-medium border-t mt-1 pt-2"
+                    onClick={() => {
+                      setShowCreateTag(true)
+                      setTagsDropdownOpen(false)
+                    }}
+                  >
+                    + Create new tag
+                  </button>
+                </div>
+              )}
+              {showCreateTag && (
+                <div className="mt-2 p-3 border rounded-md bg-muted/30 space-y-2">
+                  <div className="flex gap-2 flex-wrap items-end">
+                    <div className="min-w-0 flex-1">
+                      <Label className="text-fluid-xs">Tag name</Label>
+                      <Input
+                        value={newTagName}
+                        onChange={(e) => setNewTagName(e.target.value)}
+                        placeholder="New tag"
+                        className="mt-0.5"
+                      />
+                    </div>
+                    <div className="min-w-[120px]">
+                      <Label className="text-fluid-xs">Color</Label>
+                      <select
+                        value={newTagColor}
+                        onChange={(e) => setNewTagColor(e.target.value as TagColor)}
+                        className="mt-0.5 h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-fluid-sm"
+                      >
+                        {TAG_COLORS.map((c) => (
+                          <option key={c} value={c}>
+                            {c.charAt(0).toUpperCase() + c.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={async () => {
+                        const name = newTagName.trim()
+                        if (!name) return
+                        const { data: { user } } = await supabase.auth.getUser()
+                        if (!user) return
+                        const { count } = await supabase.from("tags").select("id", { count: "exact", head: true }).eq("user_id", user.id)
+                        if ((count ?? 0) >= MAX_TAGS_PER_USER) {
+                          alert(`Maximum ${MAX_TAGS_PER_USER} tags. Delete or rename some in Settings > Tags.`)
+                          return
+                        }
+                        const { data: newTag, error } = await supabase
+                          .from("tags")
+                          .insert({ user_id: user.id, name, color: newTagColor })
+                          .select()
+                          .single()
+                        if (error) {
+                          if (error.code === "23505") alert("A tag with this name already exists.")
+                          else alert(error.message)
+                          return
+                        }
+                        if (newTag) {
+                          setUserTags((prev) => sortTagsByColorThenName([...prev, newTag]))
+                          setSelectedTagIds((prev) => [...prev, newTag.id])
+                          setNewTagName("")
+                          setNewTagColor("blue")
+                          setShowCreateTag(false)
+                        }
+                      }}
+                    >
+                      Create
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => { setShowCreateTag(false); setNewTagName(""); setNewTagColor("blue") }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="min-w-0 overflow-visible">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <Label>Images (up to {MAX_PHOTOS})</Label>
                 {photos.length > 0 && (

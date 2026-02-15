@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import type { Theme } from "@/lib/types"
 import SettingsClient from "./settings-client"
 
 export default async function SettingsPage() {
@@ -24,7 +25,18 @@ export default async function SettingsPage() {
       .single(),
   ])
 
-  const settings = settingsResult.data
+  let settings = settingsResult.data
+  const colorScheme = settings?.color_scheme as Theme | null | undefined
+  if (settings && colorScheme && typeof colorScheme === "object") {
+    settings = {
+      ...settings,
+      color_scheme: {
+        ...colorScheme,
+        radius: settings.border_radius ?? colorScheme.radius ?? "0.5rem",
+        graphOverlay: settings.graph_overlay ?? colorScheme.graphOverlay ?? true,
+      },
+    }
+  }
   const profile = profileResult.data
   const provider =
     (authUser.app_metadata?.provider as string) ??

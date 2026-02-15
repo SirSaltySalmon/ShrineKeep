@@ -20,6 +20,7 @@ interface ItemSaveRequest {
   box_id?: string | null
   is_wishlist: boolean
   photos: PhotoData[]
+  tag_ids?: string[]
 }
 
 export async function POST(request: NextRequest) {
@@ -43,11 +44,19 @@ export async function POST(request: NextRequest) {
     const isNew = !body.id
     const thumbnailUrl = body.photos?.find((p) => p.is_thumbnail)?.url ?? body.thumbnail_url ?? null
 
+    // For new collection items, default acquisition_date to today when not provided (same as manual "new item" creation)
+    let acquisitionDate: string | null = null
+    if (!body.is_wishlist) {
+      acquisitionDate = body.acquisition_date ?? null
+      if (isNew && acquisitionDate === null)
+        acquisitionDate = new Date().toISOString().split("T")[0]
+    }
+
     const itemData: Record<string, unknown> = {
       name: body.name.trim(),
       description: body.description?.trim() || null,
       current_value: body.current_value ?? null,
-      acquisition_date: body.is_wishlist ? null : (body.acquisition_date || null),
+      acquisition_date: acquisitionDate,
       acquisition_price: body.is_wishlist ? null : (body.acquisition_price ?? null),
       expected_price: body.is_wishlist ? (body.expected_price ?? null) : null,
       thumbnail_url: thumbnailUrl,
@@ -134,6 +143,32 @@ export async function POST(request: NextRequest) {
         })
 
         if (historyError) throw historyError
+      }
+    }
+
+    // Sync item_tags: replace all tags for this item (only use tag_ids that belong to user)
+    const { error: deleteTagsError } = await supabase
+      .from("item_tags")
+      .delete()
+      .eq("item_id", itemId)
+
+    if (deleteTagsError) throw deleteTagsError
+
+    const tagIds = Array.isArray(body.tag_ids) ? body.tag_ids : []
+    if (tagIds.length > 0) {
+      // Verify each tag belongs to user, then insert
+      const { data: userTags } = await supabase
+        .from("tags")
+        .select("id")
+        .eq("user_id", user.id)
+        .in("id", tagIds)
+
+      const validTagIds = (userTags ?? []).map((t) => t.id)
+      if (validTagIds.length > 0) {
+        const { error: insertTagsError } = await supabase.from("item_tags").insert(
+          validTagIds.map((tag_id) => ({ item_id: itemId, tag_id }))
+        )
+        if (insertTagsError) throw insertTagsError
       }
     }
 

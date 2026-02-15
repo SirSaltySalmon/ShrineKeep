@@ -34,15 +34,15 @@ export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0, graphOve
 
   if (loading) {
     return (
-      <div className="rounded-lg border bg-muted/30 p-4 mb-6 min-w-0 overflow-hidden">
+      <div className="rounded-lg border bg-muted/30 p-4 mb-6 min-w-0 overflow-visible">
         <div className="text-fluid-sm text-muted-foreground">Loading stats...</div>
       </div>
     )
   }
 
   return (
-    <div className="rounded-lg border bg-card mb-6 overflow-hidden min-w-0">
-      <div className="p-4 min-w-0 overflow-hidden">
+    <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
+      <div className="p-4 min-w-0 overflow-visible">
         <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
           <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
             <BoxStatsSummary

@@ -58,7 +58,9 @@ CREATE TABLE IF NOT EXISTS public.tags (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT 'blue' CHECK (color IN ('red','orange','yellow','green','blue','indigo','violet')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
   UNIQUE(user_id, name)
 );
 
@@ -109,6 +111,9 @@ CREATE TABLE IF NOT EXISTS public.wish_list_items (
 CREATE TABLE IF NOT EXISTS public.user_settings (
   user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
   color_scheme JSONB,
+  font_family TEXT DEFAULT 'Inter',
+  border_radius TEXT DEFAULT '0.5rem',
+  graph_overlay BOOLEAN DEFAULT true,
   wishlist_is_public BOOLEAN DEFAULT false NOT NULL,
   wishlist_share_token TEXT UNIQUE,
   wishlist_apply_colors BOOLEAN DEFAULT false NOT NULL,
@@ -290,6 +295,10 @@ CREATE POLICY "Users can delete own tags"
   ON public.tags FOR DELETE
   USING (auth.uid() = user_id);
 
+CREATE POLICY "Users can update own tags"
+  ON public.tags FOR UPDATE
+  USING (auth.uid() = user_id);
+
 -- Item tags policies
 CREATE POLICY "Users can manage tags for own items"
   ON public.item_tags FOR ALL
@@ -466,6 +475,9 @@ CREATE TRIGGER update_wish_lists_updated_at BEFORE UPDATE ON public.wish_lists
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 CREATE TRIGGER update_user_settings_updated_at BEFORE UPDATE ON public.user_settings
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+CREATE TRIGGER update_tags_updated_at BEFORE UPDATE ON public.tags
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 -- Storage Bucket Policies for item-photos
 -- Note: These policies assume the bucket 'item-photos' exists and is PRIVATE

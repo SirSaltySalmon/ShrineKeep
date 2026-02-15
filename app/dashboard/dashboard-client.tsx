@@ -4,12 +4,19 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase/client"
-import { Box, Item } from "@/lib/types"
+import { Box, Item, Tag } from "@/lib/types"
+import {
+  DEFAULT_SEARCH_FILTERS,
+  hasAnySearchFilter,
+  type SearchFiltersState,
+} from "@/lib/types"
+import { normalizeItem, buildSearchUrl, sortTagsByColorThenName } from "@/lib/utils"
+import AdvancedSearchFilters from "@/components/advanced-search-filters"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Search, Grid3x3, Trash2, Sword } from "lucide-react"
+import { Plus, Search, Grid3x3, Trash2, Sword, Filter } from "lucide-react"
 import { DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { getItemDragId } from "@/components/draggable-item-card"
 import { getBoxDropId } from "@/components/droppable-box-card"
@@ -51,6 +58,9 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
   const [showStatsDialog, setShowStatsDialog] = useState(false)
   const [statsRefreshKey, setStatsRefreshKey] = useState(0)
   const [searchQuery, setSearchQuery] = useState("")
+  const [searchFilters, setSearchFilters] = useState<SearchFiltersState>(DEFAULT_SEARCH_FILTERS)
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const [userTags, setUserTags] = useState<Tag[]>([])
 
   useEffect(() => {
     loadBoxes()
@@ -63,6 +73,15 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
       loadItems(null)
     }
   }, [currentBoxId])
+
+  useEffect(() => {
+    if (!user?.id) return
+    supabase
+      .from("tags")
+      .select("*")
+      .eq("user_id", user.id)
+      .then(({ data }) => setUserTags(sortTagsByColorThenName(data ?? [])))
+  }, [user?.id, supabase])
 
   const loadBoxes = async () => {
     if (!user?.id) {
@@ -127,7 +146,7 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
       const { data, error } = await query.order("position", { ascending: true })
 
       if (error) throw error
-      setItems(data || [])
+      setItems((data || []).map(normalizeItem))
     } catch (error) {
       console.error("Error loading items:", error)
     }
@@ -320,23 +339,65 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
       <main className="container mx-auto px-4 py-8 min-w-0 overflow-hidden">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 min-w-0">
           <Breadcrumbs currentBoxId={currentBoxId} onBoxClick={handleBoxClick} />
-          <div className="flex items-center space-x-2 min-w-0">
-            <div className="relative min-w-0 w-full sm:w-auto sm:min-w-[12rem]">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground shrink-0" />
-              <Input
-                placeholder="Search items..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && searchQuery.trim()) {
-                    e.preventDefault()
-                    router.push(`/dashboard/search?q=${encodeURIComponent(searchQuery.trim())}`)
-                  }
-                }}
-                className="pl-10 w-full min-w-0 sm:w-64"
-              />
+          <div className="flex flex-col gap-2 min-w-0 w-full">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="relative min-w-0 flex-1 sm:w-auto sm:min-w-[12rem]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground shrink-0" />
+                <Input
+                  placeholder="Search items..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      router.push(buildSearchUrl(searchQuery.trim(), searchFilters))
+                    }
+                  }}
+                  className="pl-10 w-full min-w-0 sm:w-64"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(buildSearchUrl(searchQuery.trim(), searchFilters))}
+                className="shrink-0"
+                title="Search (optional: leave empty for all items)"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdvancedFilters((v) => !v)}
+                className="shrink-0"
+              >
+                <Filter className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Filters</span>
+                {hasAnySearchFilter(searchFilters) ? ` (${[
+                  searchFilters.includeTags.length,
+                  searchFilters.excludeTags.length,
+                  searchFilters.tagColors.length,
+                  searchFilters.valueMin ? 1 : 0,
+                  searchFilters.valueMax ? 1 : 0,
+                  searchFilters.acquisitionMin ? 1 : 0,
+                  searchFilters.acquisitionMax ? 1 : 0,
+                  searchFilters.dateFrom ? 1 : 0,
+                  searchFilters.dateTo ? 1 : 0,
+                ].reduce((a, b) => a + b, 0)})` : ""}
+              </Button>
             </div>
-
+            {showAdvancedFilters && (
+              <AdvancedSearchFilters
+                filters={searchFilters}
+                userTags={userTags}
+                onFiltersChange={setSearchFilters}
+                showClear={hasAnySearchFilter(searchFilters)}
+                onClear={() => setSearchFilters(DEFAULT_SEARCH_FILTERS)}
+                className="w-full min-w-0"
+              />
+            )}
             <Dialog
               open={showEditBoxDialog}
               onOpenChange={(open) => {
@@ -373,17 +434,17 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                     />
                   </div>
 
-                  <div className="border-t pt-4 space-y-3 min-w-0 overflow-hidden">
+                  <div className="border-t pt-4 space-y-3 min-w-0 overflow-visible">
                     <div className="flex items-center gap-2 text-fluid-sm font-medium text-destructive">
                       <Trash2 className="h-4 w-4" />
                       Delete box
                     </div>
                     {deleteMode == null ? (
-                      <div className="flex flex-col gap-2 min-w-0 overflow-hidden">
+                      <div className="flex flex-col gap-2 min-w-0 overflow-visible">
                         <p className="text-fluid-sm text-muted-foreground">
                           Choose how to handle contents:
                         </p>
-                        <div className="flex flex-col gap-2 min-w-0 overflow-hidden">
+                        <div className="flex flex-col gap-2 min-w-0 overflow-visible">
                           <Label htmlFor="delete-mode-delete-all" className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
                             <input
                               id="delete-mode-delete-all"
@@ -393,7 +454,7 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                               onChange={() => setDeleteMode("delete-all")}
                               className="mt-1"
                             />
-                            <span className="min-w-0 overflow-hidden">
+                            <span className="min-w-0 overflow-visible">
                               <strong>Delete all:</strong> Permanently delete this box and all child items, sub-boxes, and their data (value history, photos, etc.).
                             </span>
                           </Label>
@@ -406,20 +467,20 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                               onChange={() => setDeleteMode("move-to-root")}
                               className="mt-1"
                             />
-                            <span className="min-w-0 overflow-hidden">
+                            <span className="min-w-0 overflow-visible">
                               <strong>Move to root:</strong> Move all child items and sub-boxes to the root level, then delete this box.
                             </span>
                           </Label>
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-3 min-w-0 overflow-hidden">
+                      <div className="space-y-3 min-w-0 overflow-visible">
                         <p className="text-fluid-sm text-muted-foreground">
                           {deleteMode === "delete-all"
                             ? "All contents will be permanently deleted. This cannot be undone."
                             : "Child boxes and items will become root-level, then this box will be removed."}
                         </p>
-                        <div className="min-w-0 overflow-hidden">
+                        <div className="min-w-0 overflow-visible">
                           <Label className="text-fluid-sm font-medium min-w-0">
                             Type the box name to confirm: <strong className="break-all">{editBox?.name}</strong>
                           </Label>
@@ -487,7 +548,7 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
               graphOverlay={initialTheme?.graphOverlay ?? true}
             />
             <div className="mb-8 min-w-0 overflow-visible">
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
+              <div className="flex flex-wrap items-center justify-center gap-4 mb-4 min-w-0">
                 <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
                   <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
                   Boxes
@@ -551,7 +612,7 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
             )}
             <div>
               {searchQuery.trim() && items.length === 0 ? (
-                <div className="text-center py-12 space-y-3 min-w-0 overflow-hidden">
+                <div className="text-center py-12 space-y-3 min-w-0 overflow-visible">
                   <h2 className="text-fluid-xl font-semibold flex items-center mb-4 min-w-0 truncate">
                     <Sword className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
                     Items
@@ -559,10 +620,10 @@ export default function DashboardClient({ user, initialTheme }: DashboardClientP
                   <p className="text-fluid-sm text-muted-foreground">
                     No items in this box.{" "}
                     <Link
-                      href={`/dashboard/search?q=${encodeURIComponent(searchQuery.trim())}`}
+                      href={buildSearchUrl(searchQuery.trim(), searchFilters)}
                       className="text-primary font-medium underline underline-offset-2 hover:no-underline"
                     >
-                      Search sub-boxes?
+                      Search all items
                     </Link>
                   </p>
                   <p className="text-fluid-sm text-muted-foreground">

@@ -1,11 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Plus, Sword } from "lucide-react"
 import DraggableItemCard from "./draggable-item-card"
 import ItemDialog from "./item-dialog"
+import { SelectionActionBar } from "./selection-action-bar"
+import { useCopiedItem } from "@/lib/copied-item-context"
+import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
 
 interface ItemGridProps {
   items: Item[]
@@ -16,21 +19,47 @@ interface ItemGridProps {
 }
 
 export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTitle }: ItemGridProps) {
+  const { copied } = useCopiedItem()
+  const {
+    selectedIds,
+    setSelectedIds,
+    gridRef,
+    registerCardRef,
+    handleGridMouseDown,
+    marquee,
+  } = useMarqueeSelection()
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [showItemDialog, setShowItemDialog] = useState(false)
   const [isNewItem, setIsNewItem] = useState(false)
 
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [currentBoxId, setSelectedIds])
+
   const handleNewItem = () => {
     setIsNewItem(true)
     setSelectedItem(null)
+    setSelectedIds(new Set())
     setShowItemDialog(true)
   }
 
-  const handleItemClick = (item: Item) => {
+  const handleItemClick = (item: Item, e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(item.id)) next.delete(item.id)
+        else next.add(item.id)
+        return next
+      })
+      return
+    }
+    setSelectedIds(new Set())
     setIsNewItem(false)
     setSelectedItem(item)
     setShowItemDialog(true)
   }
+
+  const selectedItems = items.filter((i) => selectedIds.has(i.id))
 
   const addButton = (
     <Button onClick={handleNewItem}>
@@ -41,7 +70,7 @@ export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTit
 
   return (
     <>
-      <div className={sectionTitle ? "flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0 overflow-hidden" : "mb-4 min-w-0"}>
+      <div className={sectionTitle ? "flex flex-wrap items-center justify-center gap-4 mb-4 min-w-0" : "mb-4 min-w-0"}>
         {sectionTitle ? (
           <>
             <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
@@ -54,19 +83,45 @@ export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTit
           addButton
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div
+        ref={gridRef as React.RefObject<HTMLDivElement>}
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative"
+        onMouseDown={handleGridMouseDown}
+      >
         {items.map((item) => (
           <DraggableItemCard
             key={item.id}
             item={item}
+            selected={selectedIds.has(item.id)}
             onClick={handleItemClick}
+            registerCardRef={registerCardRef}
           />
         ))}
       </div>
+      {marquee && (
+        <div
+          className="pointer-events-none fixed border-2 border-primary/50 bg-primary/10 z-50"
+          style={{
+            left: Math.min(marquee.startX, marquee.endX),
+            top: Math.min(marquee.startY, marquee.endY),
+            width: Math.abs(marquee.endX - marquee.startX),
+            height: Math.abs(marquee.endY - marquee.startY),
+          }}
+        />
+      )}
       {items.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           No items yet. Click "Add Item" to get started.
         </div>
+      )}
+      {(selectedItems.length > 0 || (copied !== null && copied.length > 0)) && (
+        <SelectionActionBar
+          selectedItems={selectedItems}
+          pasteTarget={{ boxId: currentBoxId, isWishlist: false }}
+          onDeleteDone={onItemUpdate}
+          onPasteDone={onItemUpdate}
+          onClearSelection={() => setSelectedIds(new Set())}
+        />
       )}
       <ItemDialog
         open={showItemDialog}
