@@ -140,6 +140,15 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 2. Enter a name, email, and password
 3. Or sign up with Google (if you configured OAuth in Supabase)
 
+## Step 8: Cloud Deployment (Optional)
+
+If you want to access your site from the internet, you can use cloud deployment services. One such is below.
+
+1. Push your code to GitHub
+2. Import your repository in [Vercel](https://vercel.com)
+3. Add your **environment variables** in Vercel's project settings. This is **IMPORTANT**, because .env.local has been set to be ignored by git and will not be pushed to GitHub for security purposes. Without configuring, the website will be missing vital API keys.
+4. Deploy!
+
 ## Troubleshooting
 
 ### "Invalid API key" error
