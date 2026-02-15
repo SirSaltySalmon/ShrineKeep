@@ -164,6 +164,7 @@ export default function LandingPage() {
           <h2 className="text-fluid-xl sm:text-fluid-2xl font-semibold text-foreground mb-4">Contact</h2>
           <div className="text-muted-foreground text-fluid-sm sm:text-fluid-base space-y-2 text-left max-w-md mx-auto text-center">
             {/* Template: replace with your contact details */}
+            <p>Made by Binh-Khang Nguyen</p>
             <p>Email: binhkhang.work@gmail.com</p>
             <p>Discord: sirsaltysalmon</p>
           </div>

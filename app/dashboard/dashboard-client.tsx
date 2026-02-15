@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase/client"
-import { Box, Item, Tag } from "@/lib/types"
+import { Box, Item, Tag, type Theme } from "@/lib/types"
 import {
   DEFAULT_SEARCH_FILTERS,
   hasAnySearchFilter,
@@ -35,7 +35,7 @@ import { useCopiedItem } from "@/lib/copied-item-context"
 interface DashboardClientProps {
   user: any
   /** Theme (color_scheme) from user_settings; not used for graph overlay. */
-  initialTheme?: Record<string, unknown> | null
+  initialTheme?: Theme | null
   /** Chart overlay preference from user_settings (separate from theme). */
   initialGraphOverlay?: boolean
 }
