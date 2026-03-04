@@ -1,12 +1,13 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { deleteItemWithPhotoRefCheck } from "@/lib/api/delete-item"
+import { deleteItems } from "@/lib/api/delete-item"
 
 /**
  * Delete one or more items. Only deletes a photo file from storage when
  * no other item's photo references that path (shared refs after copy/paste).
  * Body: { itemId: string } or { itemIds: string[] } for bulk.
+ * Uses optimized batch deletion for multiple items.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -29,20 +30,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let totalDeletedPhotos = 0
-    for (const itemId of itemIds) {
-      const { deletedPhotos } = await deleteItemWithPhotoRefCheck(
-        supabase,
-        user.id,
-        itemId
-      )
-      totalDeletedPhotos += deletedPhotos
-    }
-
+    const { deletedPhotos, deletedCount } = await deleteItems(supabase, user.id, itemIds)
     return NextResponse.json({
       success: true,
-      deletedPhotos: totalDeletedPhotos,
-      deletedCount: itemIds.length,
+      deletedPhotos,
+      deletedCount,
     })
   } catch (error: unknown) {
     const message =

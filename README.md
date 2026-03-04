@@ -1,7 +1,9 @@
 # ShrineKeep
 
-A versatile utility webapp to track completion, values, and spending for any collection of items.
+## [Consumerism has never been this organized.](https://www.shrinekeep.com)
 
+A versatile utility webapp to track completion, values, and spending for any collection of items.
+[www.shrinekeep.com]
 ## Features
 
 - **Hierarchical Collections**: Organize items in boxes (collections) with unlimited nesting

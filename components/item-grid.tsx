@@ -9,16 +9,12 @@ import ItemDialog from "./item-dialog"
 import { SelectionActionBar } from "./selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
-import type { MarqueeRect } from "@/lib/hooks/use-marquee-selection"
 
 /** When provided (e.g. by dashboard), selection is controlled by parent; otherwise ItemGrid uses internal marquee selection. */
 export interface ItemGridSelectionProps {
   selectedIds: Set<string>
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>
-  gridRef: React.RefObject<HTMLDivElement>
   registerCardRef: (id: string, el: HTMLDivElement | null) => void
-  handleGridMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void
-  marquee: MarqueeRect | null
 }
 
 interface ItemGridProps {
@@ -31,18 +27,18 @@ interface ItemGridProps {
   selectionProps?: ItemGridSelectionProps
   /** When true, click only toggles selection; when false, click opens dialog (shift-click still toggles). */
   selectionMode?: boolean
+  /** Called when shift-click happens to enable selection mode. */
+  onEnterSelectionMode?: () => void
 }
 
-export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTitle, selectionProps, selectionMode }: ItemGridProps) {
+export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTitle, selectionProps, selectionMode, onEnterSelectionMode }: ItemGridProps) {
   const { copied } = useCopiedItem()
   const internalMarquee = useMarqueeSelection()
 
-  const selectedIds = selectionProps?.selectedIds ?? internalMarquee.selectedIds
-  const setSelectedIds = selectionProps?.setSelectedIds ?? internalMarquee.setSelectedIds
-  const gridRef = selectionProps?.gridRef ?? internalMarquee.gridRef
-  const registerCardRef = selectionProps?.registerCardRef ?? internalMarquee.registerCardRef
-  const handleGridMouseDown = selectionProps?.handleGridMouseDown ?? internalMarquee.handleGridMouseDown
-  const marquee = selectionProps?.marquee ?? internalMarquee.marquee
+  const selectedIds = selectionProps?.selectedIds ?? internalMarquee.selectedItemIds
+  const setSelectedIds = selectionProps?.setSelectedIds ?? internalMarquee.setSelectedItemIds
+  const registerCardRef = selectionProps?.registerCardRef ?? internalMarquee.registerItemCardRef
+  const MarqueeOverlay = internalMarquee.MarqueeOverlay
 
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [showItemDialog, setShowItemDialog] = useState(false)
@@ -109,11 +105,7 @@ export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTit
             addButton
           )}
         </div>
-        <div
-          ref={gridRef as React.RefObject<HTMLDivElement>}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative"
-          onMouseDown={handleGridMouseDown}
-        >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
         {items.map((item) => (
           <DraggableItemCard
             key={item.id}
@@ -131,17 +123,7 @@ export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTit
           </div>
         )}
       </div>
-      {marquee && (
-        <div
-          className="pointer-events-none fixed border-2 border-primary/50 bg-primary/10 z-50"
-          style={{
-            left: Math.min(marquee.startX, marquee.endX),
-            top: Math.min(marquee.startY, marquee.endY),
-            width: Math.abs(marquee.endX - marquee.startX),
-            height: Math.abs(marquee.endY - marquee.startY),
-          }}
-        />
-      )}
+      {!selectionProps && <MarqueeOverlay />}
       {!selectionProps && (selectedItems.length > 0 || (copied !== null && copied.length > 0)) && (
         <SelectionActionBar
           selectedItems={selectedItems}

@@ -48,9 +48,6 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
   const [boxes, setBoxes] = useState<Box[]>([])
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
-  const [newBoxName, setNewBoxName] = useState("")
-  const [newBoxDescription, setNewBoxDescription] = useState("")
-  const [showNewBoxDialog, setShowNewBoxDialog] = useState(false)
   const [editBox, setEditBox] = useState<Box | null>(null)
   const [editBoxName, setEditBoxName] = useState("")
   const [editBoxDescription, setEditBoxDescription] = useState("")
@@ -72,12 +69,13 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
   const {
     selectedItemIds,
     setSelectedItemIds,
-    gridRef: itemGridRef,
-    registerCardRef,
-    handleGridMouseDown,
-    marquee,
     selectedBoxIds,
     setSelectedBoxIds,
+    registerItemCardRef,
+    registerBoxCardRef,
+    handleMouseDown,
+    marquee,
+    MarqueeOverlay,
     clearSelection,
     hasSelection,
     toggleBoxSelection,
@@ -181,15 +179,15 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
     }
   }
 
-  const createBox = async () => {
-    if (!newBoxName.trim()) return
+  const createBox = async (name: string, description: string) => {
+    if (!name.trim()) return
 
     try {
       const { data, error } = await supabase
         .from("boxes")
         .insert({
-          name: newBoxName,
-          description: newBoxDescription || null,
+          name: name,
+          description: description || null,
           user_id: user.id,
           parent_box_id: currentBoxId || null,
         })
@@ -197,10 +195,7 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
         .single()
 
       if (error) throw error
-      setBoxes([...boxes, data])
-      setNewBoxName("")
-      setNewBoxDescription("")
-      setShowNewBoxDialog(false)
+      await loadBoxes()
     } catch (error) {
       console.error("Error creating box:", error)
     }
@@ -214,18 +209,6 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
     }
     setCurrentBoxId(box.id)
     setCurrentBox(box)
-  }
-
-  const handleBoxCardClick = (box: Box, e: React.MouseEvent) => {
-    if (selectionMode) {
-      toggleBoxSelection(box.id)
-      return
-    }
-    if (e.shiftKey) {
-      toggleBoxSelection(box.id)
-      return
-    }
-    handleBoxClick(box)
   }
 
   const openEditBox = (box: Box) => {
@@ -389,7 +372,7 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
 
   return (
     <>
-      <main className="container mx-auto px-4 py-8 layout-shrink-visible">
+      <main className="container mx-auto px-4 py-8 layout-shrink-visible" onMouseDown={handleMouseDown}>
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 min-w-0">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
             <Breadcrumbs currentBoxId={currentBoxId} onBoxClick={handleBoxClick} />
@@ -602,70 +585,23 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
               refreshKey={statsRefreshKey}
               graphOverlay={initialGraphOverlay}
             />
-            <div className="mb-8 layout-shrink-visible rounded-md border bg-light-muted p-4">
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
-                <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
-                  <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
-                  Boxes
-                </h2>
-                <Dialog open={showNewBoxDialog} onOpenChange={setShowNewBoxDialog}>
-                  <Button onClick={() => setShowNewBoxDialog(true)} className="shrink-0">
-                    <Plus className="h-4 w-4 mr-2 shrink-0" />
-                    <span className="truncate">New Box</span>
-                  </Button>
-                  <DialogContent className="min-w-0">
-                    <DialogHeader className="min-w-0">
-                      <DialogTitle>Create New Box</DialogTitle>
-                      <DialogDescription>
-                        Create a new collection box to organize your items.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4 layout-shrink-visible">
-                      <div className="min-w-0">
-                        <Label>Name</Label>
-                        <Input
-                          value={newBoxName}
-                          onChange={(e) => setNewBoxName(e.target.value)}
-                          placeholder="My Collection"
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <Label>Description (optional)</Label>
-                        <Input
-                          value={newBoxDescription}
-                          onChange={(e) => setNewBoxDescription(e.target.value)}
-                          placeholder="A brief description..."
-                        />
-                      </div>
-                    </div>
-                    <DialogFooter className="min-w-0">
-                      <Button variant="outline" onClick={() => setShowNewBoxDialog(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={createBox}>Create</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-              {!currentBoxId && boxes.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Try adding a new box!
-                </div>
-              ) : (
-                <BoxGrid
-                  boxes={boxes}
-                  onBoxClick={handleBoxCardClick}
-                  onRename={openEditBox}
-                  onShowStats={(box) => {
-                    setStatsBoxId(box.id)
-                    setStatsBoxName(box.name)
-                    setShowStatsDialog(true)
-                  }}
-                  isBoxSelected={isBoxSelected}
-                  selectionMode={selectionMode}
-                />
-              )}
-            </div>
+            <BoxGrid
+              boxes={boxes}
+              currentBoxId={currentBoxId}
+              onBoxClick={handleBoxClick}
+              onRename={openEditBox}
+              onShowStats={(box) => {
+                setStatsBoxId(box.id)
+                setStatsBoxName(box.name)
+                setShowStatsDialog(true)
+              }}
+              onCreateBox={createBox}
+              isBoxSelected={isBoxSelected}
+              toggleBoxSelection={toggleBoxSelection}
+              selectionMode={selectionMode}
+              onEnterSelectionMode={() => setSelectionMode(true)}
+              registerBoxCardRef={registerBoxCardRef}
+            />
             {currentBox != null && (
               <div className="mb-6">
                 <MoveToParentZone
@@ -704,13 +640,11 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
                   }}
                   sectionTitle="Items"
                   selectionMode={selectionMode}
+                  onEnterSelectionMode={() => setSelectionMode(true)}
                   selectionProps={{
                     selectedIds: selectedItemIds,
                     setSelectedIds: setSelectedItemIds,
-                    gridRef: itemGridRef,
-                    registerCardRef,
-                    handleGridMouseDown,
-                    marquee,
+                    registerCardRef: registerItemCardRef,
                   }}
                 />
               )}
@@ -754,6 +688,7 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
             onExitSelectionMode={() => setSelectionMode(false)}
           />
         )}
+        <MarqueeOverlay />
       </main>
     </>
   )

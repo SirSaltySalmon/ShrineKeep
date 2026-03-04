@@ -1,11 +1,12 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { moveItem } from "@/lib/api/move-item"
+import { moveItems } from "@/lib/api/move-item"
 
 /**
  * Move one or more items to a target box.
  * Body: { itemId: string, targetBoxId: string | null } or { itemIds: string[], targetBoxId: string | null }.
+ * Uses optimized batch movement for multiple items.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -33,11 +34,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    for (const itemId of itemIds) {
-      await moveItem(supabase, user.id, itemId, targetBoxId)
-    }
-
-    return NextResponse.json({ success: true, movedCount: itemIds.length })
+    const { movedCount } = await moveItems(supabase, user.id, itemIds, targetBoxId)
+    return NextResponse.json({ success: true, movedCount })
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Failed to move item"

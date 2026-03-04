@@ -2,7 +2,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import type { BoxCopyPayload } from "@/lib/types"
-import { createItemFromPayload } from "@/lib/api/create-item"
+import { createItems } from "@/lib/api/create-item"
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>
 
@@ -30,12 +30,44 @@ async function pasteBoxTree(
   if (!newBox) throw new Error("Failed to create box")
   const newBoxId = newBox.id
 
+  // Recursively create child boxes first
   for (let i = 0; i < payload.children.length; i++) {
     await pasteBoxTree(supabase, userId, payload.children[i], newBoxId, i)
   }
 
-  for (const itemPayload of payload.items) {
-    await createItemFromPayload(supabase, userId, itemPayload, newBoxId)
+  // Batch create all items for this box
+  if (payload.items.length > 0) {
+    const items = payload.items.map((itemPayload) => {
+      const thumbnailUrl =
+        itemPayload.photos?.find((p) => p.is_thumbnail)?.url ?? itemPayload.thumbnail_url ?? null
+      const acquisitionDate =
+        itemPayload.acquisition_date ?? new Date().toISOString().split("T")[0]
+
+      return {
+        itemData: {
+          name: itemPayload.name.trim(),
+          description: itemPayload.description?.trim() || null,
+          current_value: itemPayload.current_value ?? null,
+          acquisition_date: acquisitionDate,
+          acquisition_price: itemPayload.acquisition_price ?? null,
+          expected_price: null,
+          thumbnail_url: thumbnailUrl,
+          box_id: newBoxId,
+          user_id: userId,
+          is_wishlist: false,
+        },
+        photos: itemPayload.photos,
+        tagIds: itemPayload.tag_ids,
+        valueHistory: itemPayload.value_history,
+        currentValue: itemPayload.current_value,
+      }
+    })
+
+    await createItems({
+      supabase,
+      userId,
+      items,
+    })
   }
 
   return newBoxId

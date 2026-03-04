@@ -57,6 +57,7 @@ export interface ItemCopyPayload {
   is_wishlist: boolean
   photos: { url: string; storage_path?: string; is_thumbnail: boolean }[]
   tag_ids: string[]
+  value_history?: { value: number; recorded_at: string }[]
 }
 
 /** Recursive payload for copying a box and its full subtree (children + items per node). */

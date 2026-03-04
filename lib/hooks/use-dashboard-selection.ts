@@ -1,19 +1,22 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useCallback, useEffect } from "react"
 import { useMarqueeSelection } from "./use-marquee-selection"
 
 export interface UseDashboardSelectionReturn {
   // Item selection (from marquee hook)
   selectedItemIds: Set<string>
   setSelectedItemIds: React.Dispatch<React.SetStateAction<Set<string>>>
-  gridRef: React.RefObject<HTMLDivElement>
-  registerCardRef: (id: string, el: HTMLDivElement | null) => void
-  handleGridMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void
-  marquee: ReturnType<typeof useMarqueeSelection>["marquee"]
-  // Box selection
+  // Box selection (from marquee hook)
   selectedBoxIds: Set<string>
   setSelectedBoxIds: React.Dispatch<React.SetStateAction<Set<string>>>
+  // Card registration
+  registerItemCardRef: (id: string, el: HTMLDivElement | null) => void
+  registerBoxCardRef: (id: string, el: HTMLDivElement | null) => void
+  // Marquee handling
+  handleMouseDown: (e: React.MouseEvent) => void
+  marquee: ReturnType<typeof useMarqueeSelection>["marquee"]
+  MarqueeOverlay: ReturnType<typeof useMarqueeSelection>["MarqueeOverlay"]
   // Combined helpers
   clearSelection: () => void
   hasSelection: boolean
@@ -30,15 +33,16 @@ export interface UseDashboardSelectionReturn {
 export function useDashboardSelection(currentBoxId: string | null): UseDashboardSelectionReturn {
   const marqueeReturn = useMarqueeSelection()
   const {
-    selectedIds: selectedItemIds,
-    setSelectedIds: setSelectedItemIds,
-    gridRef,
-    registerCardRef,
-    handleGridMouseDown,
+    selectedItemIds,
+    setSelectedItemIds,
+    selectedBoxIds,
+    setSelectedBoxIds,
+    registerItemCardRef,
+    registerBoxCardRef,
+    handleMouseDown,
     marquee,
+    MarqueeOverlay,
   } = marqueeReturn
-
-  const [selectedBoxIds, setSelectedBoxIds] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
     setSelectedItemIds(new Set())
@@ -47,7 +51,7 @@ export function useDashboardSelection(currentBoxId: string | null): UseDashboard
   const clearSelection = useCallback(() => {
     setSelectedItemIds(new Set())
     setSelectedBoxIds(new Set())
-  }, [setSelectedItemIds])
+  }, [setSelectedItemIds, setSelectedBoxIds])
 
   const hasSelection =
     selectedItemIds.size > 0 || selectedBoxIds.size > 0
@@ -59,7 +63,7 @@ export function useDashboardSelection(currentBoxId: string | null): UseDashboard
       else next.add(boxId)
       return next
     })
-  }, [])
+  }, [setSelectedBoxIds])
 
   const isBoxSelected = useCallback(
     (boxId: string) => selectedBoxIds.has(boxId),
@@ -83,12 +87,13 @@ export function useDashboardSelection(currentBoxId: string | null): UseDashboard
   return {
     selectedItemIds,
     setSelectedItemIds,
-    gridRef,
-    registerCardRef,
-    handleGridMouseDown,
-    marquee,
     selectedBoxIds,
     setSelectedBoxIds,
+    registerItemCardRef,
+    registerBoxCardRef,
+    handleMouseDown,
+    marquee,
+    MarqueeOverlay,
     clearSelection,
     hasSelection,
     toggleBoxSelection,

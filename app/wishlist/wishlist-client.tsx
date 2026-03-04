@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Item } from "@/lib/types"
 import { normalizeItem } from "@/lib/utils"
@@ -25,12 +25,12 @@ import { useCopiedItem } from "@/lib/copied-item-context"
 export default function WishlistClient() {
   const supabase = createSupabaseClient()
   const { copied } = useCopiedItem()
+  const gridRef = useRef<HTMLDivElement>(null)
   const {
-    selectedIds,
-    setSelectedIds,
-    gridRef,
-    registerCardRef,
-    handleGridMouseDown,
+    selectedItemIds,
+    setSelectedItemIds,
+    registerItemCardRef,
+    handleMouseDown: handleGridMouseDown,
     marquee,
   } = useMarqueeSelection()
   const [items, setItems] = useState<Item[]>([])
@@ -81,7 +81,7 @@ export default function WishlistClient() {
 
   const handleItemClick = (item: Item, e: React.MouseEvent) => {
     if (e.shiftKey) {
-      setSelectedIds((prev) => {
+      setSelectedItemIds((prev) => {
         const next = new Set(prev)
         if (next.has(item.id)) next.delete(item.id)
         else next.add(item.id)
@@ -89,12 +89,12 @@ export default function WishlistClient() {
       })
       return
     }
-    setSelectedIds(new Set())
+    setSelectedItemIds(new Set())
     setSelectedItem(item)
     setShowItemDialog(true)
   }
 
-  const selectedItems = items.filter((i) => selectedIds.has(i.id))
+  const selectedItems = items.filter((i) => selectedItemIds.has(i.id))
 
   const handleMarkAsAcquiredConfirm = async () => {
     if (!itemToMark) return
@@ -143,20 +143,20 @@ export default function WishlistClient() {
         </div>
 
         <div
-          ref={gridRef as React.RefObject<HTMLDivElement>}
+          ref={gridRef}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative"
           onMouseDown={handleGridMouseDown}
         >
           {items.map((item) => (
             <div
               key={item.id}
-              ref={(el) => registerCardRef(item.id, el)}
+              ref={(el) => registerItemCardRef(item.id, el)}
               data-item-id={item.id}
             >
               <ItemCard
                 item={item}
                 variant="wishlist"
-                selected={selectedIds.has(item.id)}
+                selected={selectedItemIds.has(item.id)}
                 onClick={handleItemClick}
                 onMarkAcquired={openMarkAsAcquired}
               />
@@ -181,7 +181,7 @@ export default function WishlistClient() {
             pasteTarget={{ boxId: null, isWishlist: true }}
             onDeleteDone={loadWishlistItems}
             onPasteDone={loadWishlistItems}
-            onClearSelection={() => setSelectedIds(new Set())}
+            onClearSelection={() => setSelectedItemIds(new Set())}
           />
         )}
 

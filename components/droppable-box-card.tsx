@@ -19,6 +19,8 @@ interface DroppableBoxCardProps {
   selected?: boolean
   /** When true, show lighter ring on hover (selection mode). */
   selectionMode?: boolean
+  /** Register this card's root element for marquee intersection. */
+  registerBoxCardRef?: (id: string, el: HTMLDivElement | null) => void
 }
 
 const DROP_ID_PREFIX = "box-"
@@ -32,7 +34,7 @@ export function getBoxDragId(boxId: string) {
   return DRAG_ID_PREFIX + boxId
 }
 
-export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStats, selected = false, selectionMode = false }: DroppableBoxCardProps) {
+export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStats, selected = false, selectionMode = false, registerBoxCardRef }: DroppableBoxCardProps) {
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: getBoxDropId(box.id),
     data: { type: "box", box },
@@ -59,8 +61,9 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
     (node: HTMLDivElement | null) => {
       setDropRef(node)
       setDragRef(node)
+      registerBoxCardRef?.(box.id, node)
     },
-    [setDropRef, setDragRef]
+    [setDropRef, setDragRef, registerBoxCardRef, box.id]
   )
 
   return (
@@ -70,6 +73,8 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
       selectionMode={selectionMode}
       isOver={isOver}
       style={style}
+      className="item-card-no-select"
+      data-box-id={box.id}
       onClick={(e) => onBoxClick(box, e)}
       {...attributes}
       {...listeners}

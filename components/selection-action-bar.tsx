@@ -3,8 +3,9 @@
 import { useState } from "react"
 import { Box, Item } from "@/lib/types"
 import type { ItemCopyPayload } from "@/lib/types"
-import { buildItemCopyPayload, buildBoxCopyPayloadTrees, normalizeItem } from "@/lib/utils"
+import { buildAllItemsCopyPayload, buildBoxCopyPayloadTrees, normalizeItem } from "@/lib/utils"
 import { useCopiedItem } from "@/lib/copied-item-context"
+import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -86,13 +87,16 @@ export function SelectionActionBar({
 }: SelectionActionBarProps) {
   const { copied, setCopied, copiedBoxTrees, setCopiedBoxTrees, clearClipboard } = useCopiedItem()
   const [pasting, setPasting] = useState(false)
+  const [copying, setCopying] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleteBoxConfirmNames, setDeleteBoxConfirmNames] = useState("")
   const [deleteMode, setDeleteMode] = useState<"delete-all" | "move-to-root">("delete-all")
 
   const hasSelection = selectedItems.length > 0 || selectedBoxes.length > 0
+  const canCopy = hasSelection
   const canPaste =
+    !copying &&
     pasteTarget !== null &&
     ((copied !== null && copied.length > 0) || (copiedBoxTrees !== null && copiedBoxTrees.length > 0))
 
@@ -111,36 +115,85 @@ export function SelectionActionBar({
         .join(", ")
 
   const handleCopy = async () => {
-    if (selectedItems.length > 0) {
-      setCopied(selectedItems.map(buildItemCopyPayload))
-    } else {
-      setCopied(null)
-    }
-    if (selectedBoxes.length > 0) {
-      const rootIds = selectedBoxes
-        .filter((b) => !selectedBoxes.some((p) => p.id === (b.parent_box_id ?? "")))
-        .map((b) => b.id)
-      if (rootIds.length > 0) {
-        try {
-          const res = await fetch("/api/boxes/subtree", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rootIds }),
-          })
-          if (!res.ok) throw new Error("Failed to fetch subtree")
-          const { boxes, items } = await res.json()
-          const normalizedItems = (items ?? []).map((row: unknown) => normalizeItem(row as Record<string, unknown>))
-          const trees = buildBoxCopyPayloadTrees(boxes ?? [], normalizedItems, rootIds)
-          setCopiedBoxTrees(trees)
-        } catch (e) {
-          console.error(e)
-          setCopiedBoxTrees(null)
+    if (!hasSelection) return
+    if (!canCopy || copying) return
+    setCopying(true)
+    try {
+      const supabase = createSupabaseClient()
+      let allItemIds: string[] = []
+      let boxSubtreeItems: Item[] = []
+      let boxes: Box[] = []
+      let rootIds: string[] = []
+
+      // Collect all items that need value_history
+      if (selectedItems.length > 0) {
+        allItemIds.push(...selectedItems.map((i) => i.id))
+      }
+
+      // Fetch box subtree if boxes are selected
+      if (selectedBoxes.length > 0) {
+        rootIds = selectedBoxes
+          .filter((b) => !selectedBoxes.some((p) => p.id === (b.parent_box_id ?? "")))
+          .map((b) => b.id)
+        
+        if (rootIds.length > 0) {
+          try {
+            const res = await fetch("/api/boxes/subtree", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ rootIds }),
+            })
+            if (!res.ok) throw new Error("Failed to fetch subtree")
+            const subtreeData = await res.json()
+            boxes = subtreeData.boxes ?? []
+            const rawItems = subtreeData.items ?? []
+            boxSubtreeItems = rawItems.map((row: unknown) => normalizeItem(row as Record<string, unknown>))
+            allItemIds.push(...boxSubtreeItems.map((i: Item) => i.id))
+          } catch (e) {
+            console.error(e)
+            setCopiedBoxTrees(null)
+            return
+          }
         }
+      }
+
+      // Fetch value_history for all items in a single query
+      const valueHistoryMap = new Map<string, Array<{ value: number; recorded_at: string }>>()
+      if (allItemIds.length > 0) {
+        const { data: valueHistoryData } = await supabase
+          .from("value_history")
+          .select("item_id, value, recorded_at")
+          .in("item_id", allItemIds)
+          .order("recorded_at", { ascending: true })
+
+        for (const record of valueHistoryData ?? []) {
+          if (!valueHistoryMap.has(record.item_id)) {
+            valueHistoryMap.set(record.item_id, [])
+          }
+          valueHistoryMap.get(record.item_id)!.push({
+            value: Number(record.value),
+            recorded_at: record.recorded_at,
+          })
+        }
+      }
+
+      // Build item payloads
+      if (selectedItems.length > 0) {
+        const payloads = buildAllItemsCopyPayload(selectedItems, valueHistoryMap)
+        setCopied(payloads)
+      } else {
+        setCopied(null)
+      }
+
+      // Build box payloads
+      if (rootIds.length > 0) {
+        const trees = buildBoxCopyPayloadTrees(boxes, boxSubtreeItems, rootIds, valueHistoryMap)
+        setCopiedBoxTrees(trees)
       } else {
         setCopiedBoxTrees(null)
       }
-    } else {
-      setCopiedBoxTrees(null)
+    } finally {
+      setCopying(false)
     }
   }
 
@@ -269,11 +322,11 @@ export function SelectionActionBar({
             variant="secondary"
             size="sm"
             onClick={handleCopy}
-            disabled={!hasSelection}
+            disabled={!hasSelection || copying}
             className="rounded-lg"
           >
             <Copy className="h-4 w-4 mr-1.5" />
-            Copy
+            {copying ? "Copying…" : "Copy"}
           </Button>
           {canPaste && (
             <Button

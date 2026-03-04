@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Upload, Search as SearchIcon, Trash2, LayoutGrid, Plus, X } from "lucide-react"
+import { Upload, Search as SearchIcon, Trash2, LayoutGrid, Plus, X, Link as LinkIcon } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
 import { ThumbnailBadge, ThumbnailActionButtons } from "./thumbnail-content"
 import ImageSearch from "./image-search"
@@ -78,6 +78,8 @@ export default function ItemDialog({
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showImageSearch, setShowImageSearch] = useState(false)
+  const [showUrlInput, setShowUrlInput] = useState(false)
+  const [urlInputValue, setUrlInputValue] = useState("")
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
@@ -180,6 +182,32 @@ export default function ItemDialog({
       next.push({ url, is_thumbnail: setAsThumbnail || prev.length === 0 })
       return next
     })
+  }
+
+  const validateUrl = (url: string): boolean => {
+    try {
+      const urlObj = new URL(url)
+      return urlObj.protocol === "http:" || urlObj.protocol === "https:"
+    } catch {
+      return false
+    }
+  }
+
+  const handleAddUrl = () => {
+    const trimmedUrl = urlInputValue.trim()
+    if (!trimmedUrl) {
+      alert("Please enter a URL")
+      return
+    }
+
+    if (!validateUrl(trimmedUrl)) {
+      alert("Please enter a valid URL (must start with http:// or https://)")
+      return
+    }
+
+    addPhoto(trimmedUrl, photos.length === 0)
+    setUrlInputValue("")
+    setShowUrlInput(false)
   }
 
   const setThumbnailIndex = (index: number) => {
@@ -752,6 +780,10 @@ export default function ItemDialog({
                     <SearchIcon className="h-4 w-4 mr-2" />
                     Search Images
                   </Button>
+                  <Button type="button" variant="outline" onClick={() => setShowUrlInput(true)} className="shrink-0">
+                    <LinkIcon className="h-4 w-4 mr-2" />
+                    Add Link
+                  </Button>
                   <>
                     <input
                       id="item-dialog-upload-input"
@@ -817,6 +849,49 @@ export default function ItemDialog({
             setShowImageSearch(false)
           }}
         />
+      )}
+
+      {showUrlInput && (
+        <Dialog open={showUrlInput} onOpenChange={setShowUrlInput}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Image URL</DialogTitle>
+              <DialogDescription>
+                Paste or enter an image URL to add it to your item
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="url-input">Image URL</Label>
+                <Input
+                  id="url-input"
+                  type="url"
+                  placeholder="https://example.com/image.jpg"
+                  value={urlInputValue}
+                  onChange={(e) => setUrlInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault()
+                      handleAddUrl()
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setUrlInputValue("")
+                setShowUrlInput(false)
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddUrl}>
+                Add
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       <ImageGalleryCarousel

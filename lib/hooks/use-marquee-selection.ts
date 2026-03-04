@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect } from "react"
+import React, { useState, useRef, useCallback, useEffect } from "react"
 
 function rectsIntersect(
   a: { left: number; top: number; right: number; bottom: number },
@@ -12,33 +12,55 @@ function rectsIntersect(
 export type MarqueeRect = { startX: number; startY: number; endX: number; endY: number }
 
 export interface UseMarqueeSelectionReturn {
-  selectedIds: Set<string>
-  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>
-  gridRef: React.RefObject<HTMLDivElement>
-  registerCardRef: (id: string, el: HTMLDivElement | null) => void
-  handleGridMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void
+  selectedItemIds: Set<string>
+  setSelectedItemIds: React.Dispatch<React.SetStateAction<Set<string>>>
+  selectedBoxIds: Set<string>
+  setSelectedBoxIds: React.Dispatch<React.SetStateAction<Set<string>>>
+  registerItemCardRef: (id: string, el: HTMLDivElement | null) => void
+  registerBoxCardRef: (id: string, el: HTMLDivElement | null) => void
+  handleMouseDown: (e: React.MouseEvent) => void
   marquee: MarqueeRect | null
+  /** Component to render the marquee overlay. Should be rendered at the dashboard level. */
+  MarqueeOverlay: () => React.ReactElement | null
 }
 
 /**
- * Shared marquee (drag-to-select) selection logic for item grids.
- * Use with a grid whose direct children are card wrappers that call registerCardRef(id, el).
- * On mousedown on empty grid space, start marquee; on mouseup, add intersecting card ids to selection (or clear if click).
+ * Dashboard-wide marquee (drag-to-select) selection logic for both items and boxes.
+ * Can be drawn from anywhere on the dashboard, not just from a specific grid.
+ * 
+ * Usage:
+ * - Call registerItemCardRef(id, el) for each item card
+ * - Call registerBoxCardRef(id, el) for each box card
+ * - Attach handleMouseDown to the dashboard container
+ * - Render <MarqueeOverlay /> at the dashboard level
  */
 export function useMarqueeSelection(): UseMarqueeSelectionReturn {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(() => new Set())
+  const [selectedBoxIds, setSelectedBoxIds] = useState<Set<string>>(() => new Set())
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null)
-  const gridRef = useRef<HTMLDivElement>(null)
-  const cardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const itemCardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const boxCardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const marqueeCurrentRef = useRef<MarqueeRect | null>(null)
 
-  const registerCardRef = useCallback((id: string, el: HTMLDivElement | null) => {
-    if (el) cardRefs.current.set(id, el)
-    else cardRefs.current.delete(id)
+  const registerItemCardRef = useCallback((id: string, el: HTMLDivElement | null) => {
+    if (el) itemCardRefs.current.set(id, el)
+    else itemCardRefs.current.delete(id)
   }, [])
 
-  const handleGridMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target !== gridRef.current || e.button !== 0) return
+  const registerBoxCardRef = useCallback((id: string, el: HTMLDivElement | null) => {
+    if (el) boxCardRefs.current.set(id, el)
+    else boxCardRefs.current.delete(id)
+  }, [])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // Only start marquee on left click, and only if clicking on background (not on a card or button)
+    if (e.button !== 0) return
+    const target = e.target as HTMLElement
+    // Don't start marquee if clicking on interactive elements
+    if (target.closest("button, a, [role='button'], [data-drag-handle]")) return
+    // Don't start marquee if clicking on a card
+    if (target.closest("[data-item-id], [data-box-id]")) return
+    
     setMarquee({ startX: e.clientX, startY: e.clientY, endX: e.clientX, endY: e.clientY })
   }, [])
 
@@ -65,9 +87,21 @@ export function useMarqueeSelection(): UseMarqueeSelectionReturn {
         const bottom = Math.max(m.startY, m.endY)
         if (right - left >= 4 || bottom - top >= 4) {
           const rect = { left, right, top, bottom }
-          setSelectedIds((prev) => {
+          // Select intersecting items
+          setSelectedItemIds((prev) => {
             const next = new Set(prev)
-            cardRefs.current.forEach((el, id) => {
+            itemCardRefs.current.forEach((el, id) => {
+              const r = el.getBoundingClientRect()
+              if (rectsIntersect(rect, { left: r.left, top: r.top, right: r.right, bottom: r.bottom })) {
+                next.add(id)
+              }
+            })
+            return next
+          })
+          // Select intersecting boxes
+          setSelectedBoxIds((prev) => {
+            const next = new Set(prev)
+            boxCardRefs.current.forEach((el, id) => {
               const r = el.getBoundingClientRect()
               if (rectsIntersect(rect, { left: r.left, top: r.top, right: r.right, bottom: r.bottom })) {
                 next.add(id)
@@ -76,7 +110,9 @@ export function useMarqueeSelection(): UseMarqueeSelectionReturn {
             return next
           })
         } else {
-          setSelectedIds(new Set())
+          // Click (not drag) - clear selection
+          setSelectedItemIds(new Set())
+          setSelectedBoxIds(new Set())
         }
       }
     }
@@ -91,12 +127,31 @@ export function useMarqueeSelection(): UseMarqueeSelectionReturn {
     }
   }, [marquee !== null])
 
+  const MarqueeOverlay = useCallback((): React.ReactElement | null => {
+    if (!marquee) return null
+    return React.createElement(
+      "div",
+      {
+        className: "pointer-events-none fixed border-2 border-primary/50 bg-primary/10 z-50",
+        style: {
+          left: Math.min(marquee.startX, marquee.endX),
+          top: Math.min(marquee.startY, marquee.endY),
+          width: Math.abs(marquee.endX - marquee.startX),
+          height: Math.abs(marquee.endY - marquee.startY),
+        },
+      }
+    )
+  }, [marquee])
+
   return {
-    selectedIds,
-    setSelectedIds,
-    gridRef,
-    registerCardRef,
-    handleGridMouseDown,
+    selectedItemIds,
+    setSelectedItemIds,
+    selectedBoxIds,
+    setSelectedBoxIds,
+    registerItemCardRef,
+    registerBoxCardRef,
+    handleMouseDown,
     marquee,
+    MarqueeOverlay,
   }
 }

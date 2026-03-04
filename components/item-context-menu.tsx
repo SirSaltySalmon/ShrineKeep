@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Item } from "@/lib/types"
 import { buildItemCopyPayload } from "@/lib/utils"
 import { useCopiedItem } from "@/lib/copied-item-context"
+import { createSupabaseClient } from "@/lib/supabase/client"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -49,24 +50,64 @@ export function ItemContextMenu({
   const applyToSelection =
     selectedItems.length > 1 && selectedItems.some((i) => i.id === item.id)
 
-  const handleCopy = () => {
-    if (applyToSelection) {
-      setCopied(selectedItems.map(buildItemCopyPayload))
-    } else {
-      setCopied(buildItemCopyPayload(item))
+  const handleCopy = async () => {
+    const supabase = createSupabaseClient()
+    const itemsToCopy = applyToSelection ? selectedItems : [item]
+
+    // Fetch value_history for all items
+    const itemIds = itemsToCopy.map((i) => i.id)
+    const { data: valueHistoryData } = await supabase
+      .from("value_history")
+      .select("item_id, value, recorded_at")
+      .in("item_id", itemIds)
+      .order("recorded_at", { ascending: true })
+
+    // Group value_history by item_id
+    const valueHistoryMap = new Map<string, Array<{ value: number; recorded_at: string }>>()
+    for (const record of valueHistoryData ?? []) {
+      if (!valueHistoryMap.has(record.item_id)) {
+        valueHistoryMap.set(record.item_id, [])
+      }
+      valueHistoryMap.get(record.item_id)!.push({
+        value: Number(record.value),
+        recorded_at: record.recorded_at,
+      })
     }
+
+    // Build copy payloads with value_history
+    const payloads = itemsToCopy.map((item) =>
+      buildItemCopyPayload(item, valueHistoryMap.get(item.id))
+    )
+
+    setCopied(payloads)
   }
 
   const handlePaste = async () => {
     if (!copied || copied.length === 0 || !pasteTarget || pasting) return
     setPasting(true)
     try {
-      for (const payload of copied) {
+      // Use batch endpoint for multiple items, single endpoint for one item
+      if (copied.length > 1) {
+        const items = copied.map((payload) => ({
+          ...payload,
+          box_id: pasteTarget.isWishlist ? null : pasteTarget.boxId,
+          is_wishlist: pasteTarget.isWishlist,
+        }))
+        const res = await fetch("/api/items/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items }),
+        })
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.error ?? "Failed to paste items")
+        }
+      } else {
         const res = await fetch("/api/items", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            ...payload,
+            ...copied[0],
             box_id: pasteTarget.isWishlist ? null : pasteTarget.boxId,
             is_wishlist: pasteTarget.isWishlist,
           }),

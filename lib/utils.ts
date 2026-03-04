@@ -74,8 +74,18 @@ export function sortTagsByColorThenName(tags: Tag[]): Tag[] {
   })
 }
 
+export function buildAllItemsCopyPayload(
+  items: Item[],
+  valueHistoryMap?: Map<string, Array<{ value: number; recorded_at: string }>>
+): ItemCopyPayload[] {
+  return items.map((item) => buildItemCopyPayload(item, valueHistoryMap?.get(item.id)))
+}
+
 /** Build payload for duplicating an item (copy/paste). */
-export function buildItemCopyPayload(item: Item): ItemCopyPayload {
+export function buildItemCopyPayload(
+  item: Item,
+  valueHistory?: { value: number; recorded_at: string }[]
+): ItemCopyPayload {
   const photos = (item.photos ?? []).length
     ? (item.photos ?? []).map((p) => ({
         url: p.url,
@@ -96,6 +106,7 @@ export function buildItemCopyPayload(item: Item): ItemCopyPayload {
     is_wishlist: item.is_wishlist,
     photos,
     tag_ids: (item.tags ?? []).map((t) => t.id),
+    value_history: valueHistory,
   }
 }
 
@@ -103,7 +114,8 @@ export function buildItemCopyPayload(item: Item): ItemCopyPayload {
 function buildBoxCopyPayloadNode(
   boxes: Box[],
   items: Item[],
-  boxId: string
+  boxId: string,
+  valueHistoryMap?: Map<string, Array<{ value: number; recorded_at: string }>>
 ): BoxCopyPayload {
   const box = boxes.find((b) => b.id === boxId)
   if (!box) {
@@ -112,14 +124,14 @@ function buildBoxCopyPayloadNode(
   const nodeItems = items
     .filter((i) => i.box_id === boxId)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    .map(buildItemCopyPayload)
+    .map((item) => buildItemCopyPayload(item, valueHistoryMap?.get(item.id)))
   const childBoxes = boxes
     .filter((b) => b.parent_box_id === boxId)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
   return {
     name: box.name,
     description: box.description ?? null,
-    children: childBoxes.map((c) => buildBoxCopyPayloadNode(boxes, items, c.id)),
+    children: childBoxes.map((c) => buildBoxCopyPayloadNode(boxes, items, c.id, valueHistoryMap)),
     items: nodeItems,
   }
 }
@@ -128,13 +140,14 @@ function buildBoxCopyPayloadNode(
 export function buildBoxCopyPayloadTrees(
   boxes: Box[],
   items: Item[],
-  rootIds: string[]
+  rootIds: string[],
+  valueHistoryMap?: Map<string, Array<{ value: number; recorded_at: string }>>
 ): BoxCopyPayload[] {
   return rootIds
     .map((id) => boxes.find((b) => b.id === id))
     .filter((b): b is Box => !!b)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    .map((b) => buildBoxCopyPayloadNode(boxes, items, b.id))
+    .map((b) => buildBoxCopyPayloadNode(boxes, items, b.id, valueHistoryMap))
 }
 
 /** Supabase returns item_tags as { tag_id, tag: Tag }[]; normalize to item.tags = Tag[] */

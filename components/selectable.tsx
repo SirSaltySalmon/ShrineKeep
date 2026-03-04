@@ -30,6 +30,11 @@ const Selectable = React.forwardRef<HTMLDivElement, SelectableProps>(
           getSelectableRingClasses(showFullRing, selectionMode),
           className
         )}
+        onFocus={(e) => {
+          e.currentTarget.blur()
+          props.onFocus?.(e)
+        }}
+        tabIndex={-1}
         {...props}
       >
         {children}

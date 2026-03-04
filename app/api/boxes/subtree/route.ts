@@ -65,9 +65,40 @@ export async function POST(request: NextRequest) {
 
     if (itemsError) throw itemsError
 
+    // Fetch value_history for all items
+    const itemIds = (items ?? []).map((item: { id: string }) => item.id)
+    let valueHistoryMap = new Map<string, Array<{ value: number; recorded_at: string }>>()
+
+    if (itemIds.length > 0) {
+      const { data: valueHistory, error: historyError } = await supabase
+        .from("value_history")
+        .select("item_id, value, recorded_at")
+        .in("item_id", itemIds)
+        .order("recorded_at", { ascending: true })
+
+      if (historyError) throw historyError
+
+      // Group value_history by item_id
+      for (const record of valueHistory ?? []) {
+        if (!valueHistoryMap.has(record.item_id)) {
+          valueHistoryMap.set(record.item_id, [])
+        }
+        valueHistoryMap.get(record.item_id)!.push({
+          value: Number(record.value),
+          recorded_at: record.recorded_at,
+        })
+      }
+    }
+
+    // Attach value_history to items
+    const itemsWithHistory = (items ?? []).map((item: { id: string }) => ({
+      ...item,
+      value_history: valueHistoryMap.get(item.id) ?? [],
+    }))
+
     return NextResponse.json({
       boxes: boxes ?? [],
-      items: items ?? [],
+      items: itemsWithHistory,
     })
   } catch (error: unknown) {
     const message =
