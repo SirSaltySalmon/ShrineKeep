@@ -1,11 +1,20 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { NotFoundCode } from "@/components/not-found-code"
+import { SiteLogo } from "@/components/site-logo"
 
 export default function NotFound() {
   return (
     <div className="min-h-screen min-w-[360px] bg-background flex flex-col items-center justify-center px-4">
       <div className="max-w-lg w-full text-center space-y-6">
+        <div className="flex justify-center">
+          <SiteLogo
+            href="/landing"
+            className="hover:opacity-90"
+            iconClassName="h-10 w-10"
+            textClassName="text-xl font-semibold"
+          />
+        </div>
         <h1 className="text-6xl sm:text-7xl font-bold text-foreground tracking-tight">
           404
         </h1>

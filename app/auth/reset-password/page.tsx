@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, PASSWORD_LENGTH_MESSAGE } from "@/lib/validation"
+import { SiteLogo } from "@/components/site-logo"
 
 export default function ResetPasswordPage() {
   const router = useRouter()
@@ -82,7 +83,15 @@ export default function ResetPasswordPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
         <Card className="w-full max-w-md min-w-0 overflow-hidden">
-          <CardContent className="pt-6">
+          <CardHeader className="space-y-3 min-w-0 pb-2">
+            <SiteLogo
+              href="/landing"
+              className="justify-center w-full hover:opacity-90"
+              iconClassName="h-9 w-9"
+              textClassName="text-fluid-xl font-semibold"
+            />
+          </CardHeader>
+          <CardContent className="pt-0 pb-6">
             <p className="text-fluid-sm text-muted-foreground text-center">Loading…</p>
           </CardContent>
         </Card>
@@ -94,7 +103,13 @@ export default function ResetPasswordPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
         <Card className="w-full max-w-md min-w-0 overflow-hidden">
-          <CardHeader className="space-y-1 min-w-0">
+          <CardHeader className="space-y-3 min-w-0">
+            <SiteLogo
+              href="/landing"
+              className="justify-center w-full hover:opacity-90"
+              iconClassName="h-9 w-9"
+              textClassName="text-fluid-xl font-semibold"
+            />
             <CardTitle className="text-fluid-2xl font-bold text-center min-w-0">
               Invalid or expired link
             </CardTitle>
@@ -115,7 +130,13 @@ export default function ResetPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
       <Card className="w-full max-w-md min-w-0 overflow-hidden">
-        <CardHeader className="space-y-1 min-w-0">
+        <CardHeader className="space-y-3 min-w-0">
+          <SiteLogo
+            href="/landing"
+            className="justify-center w-full hover:opacity-90"
+            iconClassName="h-9 w-9"
+            textClassName="text-fluid-xl font-semibold"
+          />
           <CardTitle className="text-fluid-2xl font-bold text-center min-w-0">
             Set new password
           </CardTitle>

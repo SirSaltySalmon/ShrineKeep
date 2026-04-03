@@ -8,6 +8,7 @@ import ThumbnailImage from "@/components/thumbnail-image"
 import { formatCurrency } from "@/lib/utils"
 import { applyColorScheme, getDefaultColorScheme } from "@/lib/settings"
 import { Theme } from "@/lib/types"
+import { SiteLogo } from "@/components/site-logo"
 
 interface PublicWishlistClientProps {
   user: {
@@ -57,9 +58,15 @@ export default function PublicWishlistClient({
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-fluid-2xl font-bold">
+      <header className="border-b min-w-0">
+        <div className="container mx-auto px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6 min-w-0">
+          <SiteLogo
+            href="/landing"
+            className="shrink-0 hover:opacity-90"
+            iconClassName="h-8 w-8"
+            textClassName="text-fluid-base font-semibold"
+          />
+          <h1 className="text-fluid-2xl font-bold min-w-0 sm:text-right sm:max-w-xl sm:ml-auto truncate">
             {displayName}&apos;s Wishlist
           </h1>
         </div>

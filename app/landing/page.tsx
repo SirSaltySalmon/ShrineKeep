@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { LandingHeroImage } from "@/components/landing-hero-image"
 import { Floating } from "@/components/floating"
 import { ScrollReveal } from "@/components/scroll-reveal"
+import { SiteLogo } from "@/components/site-logo"
 
 // Fill in your repo URL for the Contribute button
 const GITHUB_REPO_URL = "https://github.com/SirSaltySalmon/ShrineKeep"
@@ -14,9 +15,12 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
         <ScrollReveal delayMs={50} className="w-full">
           <div className="container mx-auto px-4 py-3 sm:py-4 flex gap-5 justify-between items-center min-w-0 overflow-x-auto">
-            <Link href="/landing" className="text-fluid-xl sm:text-2xl font-semibold text-foreground shrink-0">
-              ShrineKeep
-            </Link>
+            <SiteLogo
+              href="/landing"
+              className="shrink-0 hover:opacity-90 gap-2 sm:gap-2.5"
+              iconClassName="h-8 w-8 sm:h-9 sm:w-9"
+              textClassName="text-fluid-xl sm:text-2xl font-semibold"
+            />
             <div className="flex gap-3 sm:gap-6 items-center shrink-0">
               <a
                 href="#contact"

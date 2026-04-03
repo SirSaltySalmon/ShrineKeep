@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import TurnstileWidget from "@/components/turnstile-widget"
+import { SiteLogo } from "@/components/site-logo"
 import type { AuthEmailResponse } from "@/lib/auth-utils"
 
 export default function ForgotPasswordPage() {
@@ -42,7 +43,13 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
       <Card className="w-full max-w-md min-w-0 overflow-hidden">
-        <CardHeader className="space-y-1 min-w-0">
+        <CardHeader className="space-y-3 min-w-0">
+          <SiteLogo
+            href="/landing"
+            className="justify-center w-full hover:opacity-90"
+            iconClassName="h-9 w-9"
+            textClassName="text-fluid-xl font-semibold"
+          />
           <CardTitle className="text-fluid-2xl font-bold text-center min-w-0">
             Forgot password
           </CardTitle>

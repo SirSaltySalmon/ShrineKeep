@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import TurnstileWidget, { type TurnstileWidgetRef } from "@/components/turnstile-widget"
+import { SiteLogoMark } from "@/components/site-logo"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -75,7 +76,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
       <Card className="w-full max-w-md min-w-0 overflow-hidden">
         <CardHeader className="space-y-1 min-w-0">
-          <CardTitle className="text-fluid-2xl font-bold text-center min-w-0">Welcome to ShrineKeep</CardTitle>
+          <CardTitle className="text-fluid-2xl font-bold text-center min-w-0 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+            <SiteLogoMark className="h-9 w-9 sm:h-10 sm:w-10 text-foreground shrink-0" />
+            <span className="min-w-0 text-center leading-tight">Welcome to ShrineKeep</span>
+          </CardTitle>
           <CardDescription className="text-center min-w-0">
             Sign in to your account to continue
           </CardDescription>

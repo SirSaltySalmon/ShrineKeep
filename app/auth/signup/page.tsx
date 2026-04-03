@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import TurnstileWidget from "@/components/turnstile-widget"
 import { NAME_MAX_LENGTH, PASSWORD_MAX_LENGTH } from "@/lib/validation"
+import { SiteLogo } from "@/components/site-logo"
 
 export default function SignupPage() {
   const router = useRouter()
@@ -89,7 +90,13 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
       <Card className="w-full max-w-md min-w-0 overflow-hidden">
-        <CardHeader className="space-y-1 min-w-0">
+        <CardHeader className="space-y-3 min-w-0">
+          <SiteLogo
+            href="/landing"
+            className="justify-center w-full hover:opacity-90"
+            iconClassName="h-9 w-9"
+            textClassName="text-fluid-xl font-semibold"
+          />
           <CardTitle className="text-fluid-2xl font-bold text-center min-w-0">Create an Account</CardTitle>
           <CardDescription className="text-center min-w-0">
             Sign up to start tracking your collections
