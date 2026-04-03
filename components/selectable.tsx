@@ -4,7 +4,8 @@ import * as React from "react"
 import { cn, getSelectableRingClasses } from "@/lib/utils"
 
 /** Base styles shared by all selectable elements (item cards, box cards). */
-const SELECTABLE_BASE_CLASS = "rounded-lg cursor-pointer hover:shadow-lg transition-shadow"
+const SELECTABLE_BASE_CLASS =
+  "rounded-lg cursor-pointer shadow-none transition-[transform,box-shadow] duration-300 ease-out motion-reduce:hover:transform-none motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-lg"
 
 export interface SelectableProps extends React.HTMLAttributes<HTMLDivElement> {
   /** When true, show full selection ring (selected or drop target). */
