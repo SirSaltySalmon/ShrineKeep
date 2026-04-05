@@ -188,16 +188,13 @@ export default function BillingSettings() {
           )}
         </div>
       </div>
-
-      {!data?.isPro && (
-        <div className="text-fluid-sm text-muted-foreground space-y-1">
-          <p>Pro includes:</p>
-          <ul className="list-disc list-inside space-y-0.5 ml-1">
-            <li>Unlimited items</li>
-            <li>eBay price lookup (coming soon)</li>
-          </ul>
-        </div>
-      )}
+      <div className="text-fluid-sm text-muted-foreground space-y-1">
+        <p>Pro includes:</p>
+        <ul className="list-disc list-inside space-y-0.5 ml-1">
+          <li>Unlimited items</li>
+          <li>eBay price lookup (coming soon)</li>
+        </ul>
+      </div>
 
       <Dialog open={endNowOpen} onOpenChange={handleEndNowOpenChange}>
         <DialogContent className="max-w-md">

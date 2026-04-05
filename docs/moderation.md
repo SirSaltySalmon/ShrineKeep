@@ -2,9 +2,27 @@
 
 Server-only workflow to ban an account for terms violations: cancel Stripe Pro when applicable, email the user (including Pro cancellation wording when relevant), delete their objects in Supabase Storage, then delete the Auth user so PostgreSQL `ON DELETE CASCADE` removes all `public.*` data (including wishlist share tokens).
 
-**Do not** expose `MODERATION_SECRET` or call this from the browser. Use curl, a private admin script, or a locked-down internal tool.
+Treat `MODERATION_SECRET` like a root password: never commit it. The moderation UI requires it in the URL (see below), which can appear in browser history and access logs—use only on trusted networks.
 
-## Endpoint
+## Web GUI (`/moderation`)
+
+1. Open **`/moderation?key=<MODERATION_SECRET>`** (same value as your env secret). Use `encodeURIComponent(secret)` if the secret contains `&`, `?`, `#`, spaces, or non-ASCII characters. The server checks `key` with a constant-time compare; if it does not match, the page shows **Unauthorized.** If it matches, the form is shown and the moderation secret field is prefilled.
+2. Choose **API target**: same site, production, localhost, or a custom base URL; enter **Auth user UUID**; **Fetch user** to load email, username, and Pro status; check the confirmation box; **Ban user permanently**.
+
+The GUI sends the secret from your browser to the API you selected (visible in DevTools on that machine). Optional **Remember in this browser** writes the secret to `sessionStorage` when enabled; if you opened via `?key=…`, the field is already prefilled and `sessionStorage` is not used to restore a previous value on load.
+
+**Note:** Visiting `/moderation` without a correct `?key=` shows Unauthorized; refreshing without `key` in the URL also shows Unauthorized.
+
+**Cross-origin:** To use a local tab (`http://localhost:3000`) against **production** APIs, production must allow your origin, e.g. `MODERATION_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`. Same-origin use does not need CORS.
+
+## Lookup endpoint
+
+- **URL**: `POST /api/moderation/lookup-user`
+- **Auth**: Same headers as ban (`Authorization: Bearer` or `x-moderation-secret`).
+- **Body**: `{ "user_id": "<uuid>" }`
+- **Response**: Auth email, profile fields, and whether a Pro subscription row exists (for verification before ban).
+
+## Ban endpoint
 
 - **URL**: `POST /api/moderation/ban-user`
 - **Headers** (either):
@@ -27,6 +45,7 @@ Server-only workflow to ban an account for terms violations: cancel Stripe Pro w
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role (already required for server features). |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL. |
 | `STRIPE_SECRET_KEY` | Yes | Required for the Stripe cancellation step (same as checkout/webhooks). |
+| `MODERATION_CORS_ORIGINS` | No | Comma-separated `Origin` values allowed for browser `fetch` to moderation APIs from another host (e.g. local GUI → production). |
 
 Copy from [`.env.local.example`](../.env.local.example) and fill values locally; configure the same on your host (e.g. Vercel).
 
