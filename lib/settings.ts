@@ -49,16 +49,17 @@ export function getColorSchemeByPreset(preset: ThemePreset): Theme {
   return { ...COLOR_SCHEME_PRESETS[preset].scheme }
 }
 
-/** Result of parsing an imported theme JSON (colors, radius, font; no graph_overlay). */
+/** Result of parsing an imported theme JSON (colors, radius, fonts; no graph_overlay). */
 export interface ParsedThemeImport {
   theme: Partial<Theme>
-  fontFamily?: FontFamilyId
+  headerFontFamily?: FontFamilyId
+  bodyFontFamily?: FontFamilyId
 }
 
 const VALID_FONT_IDS = new Set(FONT_OPTIONS.map((o) => o.value))
 
 /**
- * Parse imported theme JSON. Accepts colors, radius, and font_family.
+ * Parse imported theme JSON. Accepts colors, radius, header_font_family, and body_font_family.
  * Does not read or apply graph_overlay (chart overlay preference is not exported).
  */
 export function parseImportedColorScheme(jsonString: string): ParsedThemeImport | null {
@@ -90,31 +91,52 @@ export function parseImportedColorScheme(jsonString: string): ParsedThemeImport 
       }
     }
 
-    if (Object.keys(scheme).length === 0) return null
-
-    let fontFamily: FontFamilyId | undefined
-    if (typeof parsed.font_family === "string" && VALID_FONT_IDS.has(parsed.font_family as FontFamilyId)) {
-      fontFamily = parsed.font_family as FontFamilyId
+    let headerFontFamily: FontFamilyId | undefined
+    let bodyFontFamily: FontFamilyId | undefined
+    if (
+      typeof parsed.header_font_family === "string" &&
+      VALID_FONT_IDS.has(parsed.header_font_family as FontFamilyId)
+    ) {
+      headerFontFamily = parsed.header_font_family as FontFamilyId
+    }
+    if (
+      typeof parsed.body_font_family === "string" &&
+      VALID_FONT_IDS.has(parsed.body_font_family as FontFamilyId)
+    ) {
+      bodyFontFamily = parsed.body_font_family as FontFamilyId
     }
 
-    return { theme: scheme, fontFamily }
+    if (Object.keys(scheme).length === 0 && !headerFontFamily && !bodyFontFamily) {
+      return null
+    }
+
+    return { theme: scheme, headerFontFamily, bodyFontFamily }
   } catch (error) {
     console.error("Error parsing imported theme:", error)
     return null
   }
 }
 
+export interface ThemeExportFonts {
+  headerFontFamily: string
+  bodyFontFamily: string
+}
+
 /**
- * Build the theme export object (colors, radius, font_family). Omits graph_overlay.
+ * Build the theme export object (colors, radius, header_font_family, body_font_family). Omits graph_overlay.
  */
-export function buildThemeExport(theme: Theme, fontFamily: string): Record<string, unknown> {
+export function buildThemeExport(
+  theme: Theme,
+  fonts: ThemeExportFonts
+): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const key of THEME_COLOR_KEYS) {
     const v = theme[key]
     if (v != null && typeof v === "string") out[key] = v
   }
   if (theme.radius) out.radius = theme.radius
-  out.font_family = fontFamily
+  out.header_font_family = fonts.headerFontFamily
+  out.body_font_family = fonts.bodyFontFamily
   return out
 }
 
@@ -273,6 +295,8 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
     return {
       user_id: userId,
       color_scheme: null,
+      header_font_family: "Inter",
+      body_font_family: "Inter",
       wishlist_is_public: false,
       wishlist_share_token: null,
       wishlist_apply_colors: false,
@@ -285,14 +309,16 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
 }
 
 export interface ApplyColorSchemeOptions {
-  /** If set, adds --font-sans to the returned style object (e.g. for previews). */
-  fontFamily?: string
+  /** If set, adds --font-sans (body stack) to the returned style object (e.g. for previews). */
+  bodyFontFamily?: string
+  /** If set, adds --font-heading to the returned style object. */
+  headerFontFamily?: string
 }
 
 /**
  * Apply color scheme to CSS variables.
  * Returns a style object that can be injected. Includes `color: hsl(var(--foreground))`
- * so the element uses the scheme's foreground; pass `fontFamily` in options to also set --font-sans.
+ * so the element uses the scheme's foreground; pass font stacks in options for isolated previews.
  */
 export function applyColorScheme(
   colors: Theme,
@@ -312,8 +338,11 @@ export function applyColorScheme(
     cssVars.color = "hsl(var(--foreground))"
   }
 
-  if (options?.fontFamily) {
-    cssVars["--font-sans"] = options.fontFamily
+  if (options?.bodyFontFamily) {
+    cssVars["--font-sans"] = options.bodyFontFamily
+  }
+  if (options?.headerFontFamily) {
+    cssVars["--font-heading"] = options.headerFontFamily
   }
 
   return cssVars

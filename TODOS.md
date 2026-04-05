@@ -1,5 +1,15 @@
 # ShrineKeep — TODOs
 
+## TODO: Finish /gstack-design-review (browse tooling)
+
+**What:** Re-run the full design-review skill with the gstack `browse` binary built so we get screenshots, responsive passes, perf, and console checks.
+
+**Why:** The vendored `.agents/skills/gstack` copy in this repo has no `browse/dist/` build output. The partial audit is in `~/.gstack/projects/shrinekeep/designs/design-audit-20260405/design-audit-shrinekeep.com.md`.
+
+**Depends on:** Full gstack checkout or `~/.claude/skills/gstack` with `bun install` && `bun run build`, then `/gstack-design-review` against `https://www.shrinekeep.com/landing` or local `http://localhost:3000`.
+
+---
+
 ## TODO: Stripe Webhook Failure Recovery
 
 **What:** Build a reconciliation mechanism for the "paid but not Pro" failure state.

@@ -66,7 +66,7 @@ export function SiteLogo({
         strokeWidth={markStrokeWidth}
         className={cn("h-7 w-7 text-foreground", iconClassName)}
       />
-      <span className={cn("truncate min-w-0 font-semibold text-fluid-sm hover:underline flex items-center space-x-1 whitespace-nowrap", textClassName)}>{label}</span>
+      <span className={cn("truncate min-w-0 font-heading font-semibold text-fluid-sm hover:underline flex items-center space-x-1 whitespace-nowrap", textClassName)}>{label}</span>
     </>
   )
 

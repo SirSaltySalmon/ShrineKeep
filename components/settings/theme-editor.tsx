@@ -17,7 +17,13 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { Theme } from "@/lib/types"
 import { THEME_EDITOR_GROUPS, getThemeColorMeta, type ThemeColorKey } from "@/lib/theme-colors"
-import { FONT_OPTIONS, FONT_FAMILY_CSS, DEFAULT_FONT_FAMILY, type FontFamilyId } from "@/lib/fonts"
+import {
+  FONT_OPTIONS,
+  FONT_FAMILY_CSS,
+  DEFAULT_BODY_FONT_FAMILY,
+  DEFAULT_HEADER_FONT_FAMILY,
+  type FontFamilyId,
+} from "@/lib/fonts"
 import { applyColorScheme, getDefaultColorScheme, type ThemePreset } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { Selectable } from "@/components/selectable"
@@ -55,8 +61,10 @@ export interface ThemeEditorProps {
   theme: Theme
   setTheme: (s: Theme | ((prev: Theme) => Theme)) => void
   setSelectedPreset: (p: ThemePreset) => void
-  fontFamily: FontFamilyId
-  setFontFamily: (f: FontFamilyId) => void
+  headerFontFamily: FontFamilyId
+  setHeaderFontFamily: (f: FontFamilyId) => void
+  bodyFontFamily: FontFamilyId
+  setBodyFontFamily: (f: FontFamilyId) => void
   /** Chart overlay preference (Options); used only for graph preview in this editor. */
   graphOverlay?: boolean
 }
@@ -120,7 +128,16 @@ function BorderPreviewSelectable() {
   )
 }
 
-export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, setFontFamily, graphOverlay = true }: ThemeEditorProps) {
+export function ThemeEditor({
+  theme,
+  setTheme,
+  setSelectedPreset,
+  headerFontFamily,
+  setHeaderFontFamily,
+  bodyFontFamily,
+  setBodyFontFamily,
+  graphOverlay = true,
+}: ThemeEditorProps) {
   const router = useRouter()
   const [savingTheme, setSavingTheme] = useState(false)
   const [savedTheme, setSavedTheme] = useState(false)
@@ -132,7 +149,11 @@ export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, se
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ theme, font_family: fontFamily }),
+        body: JSON.stringify({
+          theme,
+          header_font_family: headerFontFamily,
+          body_font_family: bodyFontFamily,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error ?? "Failed to save theme")
@@ -152,7 +173,8 @@ export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, se
       ...getDefaultColorScheme(),
       radius: "0.5rem",
     })
-    setFontFamily(DEFAULT_FONT_FAMILY)
+    setHeaderFontFamily(DEFAULT_HEADER_FONT_FAMILY)
+    setBodyFontFamily(DEFAULT_BODY_FONT_FAMILY)
     setSelectedPreset("light")
   }
   
@@ -276,34 +298,56 @@ export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, se
         <div>
           <h3 className="text-fluid-lg font-semibold">Typography</h3>
           <p className="text-fluid-sm text-muted-foreground mt-0.5">
-            Font used for the app interface. Exported with theme files.
+            Heading font is used for titles (page headings, card titles, dialogs). Body font is used
+            for everything else. Both are exported with theme files.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <Label className="sr-only">Font family</Label>
-          <Select
-            value={fontFamily}
-            onValueChange={(v) => {
-              setFontFamily(v as FontFamilyId)
-              setSelectedPreset("custom")
-            }}
-          >
-            <SelectTrigger className="w-[220px]" style={{ fontFamily: FONT_FAMILY_CSS[fontFamily] }}>
-              <SelectValue placeholder="Inter" />
-            </SelectTrigger>
-            <SelectContent>
-              {FONT_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  <span style={{ fontFamily: FONT_FAMILY_CSS[opt.value] }}>
-                    {opt.label}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-fluid-sm text-muted-foreground">
-            Sample: The quick brown fox jumps over the lazy dog
-          </span>
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex flex-col gap-1.5 min-w-0">
+            <Label htmlFor="theme-heading-font">Heading font</Label>
+            <Select
+              value={headerFontFamily}
+              onValueChange={(v) => {
+                setHeaderFontFamily(v as FontFamilyId)
+                setSelectedPreset("custom")
+              }}
+            >
+              <SelectTrigger id="theme-heading-font" className="w-[220px]" style={{ fontFamily: FONT_FAMILY_CSS[headerFontFamily] }}>
+                <SelectValue placeholder="Inter" />
+              </SelectTrigger>
+              <SelectContent>
+                {FONT_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <span style={{ fontFamily: FONT_FAMILY_CSS[opt.value] }}>{opt.label}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5 min-w-0">
+            <Label htmlFor="theme-body-font">Body font</Label>
+            <Select
+              value={bodyFontFamily}
+              onValueChange={(v) => {
+                setBodyFontFamily(v as FontFamilyId)
+                setSelectedPreset("custom")
+              }}
+            >
+              <SelectTrigger id="theme-body-font" className="w-[220px]" style={{ fontFamily: FONT_FAMILY_CSS[bodyFontFamily] }}>
+                <SelectValue placeholder="Inter" />
+              </SelectTrigger>
+              <SelectContent>
+                {FONT_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <span style={{ fontFamily: FONT_FAMILY_CSS[opt.value] }}>{opt.label}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-fluid-sm text-muted-foreground sm:max-w-md">
+            Sample body: The quick brown fox jumps over the lazy dog.
+          </p>
         </div>
       </div>
 
@@ -339,7 +383,8 @@ export function ThemeEditor({ theme, setTheme, setSelectedPreset, fontFamily, se
           className="rounded-md"
           style={
                 applyColorScheme(getDefaultColorScheme(), {
-                  fontFamily: FONT_FAMILY_CSS[DEFAULT_FONT_FAMILY],
+                  headerFontFamily: FONT_FAMILY_CSS[DEFAULT_HEADER_FONT_FAMILY],
+                  bodyFontFamily: FONT_FAMILY_CSS[DEFAULT_BODY_FONT_FAMILY],
                 }) as CSSProperties
               }
         >

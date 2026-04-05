@@ -30,16 +30,20 @@ export async function GET(
       )
     }
 
-    // If apply colors is true, get the color scheme
+    // If apply colors is true, get the color scheme and typography
     let colorScheme = null
+    let headerFontFamily: string | null = null
+    let bodyFontFamily: string | null = null
     if (settings.wishlist_apply_colors) {
-      const { data: colorSchemeData } = await supabase
+      const { data: themeData } = await supabase
         .from("user_settings")
-        .select("color_scheme")
+        .select("color_scheme, header_font_family, body_font_family")
         .eq("user_id", settings.user_id)
         .single()
-      
-      colorScheme = colorSchemeData?.color_scheme || null
+
+      colorScheme = themeData?.color_scheme || null
+      headerFontFamily = themeData?.header_font_family ?? "Inter"
+      bodyFontFamily = themeData?.body_font_family ?? "Inter"
     }
 
     // Get user info
@@ -77,6 +81,8 @@ export async function GET(
       items: items || [],
       applyColors: settings.wishlist_apply_colors,
       colorScheme: colorScheme,
+      headerFontFamily: settings.wishlist_apply_colors ? headerFontFamily : null,
+      bodyFontFamily: settings.wishlist_apply_colors ? bodyFontFamily : null,
     })
   } catch (error) {
     console.error("Error fetching public wishlist:", error)

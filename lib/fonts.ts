@@ -1,6 +1,6 @@
 /**
  * Typography options for the theme editor.
- * Keys are stored in user_settings.font_family; labels are shown in the UI.
+ * Keys are stored in user_settings.header_font_family and body_font_family; labels are shown in the UI.
  */
 export const FONT_OPTIONS = [
   { value: "Inter", label: "Inter" },
@@ -29,8 +29,12 @@ export type FontFamilyId = (typeof FONT_OPTIONS)[number]["value"]
 
 export const DEFAULT_FONT_FAMILY: FontFamilyId = "Inter"
 
+/** Default for both heading and body typography (Inter). */
+export const DEFAULT_HEADER_FONT_FAMILY: FontFamilyId = DEFAULT_FONT_FAMILY
+export const DEFAULT_BODY_FONT_FAMILY: FontFamilyId = DEFAULT_FONT_FAMILY
+
 /**
- * CSS font-family value for --font-sans (body font).
+ * CSS font-family stack for --font-sans (body) or --font-heading (titles).
  * Next/font variables (--font-*) are defined in layout; system fonts use literals.
  */
 export const FONT_FAMILY_CSS: Record<FontFamilyId, string> = {

@@ -115,7 +115,8 @@ CREATE TABLE IF NOT EXISTS public.wish_list_items (
 CREATE TABLE IF NOT EXISTS public.user_settings (
   user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
   color_scheme JSONB,
-  font_family TEXT DEFAULT 'Inter',
+  header_font_family TEXT DEFAULT 'Inter' NOT NULL,
+  body_font_family TEXT DEFAULT 'Inter' NOT NULL,
   border_radius TEXT DEFAULT '0.5rem',
   graph_overlay BOOLEAN DEFAULT true,
   wishlist_is_public BOOLEAN DEFAULT false NOT NULL,

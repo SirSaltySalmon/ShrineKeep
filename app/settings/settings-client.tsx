@@ -26,8 +26,11 @@ import {
   COLOR_SCHEME_PRESETS,
   type ThemePreset,
 } from "@/lib/settings"
-import { DEFAULT_FONT_FAMILY, FONT_FAMILY_CSS } from "@/lib/fonts"
-import type { CSSProperties } from "react"
+import {
+  DEFAULT_BODY_FONT_FAMILY,
+  DEFAULT_HEADER_FONT_FAMILY,
+  FONT_FAMILY_CSS,
+} from "@/lib/fonts"
 import type { FontFamilyId } from "@/lib/fonts"
 import { UserSettings, Theme } from "@/lib/types"
 import { Upload } from "lucide-react"
@@ -75,8 +78,11 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   const [selectedPreset, setSelectedPreset] = useState<ThemePreset>(
     initialSettings?.color_scheme ? "custom" : "light"
   )
-  const [fontFamily, setFontFamily] = useState<FontFamilyId>(
-    (initialSettings?.font_family as FontFamilyId) || DEFAULT_FONT_FAMILY
+  const [headerFontFamily, setHeaderFontFamily] = useState<FontFamilyId>(
+    (initialSettings?.header_font_family as FontFamilyId) || DEFAULT_HEADER_FONT_FAMILY
+  )
+  const [bodyFontFamily, setBodyFontFamily] = useState<FontFamilyId>(
+    (initialSettings?.body_font_family as FontFamilyId) || DEFAULT_BODY_FONT_FAMILY
   )
   const [graphOverlay, setGraphOverlay] = useState(
     initialSettings?.graph_overlay ?? true
@@ -105,19 +111,22 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     Object.entries(cssVars).forEach(([property, value]) => {
       root.style.setProperty(property, value)
     })
-    const fontCss = FONT_FAMILY_CSS[fontFamily]
-    if (fontCss) root.style.setProperty("--font-sans", fontCss)
+    const headerCss = FONT_FAMILY_CSS[headerFontFamily]
+    const bodyCss = FONT_FAMILY_CSS[bodyFontFamily]
+    if (headerCss) root.style.setProperty("--font-heading", headerCss)
+    if (bodyCss) root.style.setProperty("--font-sans", bodyCss)
     return () => {
       // Don't reset on unmount - let ThemeProvider handle it
     }
-  }, [theme, fontFamily])
+  }, [theme, headerFontFamily, bodyFontFamily])
 
   const handleResetTheme = () => {
     setTheme({
       ...getDefaultColorScheme(),
       radius: "0.5rem",
     })
-    setFontFamily(DEFAULT_FONT_FAMILY)
+    setHeaderFontFamily(DEFAULT_HEADER_FONT_FAMILY)
+    setBodyFontFamily(DEFAULT_BODY_FONT_FAMILY)
     setSelectedPreset("light")
   }
 
@@ -129,7 +138,8 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
         ...presetScheme,
         radius: "0.5rem",
       })
-      setFontFamily(DEFAULT_FONT_FAMILY)
+      setHeaderFontFamily(DEFAULT_HEADER_FONT_FAMILY)
+      setBodyFontFamily(DEFAULT_BODY_FONT_FAMILY)
     }
   }
 
@@ -151,11 +161,14 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
           ...imported.theme,
           radius: prev?.radius ?? "0.5rem",
         }))
-        if (imported.fontFamily) setFontFamily(imported.fontFamily)
+        if (imported.headerFontFamily) setHeaderFontFamily(imported.headerFontFamily)
+        if (imported.bodyFontFamily) setBodyFontFamily(imported.bodyFontFamily)
         setSelectedPreset("custom")
         alert("Theme imported successfully!")
       } else {
-        alert("Invalid theme format. Please ensure the file contains valid JSON with colors, optional radius and font_family.")
+        alert(
+          "Invalid theme format. Please ensure the file contains valid JSON with colors, optional radius, header_font_family, and/or body_font_family."
+        )
       }
     } catch (error) {
       console.error("Error importing theme:", error)
@@ -168,7 +181,10 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   }
 
   const handleExportTheme = () => {
-    const data = buildThemeExport(theme, fontFamily)
+    const data = buildThemeExport(theme, {
+      headerFontFamily,
+      bodyFontFamily,
+    })
     const json = JSON.stringify(data, null, 2)
     const blob = new Blob([json], { type: "application/json" })
     const url = URL.createObjectURL(blob)
@@ -195,8 +211,8 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
           }}
           className="w-full"
         >
-          <div className="mb-6 min-w-0">
-            <TabsList className="!grid w-full min-w-0 grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1 overflow-visible">
+          <div className="mb-6 min-w-0 overflow-x-auto overflow-y-hidden rounded-md">
+            <TabsList className="flex w-max min-w-full shrink-0 justify-center gap-1 overflow-visible">
               <TabsTrigger value="personal" className="whitespace-nowrap shrink-0">Personal</TabsTrigger>
               <TabsTrigger value="theme" className="whitespace-nowrap shrink-0">Theme</TabsTrigger>
               <TabsTrigger value="options" className="whitespace-nowrap shrink-0">Options</TabsTrigger>
@@ -286,8 +302,10 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
               theme={theme}
               setTheme={setTheme}
               setSelectedPreset={setSelectedPreset}
-              fontFamily={fontFamily}
-              setFontFamily={setFontFamily}
+              headerFontFamily={headerFontFamily}
+              setHeaderFontFamily={setHeaderFontFamily}
+              bodyFontFamily={bodyFontFamily}
+              setBodyFontFamily={setBodyFontFamily}
               graphOverlay={graphOverlay}
             />
           </TabsContent>

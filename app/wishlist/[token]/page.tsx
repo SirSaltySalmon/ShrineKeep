@@ -47,6 +47,8 @@ export default async function PublicWishlistPage(
       items={data.items || []}
       applyColors={data.applyColors}
       colorScheme={data.colorScheme}
+      headerFontFamily={data.headerFontFamily ?? null}
+      bodyFontFamily={data.bodyFontFamily ?? null}
     />
   )
 }

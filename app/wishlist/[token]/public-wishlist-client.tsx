@@ -9,6 +9,18 @@ import { formatCurrency } from "@/lib/utils"
 import { applyColorScheme, getDefaultColorScheme } from "@/lib/settings"
 import { Theme } from "@/lib/types"
 import { SiteLogo } from "@/components/site-logo"
+import {
+  FONT_FAMILY_CSS,
+  DEFAULT_BODY_FONT_FAMILY,
+  DEFAULT_HEADER_FONT_FAMILY,
+  type FontFamilyId,
+} from "@/lib/fonts"
+
+function fontStackForKey(key: string | null | undefined): string | undefined {
+  if (!key) return undefined
+  const css = FONT_FAMILY_CSS[key as FontFamilyId]
+  return css
+}
 
 interface PublicWishlistClientProps {
   user: {
@@ -19,6 +31,8 @@ interface PublicWishlistClientProps {
   items: Item[]
   applyColors: boolean
   colorScheme: Theme | null
+  headerFontFamily: string | null
+  bodyFontFamily: string | null
 }
 
 export default function PublicWishlistClient({
@@ -26,33 +40,42 @@ export default function PublicWishlistClient({
   items,
   applyColors,
   colorScheme,
+  headerFontFamily,
+  bodyFontFamily,
 }: PublicWishlistClientProps) {
-  // Apply custom colors synchronously before paint to prevent flashing
-  // useLayoutEffect runs synchronously after all DOM mutations but before paint
   useLayoutEffect(() => {
     const root = document.documentElement
-    
+
     if (applyColors && colorScheme) {
-      // Apply the wishlist owner's color scheme
       const cssVars = applyColorScheme(colorScheme)
       Object.entries(cssVars).forEach(([property, value]) => {
         root.style.setProperty(property, value)
       })
-      
-      // Cleanup function to reset on unmount
+
+      const headerCss =
+        fontStackForKey(headerFontFamily) ??
+        FONT_FAMILY_CSS[DEFAULT_HEADER_FONT_FAMILY]
+      const bodyCss =
+        fontStackForKey(bodyFontFamily) ?? FONT_FAMILY_CSS[DEFAULT_BODY_FONT_FAMILY]
+      root.style.setProperty("--font-heading", headerCss)
+      root.style.setProperty("--font-sans", bodyCss)
+
       return () => {
         Object.keys(cssVars).forEach((property) => {
           root.style.removeProperty(property)
         })
+        root.style.removeProperty("--font-sans")
+        root.style.removeProperty("--font-heading")
       }
-    } else {
-      // Clear any custom colors and reset to default
-      const defaultCssVars = applyColorScheme(getDefaultColorScheme())
-      Object.keys(defaultCssVars).forEach((property) => {
-        root.style.removeProperty(property)
-      })
     }
-  }, [applyColors, colorScheme])
+
+    const defaultCssVars = applyColorScheme(getDefaultColorScheme())
+    Object.keys(defaultCssVars).forEach((property) => {
+      root.style.removeProperty(property)
+    })
+    root.style.removeProperty("--font-sans")
+    root.style.removeProperty("--font-heading")
+  }, [applyColors, colorScheme, headerFontFamily, bodyFontFamily])
 
   const displayName = user.name || user.username || "User"
 

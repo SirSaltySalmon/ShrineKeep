@@ -208,8 +208,10 @@ export function hasAnySearchFilter(f: SearchFiltersState): boolean {
 export interface UserSettings {
   user_id: string
   color_scheme?: Theme | null
-  /** Font family key (e.g. Inter, Geist). Stored separately from theme colors. */
-  font_family?: string | null
+  /** Heading typography key (e.g. Inter, Playfair Display). */
+  header_font_family?: string | null
+  /** Body typography key (e.g. Inter, Geist). */
+  body_font_family?: string | null
   /** Border radius (e.g. 0.5rem). Stored separately from theme colors. */
   border_radius?: string | null
   /** When true, draw value and acquisition on one chart; when false, two separate. Stored separately from theme colors. */

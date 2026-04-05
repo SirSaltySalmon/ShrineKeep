@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { Theme } from "@/lib/types"
 import { getDefaultColorScheme } from "@/lib/settings"
-import { DEFAULT_FONT_FAMILY } from "@/lib/fonts"
+import { DEFAULT_BODY_FONT_FAMILY, DEFAULT_HEADER_FONT_FAMILY } from "@/lib/fonts"
 import type { FontFamilyId } from "@/lib/fonts"
 
 export async function GET(request: NextRequest) {
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     const { data: settings, error } = await supabase
       .from("user_settings")
-      .select("color_scheme, font_family, border_radius, graph_overlay")
+      .select("color_scheme, header_font_family, body_font_family, border_radius, graph_overlay")
       .eq("user_id", user.id)
       .single()
 
@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
     }
 
     const colorScheme = (settings?.color_scheme as Theme | null) ?? null
-    const fontFamily = (settings?.font_family as FontFamilyId | null) ?? DEFAULT_FONT_FAMILY
+    const headerFontFamily =
+      (settings?.header_font_family as FontFamilyId | null) ?? DEFAULT_HEADER_FONT_FAMILY
+    const bodyFontFamily =
+      (settings?.body_font_family as FontFamilyId | null) ?? DEFAULT_BODY_FONT_FAMILY
     const radius = settings?.border_radius ?? colorScheme?.radius ?? "0.5rem"
 
     const theme: Theme | null = colorScheme
@@ -36,7 +39,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       theme,
-      font_family: fontFamily,
+      header_font_family: headerFontFamily,
+      body_font_family: bodyFontFamily,
     })
   } catch (error) {
     console.error("Error fetching settings:", error)

@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         user_id: user.id,
         color_scheme: null,
-        font_family: null,
+        header_font_family: "Inter",
+        body_font_family: "Inter",
         border_radius: null,
         graph_overlay: null,
         wishlist_is_public: false,
@@ -78,7 +79,8 @@ export async function PUT(request: NextRequest) {
     const {
       theme,
       color_scheme,
-      font_family,
+      header_font_family,
+      body_font_family,
       border_radius,
       graph_overlay,
       wishlist_is_public,
@@ -101,7 +103,8 @@ export async function PUT(request: NextRequest) {
 
     const updateData: {
       color_scheme?: Theme | null
-      font_family?: string | null
+      header_font_family?: string
+      body_font_family?: string
       border_radius?: string | null
       graph_overlay?: boolean | null
       wishlist_is_public?: boolean
@@ -116,8 +119,15 @@ export async function PUT(request: NextRequest) {
     }
 
     const validFontValues = new Set(FONT_OPTIONS.map((o) => o.value))
-    if (font_family !== undefined) {
-      updateData.font_family = validFontValues.has(font_family as FontFamilyId) ? font_family : null
+    if (header_font_family !== undefined) {
+      updateData.header_font_family = validFontValues.has(header_font_family as FontFamilyId)
+        ? header_font_family
+        : "Inter"
+    }
+    if (body_font_family !== undefined) {
+      updateData.body_font_family = validFontValues.has(body_font_family as FontFamilyId)
+        ? body_font_family
+        : "Inter"
     }
     if (border_radius !== undefined && typeof border_radius === "string") {
       updateData.border_radius = border_radius.trim() || null
