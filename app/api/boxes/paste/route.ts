@@ -2,76 +2,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import type { BoxCopyPayload } from "@/lib/types"
-import { createItems } from "@/lib/api/create-item"
-
-type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>
-
-async function pasteBoxTree(
-  supabase: Supabase,
-  userId: string,
-  payload: BoxCopyPayload,
-  targetParentBoxId: string | null,
-  position: number
-): Promise<string> {
-  const { data: newBox, error } = await supabase
-    .from("boxes")
-    .insert({
-      user_id: userId,
-      parent_box_id: targetParentBoxId,
-      name: payload.name.trim(),
-      description: payload.description?.trim() || null,
-      is_public: false,
-      position,
-    })
-    .select("id")
-    .single()
-
-  if (error) throw error
-  if (!newBox) throw new Error("Failed to create box")
-  const newBoxId = newBox.id
-
-  // Recursively create child boxes first
-  for (let i = 0; i < payload.children.length; i++) {
-    await pasteBoxTree(supabase, userId, payload.children[i], newBoxId, i)
-  }
-
-  // Batch create all items for this box
-  if (payload.items.length > 0) {
-    const items = payload.items.map((itemPayload) => {
-      const thumbnailUrl =
-        itemPayload.photos?.find((p) => p.is_thumbnail)?.url ?? itemPayload.thumbnail_url ?? null
-      const acquisitionDate =
-        itemPayload.acquisition_date ?? new Date().toISOString().split("T")[0]
-
-      return {
-        itemData: {
-          name: itemPayload.name.trim(),
-          description: itemPayload.description?.trim() || null,
-          current_value: itemPayload.current_value ?? null,
-          acquisition_date: acquisitionDate,
-          acquisition_price: itemPayload.acquisition_price ?? null,
-          expected_price: null,
-          thumbnail_url: thumbnailUrl,
-          box_id: newBoxId,
-          user_id: userId,
-          is_wishlist: false,
-        },
-        photos: itemPayload.photos,
-        tagIds: itemPayload.tag_ids,
-        valueHistory: itemPayload.value_history,
-        currentValue: itemPayload.current_value,
-      }
-    })
-
-    await createItems({
-      supabase,
-      userId,
-      items,
-    })
-  }
-
-  return newBoxId
-}
+import { ItemCapExceededError } from "@/lib/api/item-cap-error"
+import {
+  expandBoxRefsToTrees,
+  flattenBoxCopyTreesForAtomicPaste,
+} from "@/lib/api/copy-expand"
+import { getEffectiveCap, getSubscriptionStatus } from "@/lib/subscription"
+import { getOwnedBoxIdSet } from "@/lib/api/validate-box-ownership"
 
 /**
  * Paste one or more box trees under targetParentBoxId. Body: { trees: BoxCopyPayload[], targetParentBoxId: string | null }.
@@ -89,26 +26,84 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as {
       trees?: BoxCopyPayload[]
+      sourceRootBoxIds?: string[]
       targetParentBoxId?: string | null
     }
-    const trees = body.trees ?? []
+    const inputTrees = body.trees ?? []
+    const sourceRootBoxIds = body.sourceRootBoxIds ?? []
     const targetParentBoxId = body.targetParentBoxId ?? null
+
+    if (targetParentBoxId) {
+      const ownedParents = await getOwnedBoxIdSet(supabase, user.id, [
+        targetParentBoxId,
+      ])
+      if (!ownedParents.has(targetParentBoxId)) {
+        return NextResponse.json(
+          { error: "targetParentBoxId must reference one of your boxes" },
+          { status: 400 }
+        )
+      }
+    }
+
+    let trees: BoxCopyPayload[] = inputTrees
+    if (sourceRootBoxIds.length > 0) {
+      trees = await expandBoxRefsToTrees(supabase, user.id, sourceRootBoxIds)
+    }
 
     if (trees.length === 0) {
       return NextResponse.json(
-        { error: "trees array is required" },
+        { error: "trees array or sourceRootBoxIds array is required" },
         { status: 400 }
       )
     }
 
-    const createdBoxIds: string[] = []
-    for (let i = 0; i < trees.length; i++) {
-      const id = await pasteBoxTree(supabase, user.id, trees[i], targetParentBoxId, i)
-      createdBoxIds.push(id)
+    const { isPro } = await getSubscriptionStatus(supabase, user.id)
+    const cap = await getEffectiveCap(
+      supabase,
+      user.id,
+      isPro
+    )
+
+    const { nodes, items, wishlistItems } = flattenBoxCopyTreesForAtomicPaste(trees)
+    const rpcCap = Number.isFinite(cap) ? cap : null
+
+    const { data, error } = await supabase.rpc("paste_box_trees_atomic", {
+      p_user_id: user.id,
+      p_target_parent_box_id: targetParentBoxId,
+      p_cap: rpcCap,
+      p_nodes: nodes,
+      p_items: items,
+      p_wishlist_items: wishlistItems,
+    })
+
+    if (error) {
+      const match = /item_limit_reached:(\d+):(\d+)/.exec(error.message ?? "")
+      if (match) {
+        return NextResponse.json(
+          {
+            error: "item_limit_reached",
+            currentCount: Number(match[1]),
+            cap: Number(match[2]),
+          },
+          { status: 403 }
+        )
+      }
+      throw error
     }
+
+    const createdBoxIds = Array.isArray((data as { created_box_ids?: string[] } | null)?.created_box_ids)
+      ? (data as { created_box_ids: string[] }).created_box_ids
+      : []
 
     return NextResponse.json({ success: true, createdBoxIds })
   } catch (error: unknown) {
+    if (error instanceof ItemCapExceededError) {
+      return NextResponse.json(
+        { error: "item_limit_reached", currentCount: error.currentCount, cap: error.cap },
+        { status: 403 }
+      )
+    }
+
     const message =
       error instanceof Error ? error.message : "Failed to paste box tree"
     return NextResponse.json({ error: message }, { status: 500 })

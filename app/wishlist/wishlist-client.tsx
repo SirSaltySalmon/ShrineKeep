@@ -5,41 +5,34 @@ import { createSupabaseClient } from "@/lib/supabase/client"
 import { Item } from "@/lib/types"
 import { normalizeItem } from "@/lib/utils"
 import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
+import { SelectionModeToggle } from "@/components/selection-mode-toggle"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Plus } from "lucide-react"
 import ItemCard from "@/components/item-card"
 import ItemDialog from "@/components/item-dialog"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
+import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
 
 export default function WishlistClient() {
   const supabase = createSupabaseClient()
-  const { copied } = useCopiedItem()
+  const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const gridRef = useRef<HTMLDivElement>(null)
   const {
     selectedItemIds,
     setSelectedItemIds,
     registerItemCardRef,
     handleMouseDown: handleGridMouseDown,
-    marquee,
+    MarqueeOverlay,
   } = useMarqueeSelection()
+  const [selectionMode, setSelectionMode] = useState(false)
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [showItemDialog, setShowItemDialog] = useState(false)
   const [itemToMark, setItemToMark] = useState<Item | null>(null)
-  const [acquisitionDate, setAcquisitionDate] = useState("")
-  const [acquisitionPrice, setAcquisitionPrice] = useState("")
   const [marking, setMarking] = useState(false)
 
   useEffect(() => {
@@ -75,11 +68,18 @@ export default function WishlistClient() {
 
   const openMarkAsAcquired = (item: Item) => {
     setItemToMark(item)
-    setAcquisitionDate(new Date().toISOString().split("T")[0])
-    setAcquisitionPrice(item.expected_price?.toString() ?? "")
   }
 
   const handleItemClick = (item: Item, e: React.MouseEvent) => {
+    if (selectionMode) {
+      setSelectedItemIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(item.id)) next.delete(item.id)
+        else next.add(item.id)
+        return next
+      })
+      return
+    }
     if (e.shiftKey) {
       setSelectedItemIds((prev) => {
         const next = new Set(prev)
@@ -95,8 +95,15 @@ export default function WishlistClient() {
   }
 
   const selectedItems = items.filter((i) => selectedItemIds.has(i.id))
+  const wishlistActionBarVisible =
+    selectedItems.length > 0 ||
+    !!copiedItemRefs?.itemIds?.length ||
+    !!copiedBoxRefs?.rootBoxIds?.length
 
-  const handleMarkAsAcquiredConfirm = async () => {
+  const handleMarkAsAcquiredConfirm = async (payload: {
+    acquisitionDate: string
+    acquisitionPrice: number | null
+  }) => {
     if (!itemToMark) return
     setMarking(true)
     try {
@@ -104,8 +111,10 @@ export default function WishlistClient() {
         .from("items")
         .update({
           is_wishlist: false,
-          acquisition_date: acquisitionDate || new Date().toISOString().split("T")[0],
-          acquisition_price: acquisitionPrice.trim() ? parseFloat(acquisitionPrice) : null,
+          acquisition_date: payload.acquisitionDate,
+          acquisition_price: payload.acquisitionPrice,
+          box_id: itemToMark.wishlist_target_box_id ?? null,
+          wishlist_target_box_id: null,
         })
         .eq("id", itemToMark.id)
 
@@ -157,33 +166,40 @@ export default function WishlistClient() {
                 item={item}
                 variant="wishlist"
                 selected={selectedItemIds.has(item.id)}
+                selectionMode={selectionMode}
                 onClick={handleItemClick}
                 onMarkAcquired={openMarkAsAcquired}
               />
             </div>
           ))}
         </div>
-        {marquee && (
-          <div
-            className="pointer-events-none fixed border-2 border-primary/50 bg-primary/10 z-50"
-            style={{
-              left: Math.min(marquee.startX, marquee.endX),
-              top: Math.min(marquee.startY, marquee.endY),
-              width: Math.abs(marquee.endX - marquee.startX),
-              height: Math.abs(marquee.endY - marquee.startY),
-            }}
-          />
-        )}
+        <MarqueeOverlay />
 
-        {(selectedItems.length > 0 || (copied !== null && copied.length > 0)) && (
+        {wishlistActionBarVisible && (
           <SelectionActionBar
             selectedItems={selectedItems}
             pasteTarget={{ boxId: null, isWishlist: true }}
             onDeleteDone={loadWishlistItems}
             onPasteDone={loadWishlistItems}
             onClearSelection={() => setSelectedItemIds(new Set())}
+            onExitSelectionMode={() => setSelectionMode(false)}
           />
         )}
+
+        <SelectionModeToggle
+          selectionMode={selectionMode}
+          onEnterSelectionMode={() => setSelectionMode(true)}
+          onExitSelectionMode={() => setSelectionMode(false)}
+          actionBarVisible={wishlistActionBarVisible}
+          onSelectAllItems={() => {
+            setSelectedItemIds((prev) => {
+              const next = new Set(prev)
+              for (const i of items) next.add(i.id)
+              return next
+            })
+          }}
+          itemCount={items.length}
+        />
 
         {items.length === 0 && (
           <div className="text-center py-12 text-fluid-sm text-muted-foreground min-w-0">
@@ -201,46 +217,13 @@ export default function WishlistClient() {
           isWishlist={true}
         />
 
-        <Dialog open={!!itemToMark} onOpenChange={(open) => !open && setItemToMark(null)}>
-          <DialogContent className="sm:max-w-[425px] min-w-0">
-            <DialogHeader className="min-w-0">
-              <DialogTitle>Mark as Acquired</DialogTitle>
-              <DialogDescription>
-                {itemToMark
-                  ? `Enter acquisition details for "${itemToMark.name}". The item will move out of your wishlist.`
-                  : ""}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4 layout-shrink-visible">
-              <div className="grid gap-2 min-w-0">
-                <Label>Acquisition date</Label>
-                <Input
-                  type="date"
-                  value={acquisitionDate}
-                  onChange={(e) => setAcquisitionDate(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2 min-w-0">
-                <Label>Acquisition price</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={acquisitionPrice}
-                  onChange={(e) => setAcquisitionPrice(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setItemToMark(null)}>
-                Cancel
-              </Button>
-              <Button onClick={handleMarkAsAcquiredConfirm} disabled={marking}>
-                {marking ? "Saving..." : "Mark as Acquired"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <MarkAcquiredDialog
+          item={itemToMark}
+          open={!!itemToMark}
+          loading={marking}
+          onOpenChange={(open) => !open && setItemToMark(null)}
+          onConfirm={handleMarkAsAcquiredConfirm}
+        />
       </main>
     </div>
   )

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Box, Item, Tag, type Theme } from "@/lib/types"
 import {
@@ -31,6 +31,10 @@ import { useDashboardSelection } from "@/lib/hooks/use-dashboard-selection"
 import { SelectionModeToggle } from "@/components/selection-mode-toggle"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
+import UpsellModal from "@/components/upsell-modal"
+import { PAST_DUE_GRACE_DAYS } from "@/lib/subscription"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
 
 interface DashboardClientProps {
   user: any
@@ -38,15 +42,41 @@ interface DashboardClientProps {
   initialTheme?: Theme | null
   /** Chart overlay preference from user_settings (separate from theme). */
   initialGraphOverlay?: boolean
+  isPro?: boolean
+  subscriptionStatus?: "active" | "canceled" | "past_due" | null
+  /** ISO timestamp: end of Pro access during past_due grace */
+  pastDueGraceEndsAt?: string | null
+  itemCount?: number
+  /** null when Pro (unlimited) */
+  itemCap?: number | null
+  freeTierCap?: number
 }
 
-export default function DashboardClient({ user, initialTheme, initialGraphOverlay = true }: DashboardClientProps) {
+export default function DashboardClient({
+  user,
+  initialTheme,
+  initialGraphOverlay = true,
+  isPro = false,
+  subscriptionStatus = null,
+  pastDueGraceEndsAt: pastDueGraceEndsAtProp = null,
+  itemCount = 0,
+  itemCap = null,
+  freeTierCap = 50,
+}: DashboardClientProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createSupabaseClient()
+
+  // Post-payment confirmation banner
+  const [showUpgradedBanner, setShowUpgradedBanner] = useState(
+    () => searchParams.get("upgraded") === "true"
+  )
   const [currentBoxId, setCurrentBoxId] = useState<string | null>(null)
   const [currentBox, setCurrentBox] = useState<Box | null>(null)
   const [boxes, setBoxes] = useState<Box[]>([])
   const [items, setItems] = useState<Item[]>([])
+  const [unacquiredItems, setUnacquiredItems] = useState<Item[]>([])
+  const [activeItemsTab, setActiveItemsTab] = useState<"items" | "unacquired">("items")
   const [loading, setLoading] = useState(true)
   const [editBox, setEditBox] = useState<Box | null>(null)
   const [editBoxName, setEditBoxName] = useState("")
@@ -65,6 +95,56 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [userTags, setUserTags] = useState<Tag[]>([])
   const [selectionMode, setSelectionMode] = useState(false)
+  const [liveItemCount, setLiveItemCount] = useState(itemCount)
+  const [showItemCapUpsell, setShowItemCapUpsell] = useState(false)
+  const [itemToMark, setItemToMark] = useState<Item | null>(null)
+  const [markingAcquired, setMarkingAcquired] = useState(false)
+  const [liveIsPro, setLiveIsPro] = useState(isPro)
+  const [liveSubscriptionStatus, setLiveSubscriptionStatus] = useState(subscriptionStatus)
+  const [pastDueGraceEndsAt, setPastDueGraceEndsAt] = useState<string | null>(pastDueGraceEndsAtProp)
+  const [pastDueGraceDays, setPastDueGraceDays] = useState(PAST_DUE_GRACE_DAYS)
+
+  useEffect(() => {
+    setLiveItemCount(itemCount)
+  }, [itemCount])
+
+  useEffect(() => {
+    setLiveIsPro(isPro)
+    setLiveSubscriptionStatus(subscriptionStatus)
+    setPastDueGraceEndsAt(pastDueGraceEndsAtProp)
+    setPastDueGraceDays(PAST_DUE_GRACE_DAYS)
+  }, [isPro, subscriptionStatus, pastDueGraceEndsAtProp])
+
+  const refreshSubscriptionCounts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/subscription")
+      if (!res.ok) return
+      const data = (await res.json()) as {
+        itemCount?: number
+        pastDueGraceEndsAt?: string | null
+        pastDueGraceDays?: number
+        isPro?: boolean
+        status?: "active" | "canceled" | "past_due" | null
+      }
+      if (typeof data.itemCount === "number") {
+        setLiveItemCount(data.itemCount)
+      }
+      if (data.pastDueGraceEndsAt !== undefined) {
+        setPastDueGraceEndsAt(data.pastDueGraceEndsAt)
+      }
+      if (typeof data.pastDueGraceDays === "number") {
+        setPastDueGraceDays(data.pastDueGraceDays)
+      }
+      if (typeof data.isPro === "boolean") {
+        setLiveIsPro(data.isPro)
+      }
+      if (data.status !== undefined) {
+        setLiveSubscriptionStatus(data.status)
+      }
+    } catch {
+      /* ignore transient fetch errors */
+    }
+  }, [])
 
   const {
     selectedItemIds,
@@ -83,11 +163,20 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
     isItemSelected,
     toggleItemSelection,
   } = useDashboardSelection(currentBoxId)
-  const { copied, copiedBoxTrees } = useCopiedItem()
-  const selectedItems = items.filter((i) => selectedItemIds.has(i.id))
+  const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
+  const selectedItems = useMemo(() => {
+    const fromCollection = items.filter((i) => selectedItemIds.has(i.id))
+    const fromUnacquired = unacquiredItems.filter((i) => selectedItemIds.has(i.id))
+    return [...fromCollection, ...fromUnacquired]
+  }, [items, unacquiredItems, selectedItemIds])
+
+  const hasUnacquiredTab = !!currentBoxId && unacquiredItems.length > 0
+  const itemsInActiveItemsGrid = hasUnacquiredTab && activeItemsTab === "unacquired" ? unacquiredItems : items
   const selectedBoxes = boxes.filter((b) => selectedBoxIds.has(b.id))
   const showSelectionBar =
-    hasSelection || (copied !== null && copied.length > 0) || (copiedBoxTrees !== null && copiedBoxTrees.length > 0)
+    hasSelection ||
+    !!copiedItemRefs?.itemIds?.length ||
+    !!copiedBoxRefs?.rootBoxIds?.length
 
   useEffect(() => {
     loadBoxes()
@@ -100,6 +189,12 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
       loadItems(null)
     }
   }, [currentBoxId])
+
+  useEffect(() => {
+    if (unacquiredItems.length === 0) {
+      setActiveItemsTab("items")
+    }
+  }, [unacquiredItems.length])
 
   useEffect(() => {
     if (!user?.id) return
@@ -174,8 +269,38 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
 
       if (error) throw error
       setItems((data || []).map(normalizeItem))
+      if (boxId) {
+        await loadUnacquiredForBox(boxId)
+      } else {
+        setUnacquiredItems([])
+      }
     } catch (error) {
       console.error("Error loading items:", error)
+      setUnacquiredItems([])
+    }
+  }
+
+  const loadUnacquiredForBox = async (boxId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("items")
+        .select(`
+          *,
+          photos (*),
+          item_tags (
+            tag:tags (*)
+          )
+        `)
+        .eq("user_id", user.id)
+        .eq("is_wishlist", true)
+        .eq("wishlist_target_box_id", boxId)
+        .order("created_at", { ascending: false })
+
+      if (error) throw error
+      setUnacquiredItems((data || []).map(normalizeItem))
+    } catch (error) {
+      console.error("Error loading unacquired items:", error)
+      setUnacquiredItems([])
     }
   }
 
@@ -198,6 +323,45 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
       await loadBoxes()
     } catch (error) {
       console.error("Error creating box:", error)
+    }
+  }
+
+  const refreshCurrentBoxData = () => {
+    loadItems(currentBoxId)
+    loadBoxes()
+    setStatsRefreshKey((k) => k + 1)
+    void refreshSubscriptionCounts()
+  }
+
+  const handleMarkAsAcquiredConfirm = async (payload: {
+    acquisitionDate: string
+    acquisitionPrice: number | null
+  }) => {
+    if (!itemToMark) return
+    const targetBoxId = itemToMark.wishlist_target_box_id ?? currentBoxId
+    if (!targetBoxId) return
+
+    setMarkingAcquired(true)
+    try {
+      const { error } = await supabase
+        .from("items")
+        .update({
+          is_wishlist: false,
+          acquisition_date: payload.acquisitionDate,
+          acquisition_price: payload.acquisitionPrice,
+          box_id: targetBoxId,
+          wishlist_target_box_id: null,
+        })
+        .eq("id", itemToMark.id)
+        .eq("user_id", user.id)
+
+      if (error) throw error
+      setItemToMark(null)
+      refreshCurrentBoxData()
+    } catch (error) {
+      console.error("Error marking as acquired:", error)
+    } finally {
+      setMarkingAcquired(false)
     }
   }
 
@@ -344,13 +508,33 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
 
     if (activeId.startsWith("box-drag-")) {
       const boxId = activeId.slice("box-drag-".length)
-      if (boxId === targetParentBoxId) return
+      const draggedBox = active.data.current?.box as Box | undefined
+      if (!draggedBox) return
+
+      if (targetParentBoxId !== null && selectedBoxIds.has(targetParentBoxId)) {
+        return
+      }
+
+      const currentBoxParentId = draggedBox.parent_box_id ?? null
+      const moveBoxIdsBase =
+        selectedBoxIds.has(boxId) && selectedBoxIds.size > 0
+          ? boxes
+              .filter(
+                (b) =>
+                  selectedBoxIds.has(b.id) &&
+                  (b.parent_box_id ?? null) === currentBoxParentId
+              )
+              .map((b) => b.id)
+          : [boxId]
+
+      const moveBoxIds = moveBoxIdsBase.filter((id) => id !== targetParentBoxId)
+      if (moveBoxIds.length === 0) return
 
       try {
         const res = await fetch("/api/boxes/move", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ boxId, targetParentBoxId }),
+          body: JSON.stringify({ boxIds: moveBoxIds, targetParentBoxId }),
         })
         if (!res.ok) {
           const err = await res.json()
@@ -370,8 +554,87 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
     loadItems(currentBoxId)
   }, [searchQuery])
 
+  const nearCap = !liveIsPro && itemCap !== null && liveItemCount >= itemCap - 5
+  const remainingItems = itemCap !== null ? itemCap - liveItemCount : null
+
   return (
     <>
+      {/* Post-payment confirmation banner */}
+      {showUpgradedBanner && (
+        <div className="bg-green-50 border-b border-green-200 px-4 py-3 flex items-center justify-between text-fluid-sm text-green-800">
+          <span>You&apos;re now Pro. Add unlimited items.</span>
+          <button
+            onClick={() => {
+              setShowUpgradedBanner(false)
+              router.replace("/dashboard")
+            }}
+            className="ml-4 opacity-70 hover:opacity-100"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* past_due warning banner */}
+      {liveSubscriptionStatus === "past_due" && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-fluid-sm text-amber-800">
+          {pastDueGraceEndsAt ? (
+            liveIsPro ? (
+              <>
+                Your payment failed. Pro access remains on for{" "}
+                <strong>
+                  {pastDueGraceDays} {pastDueGraceDays === 1 ? "day" : "days"}
+                </strong>{" "}
+                after your billing period ended, through{" "}
+                <strong>
+                  {new Date(pastDueGraceEndsAt).toLocaleDateString(undefined, {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </strong>
+                . Please update your payment method in{" "}
+                <Link href="/settings?tab=billing" className="underline font-medium">
+                  Settings → Billing
+                </Link>
+                .
+              </>
+            ) : (
+              <>
+                Your payment failed; your Pro grace period ended on{" "}
+                <strong>
+                  {new Date(pastDueGraceEndsAt).toLocaleDateString(undefined, {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </strong>
+                . Update your payment method in{" "}
+                <Link href="/settings?tab=billing" className="underline font-medium">
+                  Settings → Billing
+                </Link>{" "}
+                to restore Pro.
+              </>
+            )
+          ) : (
+            <>
+              Your payment failed. Pro access may still be active for up to{" "}
+              <strong>
+                {pastDueGraceDays} {pastDueGraceDays === 1 ? "day" : "days"}
+              </strong>{" "}
+              after your billing period ends — please update your payment method in{" "}
+              <Link href="/settings?tab=billing" className="underline font-medium">
+                Settings → Billing
+              </Link>
+              .
+            </>
+          )}
+        </div>
+      )}
+
       <main className="container mx-auto px-4 py-8 layout-shrink-visible" onMouseDown={handleMouseDown}>
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 min-w-0">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -585,6 +848,21 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
               refreshKey={statsRefreshKey}
               graphOverlay={initialGraphOverlay}
             />
+
+            {/* Item cap counter (free tier only) */}
+            {!liveIsPro && itemCap !== null && (
+              <div className="mb-4 text-fluid-xs text-muted-foreground" role="status">
+                {liveItemCount} of {itemCap} items used
+                {nearCap && remainingItems !== null && remainingItems > 0 && (
+                  <span className="ml-2">
+                    — {remainingItems} item{remainingItems === 1 ? "" : "s"} left on free tier.{" "}
+                    <Link href="/settings?tab=billing" className="text-primary underline underline-offset-2 hover:no-underline">
+                      Upgrade
+                    </Link>
+                  </span>
+                )}
+              </div>
+            )}
             <BoxGrid
               boxes={boxes}
               currentBoxId={currentBoxId}
@@ -630,23 +908,80 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
                   </p>
                 </div>
               ) : (
-                <ItemGrid
-                  items={items}
-                  currentBoxId={currentBoxId}
-                  onItemUpdate={() => {
-                    loadItems(currentBoxId)
-                    loadBoxes()
-                    setStatsRefreshKey((k) => k + 1)
-                  }}
-                  sectionTitle="Items"
-                  selectionMode={selectionMode}
-                  onEnterSelectionMode={() => setSelectionMode(true)}
-                  selectionProps={{
-                    selectedIds: selectedItemIds,
-                    setSelectedIds: setSelectedItemIds,
-                    registerCardRef: registerItemCardRef,
-                  }}
-                />
+                currentBoxId && unacquiredItems.length > 0 ? (
+                  <Tabs
+                    value={activeItemsTab}
+                    onValueChange={(v) => setActiveItemsTab(v as "items" | "unacquired")}
+                  >
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="items">Items</TabsTrigger>
+                      <TabsTrigger value="unacquired">
+                        Unacquired ({unacquiredItems.length} remaining)
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="items">
+                      <ItemGrid
+                        items={items}
+                        currentBoxId={currentBoxId}
+                        onItemUpdate={refreshCurrentBoxData}
+                        sectionTitle="Items"
+                        selectionMode={selectionMode}
+                        onEnterSelectionMode={() => setSelectionMode(true)}
+                        selectionProps={{
+                          selectedIds: selectedItemIds,
+                          setSelectedIds: setSelectedItemIds,
+                          registerCardRef: registerItemCardRef,
+                        }}
+                        totalItemCount={liveItemCount}
+                        itemCap={itemCap}
+                        isPro={liveIsPro}
+                        onCapReached={() => setShowItemCapUpsell(true)}
+                      />
+                    </TabsContent>
+                    <TabsContent value="unacquired">
+                      <ItemGrid
+                        items={unacquiredItems}
+                        currentBoxId={currentBoxId}
+                        onItemUpdate={refreshCurrentBoxData}
+                        sectionTitle="Unacquired"
+                        variant="wishlist"
+                        addButtonLabel="New Wishlist Item"
+                        defaultNewItemMode="wishlist"
+                        emptyText='No unacquired items yet. Click "New Wishlist Item" to add one linked to this box.'
+                        selectionMode={selectionMode}
+                        onEnterSelectionMode={() => setSelectionMode(true)}
+                        selectionProps={{
+                          selectedIds: selectedItemIds,
+                          setSelectedIds: setSelectedItemIds,
+                          registerCardRef: registerItemCardRef,
+                        }}
+                        totalItemCount={liveItemCount}
+                        itemCap={itemCap}
+                        isPro={liveIsPro}
+                        onCapReached={() => setShowItemCapUpsell(true)}
+                        onMarkAcquired={(item) => setItemToMark(item)}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                ) : (
+                  <ItemGrid
+                    items={items}
+                    currentBoxId={currentBoxId}
+                    onItemUpdate={refreshCurrentBoxData}
+                    sectionTitle="Items"
+                    selectionMode={selectionMode}
+                    onEnterSelectionMode={() => setSelectionMode(true)}
+                    selectionProps={{
+                      selectedIds: selectedItemIds,
+                      setSelectedIds: setSelectedItemIds,
+                      registerCardRef: registerItemCardRef,
+                    }}
+                    totalItemCount={liveItemCount}
+                    itemCap={itemCap}
+                    isPro={liveIsPro}
+                    onCapReached={() => setShowItemCapUpsell(true)}
+                  />
+                )
               )}
             </div>
           </DndContext>
@@ -664,31 +999,51 @@ export default function DashboardClient({ user, initialTheme, initialGraphOverla
           onEnterSelectionMode={() => setSelectionMode(true)}
           onExitSelectionMode={() => setSelectionMode(false)}
           actionBarVisible={showSelectionBar}
-          onSelectAllItems={() => setSelectedItemIds(new Set(items.map((i) => i.id)))}
+          onSelectAllItems={() => {
+            setSelectedItemIds((prev) => {
+              const next = new Set(prev)
+              for (const i of itemsInActiveItemsGrid) {
+                next.add(i.id)
+              }
+              return next
+            })
+          }}
           onSelectAllBoxes={() => setSelectedBoxIds(new Set(boxes.map((b) => b.id)))}
-          itemCount={items.length}
+          itemCount={itemsInActiveItemsGrid.length}
           boxCount={boxes.length}
         />
         {showSelectionBar && (
           <SelectionActionBar
             selectedItems={selectedItems}
             selectedBoxes={selectedBoxes}
-            pasteTarget={{ boxId: currentBoxId, isWishlist: false }}
-            onDeleteDone={() => {
-              loadItems(currentBoxId)
-              loadBoxes()
-              setStatsRefreshKey((k) => k + 1)
-            }}
-            onPasteDone={() => {
-              loadItems(currentBoxId)
-              loadBoxes()
-              setStatsRefreshKey((k) => k + 1)
-            }}
+            pasteTarget={
+              currentBoxId
+                ? { boxId: currentBoxId, isWishlist: false, preserveItemKindsInBox: true }
+                : { boxId: null, isWishlist: false }
+            }
+            onDeleteDone={refreshCurrentBoxData}
+            onPasteDone={refreshCurrentBoxData}
             onClearSelection={clearSelection}
             onExitSelectionMode={() => setSelectionMode(false)}
+            onItemCapReached={() => setShowItemCapUpsell(true)}
+            totalItemCount={liveItemCount}
+            itemCap={itemCap}
+            isPro={liveIsPro}
           />
         )}
+        <MarkAcquiredDialog
+          item={itemToMark}
+          open={!!itemToMark}
+          loading={markingAcquired}
+          onOpenChange={(open) => !open && setItemToMark(null)}
+          onConfirm={handleMarkAsAcquiredConfirm}
+        />
         <MarqueeOverlay />
+        <UpsellModal
+          open={showItemCapUpsell}
+          onOpenChange={setShowItemCapUpsell}
+          reason="cap_hit"
+        />
       </main>
     </>
   )

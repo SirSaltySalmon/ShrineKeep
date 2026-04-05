@@ -1,6 +1,8 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { ItemCopyPayload } from "@/lib/types"
 import { validateTags } from "./validation"
+import { isProUser, getEffectiveCap, getItemCount } from "@/lib/subscription"
+import { ItemCapExceededError } from "@/lib/api/item-cap-error"
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>
 
@@ -33,6 +35,12 @@ interface CreateItemsParams {
     isUpdate?: boolean
     itemId?: string
   }>
+  /**
+   * Skip the free-tier item cap check.
+   * Use only for internal/admin operations (e.g. data migrations).
+   * All user-facing routes must leave this false (default).
+   */
+  skipCapCheck?: boolean
 }
 
 interface CreateItemsResult {
@@ -416,6 +424,7 @@ export async function createItems({
   supabase,
   userId,
   items,
+  skipCapCheck = false,
 }: CreateItemsParams): Promise<CreateItemsResult> {
   const operations: string[] = []
 
@@ -462,6 +471,23 @@ export async function createItems({
   }
 
   const itemIds: string[] = []
+
+  // Enforce free-tier item cap before inserting non-wishlist items.
+  // Note: COUNT then INSERT is not atomic (accepted at launch scale — worst case is
+  // a user temporarily exceeds the cap by one item in a race condition).
+  if (creates.length > 0 && !skipCapCheck) {
+    const newCollectionCreates = creates.filter((c) => c.itemData.is_wishlist === false)
+    if (newCollectionCreates.length > 0) {
+      const pro = await isProUser(supabase, userId)
+      const cap = await getEffectiveCap(supabase, userId, pro)
+      if (isFinite(cap)) {
+        const currentCount = await getItemCount(supabase, userId)
+        if (currentCount + newCollectionCreates.length > cap) {
+          throw new ItemCapExceededError(currentCount, cap)
+        }
+      }
+    }
+  }
 
   // Process creates
   if (creates.length > 0) {

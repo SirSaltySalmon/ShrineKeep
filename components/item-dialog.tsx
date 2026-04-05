@@ -14,6 +14,7 @@ import { ThumbnailBadge, ThumbnailActionButtons } from "./thumbnail-content"
 import ImageSearch from "./image-search"
 import ImageGalleryCarousel from "./image-gallery-carousel"
 import ValueGraph from "./value-graph"
+import BoxPickerDialog from "./box-picker-dialog"
 
 const MAX_PHOTOS = 10
 const MAX_TAGS_PER_USER = 256
@@ -54,7 +55,12 @@ interface ItemDialogProps {
   isNew: boolean
   boxId: string | null
   onSave: () => void
+  /** True on the dedicated wishlist page: no collection/wishlist toggle for new items. */
   isWishlist?: boolean
+  /** When creating from a box (not wishlist page), initial mode for the type toggle. */
+  defaultNewItemMode?: "collection" | "wishlist"
+  /** Called when the server returns 403 (item cap reached). Dialog closes before this fires. */
+  onCapReached?: () => void
 }
 
 export default function ItemDialog({
@@ -65,8 +71,15 @@ export default function ItemDialog({
   boxId,
   onSave,
   isWishlist = false,
+  defaultNewItemMode = "collection",
+  onCapReached,
 }: ItemDialogProps) {
   const supabase = createSupabaseClient()
+  const canSwitchNewItemMode = isNew && boxId !== null && !isWishlist
+  const [newItemMode, setNewItemMode] = useState<"collection" | "wishlist">(() => defaultNewItemMode)
+  const editingWishlistItem = !isNew && !!item?.is_wishlist
+  const effectiveIsWishlist =
+    isWishlist || editingWishlistItem || (canSwitchNewItemMode && newItemMode === "wishlist")
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [currentValue, setCurrentValue] = useState("")
@@ -83,6 +96,9 @@ export default function ItemDialog({
   const [galleryOpen, setGalleryOpen] = useState(false)
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  const [wishlistTargetBoxId, setWishlistTargetBoxId] = useState<string | null>(null)
+  const [wishlistTargetBoxName, setWishlistTargetBoxName] = useState<string | null>(null)
+  const [showBoxPicker, setShowBoxPicker] = useState(false)
   const [userTags, setUserTags] = useState<Tag[]>([])
   const [tagsDropdownOpen, setTagsDropdownOpen] = useState(false)
   const [showCreateTag, setShowCreateTag] = useState(false)
@@ -93,6 +109,15 @@ export default function ItemDialog({
   // Use ref to track unsaved uploads for cleanup (avoids stale closure issues)
   const unsavedUploadsRef = useRef<Set<string>>(new Set())
   const uploadInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!isNew) return
+    if (isWishlist) {
+      setNewItemMode("wishlist")
+      return
+    }
+    setNewItemMode(defaultNewItemMode)
+  }, [isNew, isWishlist, open, defaultNewItemMode])
 
   // Update ref whenever state changes
   useEffect(() => {
@@ -127,6 +152,8 @@ export default function ItemDialog({
   }, [])
 
   useEffect(() => {
+    if (!open) return
+
     if (item && !isNew) {
       setName(item.name || "")
       setDescription(item.description || "")
@@ -136,24 +163,77 @@ export default function ItemDialog({
       setExpectedPrice(item.expected_price?.toString() || "")
       setPhotos(toLocalPhotos(item))
       setSelectedTagIds(item.tags?.map((t) => t.id) ?? [])
+      setWishlistTargetBoxId(item.wishlist_target_box_id ?? null)
       setUnsavedUploadedPhotos(new Set()) // Clear unsaved uploads when loading existing item
       unsavedUploadsRef.current = new Set()
-    } else {
+    } else if (isNew) {
+      const startWishlistLike = isWishlist || defaultNewItemMode === "wishlist"
       setName("")
       setDescription("")
       setCurrentValue("")
-      setAcquisitionDate(isWishlist ? "" : new Date().toISOString().split("T")[0])
+      setAcquisitionDate(startWishlistLike ? "" : new Date().toISOString().split("T")[0])
       setAcquisitionPrice("")
       setExpectedPrice("")
       setPhotos([])
       setSelectedTagIds([])
+      setWishlistTargetBoxId(
+        !isWishlist && defaultNewItemMode === "wishlist" && boxId ? boxId : null
+      )
       setUnsavedUploadedPhotos(new Set()) // Clear unsaved uploads for new items
       unsavedUploadsRef.current = new Set()
     }
     setShowCreateTag(false)
     setNewTagName("")
     setNewTagColor("blue")
-  }, [item, isNew, open, isWishlist])
+  }, [item, isNew, open, isWishlist, defaultNewItemMode, boxId])
+
+  const handleNewItemModeSwitch = (mode: "collection" | "wishlist") => {
+    if (!canSwitchNewItemMode || mode === newItemMode) return
+    if (mode === "wishlist") {
+      setExpectedPrice((ep) => {
+        const t = acquisitionPrice.trim()
+        if (t) return acquisitionPrice
+        return ep.trim() ? ep : ""
+      })
+      setWishlistTargetBoxId(boxId ?? null)
+    } else {
+      // Wishlist → collection: expected price is what the user last saw/edited there, so it wins over stale acquisition.
+      setAcquisitionPrice((ap) => {
+        const et = expectedPrice.trim()
+        if (et) return expectedPrice
+        return ap.trim() ? ap : ""
+      })
+      setAcquisitionDate((d) => {
+        const t = d.trim()
+        return t ? d : new Date().toISOString().split("T")[0]
+      })
+      setWishlistTargetBoxId(null)
+    }
+    setNewItemMode(mode)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    if (!wishlistTargetBoxId) {
+      setWishlistTargetBoxName(null)
+      return
+    }
+
+    const loadWishlistTargetName = async () => {
+      try {
+        const { data } = await supabase
+          .from("boxes")
+          .select("name")
+          .eq("id", wishlistTargetBoxId)
+          .single()
+        setWishlistTargetBoxName(data?.name ?? null)
+      } catch {
+        setWishlistTargetBoxName(null)
+      }
+    }
+
+    void loadWishlistTargetName()
+  }, [open, supabase, wishlistTargetBoxId])
 
   // Fetch user tags when dialog opens
   useEffect(() => {
@@ -326,7 +406,7 @@ export default function ItemDialog({
       // For wishlist items, use public URL (accessible via storage policy)
       // For private items, use signed URL (valid for 1 year)
       let url: string
-      if (isWishlist) {
+      if (effectiveIsWishlist) {
         // Wishlist items: use public URL (policy allows public access)
         const { data: publicUrlData } = supabase.storage.from("item-photos").getPublicUrl(filePath)
         url = publicUrlData.publicUrl
@@ -382,18 +462,20 @@ export default function ItemDialog({
       const currentValueNum = currentValue.trim() === "" ? null : parseFloat(currentValue)
       const acquisitionPriceNum = acquisitionPrice.trim() === "" ? null : parseFloat(acquisitionPrice)
       const expectedPriceNum = expectedPrice.trim() === "" ? null : parseFloat(expectedPrice)
+      const wishlistTargetId = effectiveIsWishlist ? wishlistTargetBoxId : null
 
       const requestBody = {
         ...(isNew ? {} : { id: item!.id }),
         name: name.trim(),
         description: description.trim() || null,
         current_value: currentValueNum && !Number.isNaN(currentValueNum) ? currentValueNum : null,
-        acquisition_date: isWishlist ? null : (acquisitionDate || null),
-        acquisition_price: isWishlist ? null : (acquisitionPriceNum != null && !Number.isNaN(acquisitionPriceNum) ? acquisitionPriceNum : null),
-        expected_price: isWishlist ? (expectedPriceNum && !Number.isNaN(expectedPriceNum) ? expectedPriceNum : null) : null,
+        acquisition_date: effectiveIsWishlist ? null : (acquisitionDate || null),
+        acquisition_price: effectiveIsWishlist ? null : (acquisitionPriceNum != null && !Number.isNaN(acquisitionPriceNum) ? acquisitionPriceNum : null),
+        expected_price: effectiveIsWishlist ? (expectedPriceNum && !Number.isNaN(expectedPriceNum) ? expectedPriceNum : null) : null,
         thumbnail_url: photos.find((p) => p.is_thumbnail)?.url ?? null,
-        box_id: isWishlist ? null : boxId,
-        is_wishlist: isWishlist,
+        box_id: effectiveIsWishlist ? null : boxId,
+        wishlist_target_box_id: wishlistTargetId,
+        is_wishlist: effectiveIsWishlist,
         photos: photos.map((p) => ({
           url: p.url,
           storage_path: p.storage_path,
@@ -411,14 +493,20 @@ export default function ItemDialog({
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorData = (await response.json().catch(() => ({}))) as { error?: string }
+        if (response.status === 403 && errorData.error === "item_limit_reached") {
+          // Close first, then upsell — avoids dialog stacking / focus trap conflicts.
+          onOpenChange(false)
+          onCapReached?.()
+          return
+        }
         throw new Error(errorData.error || "Failed to save item")
       }
 
       // Clear unsaved uploads tracking since we successfully saved
       setUnsavedUploadedPhotos(new Set())
       unsavedUploadsRef.current = new Set()
-      
+
       onSave()
       onOpenChange(false)
     } catch (error) {
@@ -496,12 +584,39 @@ export default function ItemDialog({
           }}
         >
           <DialogHeader className="min-w-0">
-            <DialogTitle>{isNew ? (isWishlist ? "Add to Wishlist" : "Add New Item") : "Edit Item"}</DialogTitle>
+            <DialogTitle>{isNew ? (effectiveIsWishlist ? "Add to Wishlist" : "Add New Item") : "Edit Item"}</DialogTitle>
             <DialogDescription>
-              {isNew ? "Add a new item to your collection" : "Update item details"}
+              {isNew
+                ? (effectiveIsWishlist
+                    ? "Add a wishlist item that can be linked to a box."
+                    : "Add a new item to your collection.")
+                : "Update item details"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4 layout-shrink-visible">
+            {canSwitchNewItemMode && (
+              <div className="justify-between items-center flex space-y-2">
+                <Label>Item Type</Label>
+                <div className="inline-flex rounded-md border bg-muted p-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={newItemMode === "collection" ? "default" : "ghost"}
+                    onClick={() => handleNewItemModeSwitch("collection")}
+                  >
+                    Collection Item
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={newItemMode === "wishlist" ? "default" : "ghost"}
+                    onClick={() => handleNewItemModeSwitch("wishlist")}
+                  >
+                    Wishlist Item
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="min-w-0">
               <Label>Name *</Label>
               <Input
@@ -518,7 +633,7 @@ export default function ItemDialog({
                 placeholder="Item description"
               />
             </div>
-            {isWishlist ? (
+            {effectiveIsWishlist ? (
               <>
                 <div className="grid grid-cols-2 gap-4 min-w-0">
                   <div className="layout-shrink-visible">
@@ -540,6 +655,22 @@ export default function ItemDialog({
                       onChange={(e) => setExpectedPrice(e.target.value)}
                       placeholder="0.00"
                     />
+                  </div>
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label>Associated Collection Box</Label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="rounded-md border bg-muted/40 px-3 py-2 text-fluid-sm">
+                      Selected: {wishlistTargetBoxName ?? (wishlistTargetBoxId ? "Selected box" : "None")}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowBoxPicker(true)}
+                    >
+                      Choose box
+                    </Button>
                   </div>
                 </div>
               </>
@@ -811,7 +942,7 @@ export default function ItemDialog({
               )}
             </div>
 
-            {!isNew && item && !isWishlist && (
+            {!isNew && item && !effectiveIsWishlist && (
               <div className="border-t pt-4">
                 <ValueGraph itemId={item.id} acquisitionDate={acquisitionDate.trim() || null} currentValue={currentValue} />
               </div>
@@ -850,6 +981,13 @@ export default function ItemDialog({
           }}
         />
       )}
+
+      <BoxPickerDialog
+        open={showBoxPicker}
+        onOpenChange={setShowBoxPicker}
+        initialBoxId={wishlistTargetBoxId}
+        onConfirm={setWishlistTargetBoxId}
+      />
 
       {showUrlInput && (
         <Dialog open={showUrlInput} onOpenChange={setShowUrlInput}>

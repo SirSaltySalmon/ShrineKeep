@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { Box, BoxCopyPayload, Item, ItemCopyPayload, Tag, TagColor } from "./types"
+import type { Item, ItemCopyPayload, Tag, TagColor } from "./types"
 import type { SearchFiltersState } from "./types"
 import { TAG_COLORS } from "./types"
 
@@ -104,50 +104,11 @@ export function buildItemCopyPayload(
     expected_price: item.expected_price ?? null,
     thumbnail_url: item.thumbnail_url ?? null,
     is_wishlist: item.is_wishlist,
+    wishlist_target_box_id: item.wishlist_target_box_id ?? null,
     photos,
     tag_ids: (item.tags ?? []).map((t) => t.id),
     value_history: valueHistory,
   }
-}
-
-/** Build one BoxCopyPayload node from flat boxes + items (for a given box id). */
-function buildBoxCopyPayloadNode(
-  boxes: Box[],
-  items: Item[],
-  boxId: string,
-  valueHistoryMap?: Map<string, Array<{ value: number; recorded_at: string }>>
-): BoxCopyPayload {
-  const box = boxes.find((b) => b.id === boxId)
-  if (!box) {
-    return { name: "", description: null, children: [], items: [] }
-  }
-  const nodeItems = items
-    .filter((i) => i.box_id === boxId)
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    .map((item) => buildItemCopyPayload(item, valueHistoryMap?.get(item.id)))
-  const childBoxes = boxes
-    .filter((b) => b.parent_box_id === boxId)
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-  return {
-    name: box.name,
-    description: box.description ?? null,
-    children: childBoxes.map((c) => buildBoxCopyPayloadNode(boxes, items, c.id, valueHistoryMap)),
-    items: nodeItems,
-  }
-}
-
-/** Build BoxCopyPayload trees for given root box ids from flat boxes + items (e.g. from /api/boxes/subtree). */
-export function buildBoxCopyPayloadTrees(
-  boxes: Box[],
-  items: Item[],
-  rootIds: string[],
-  valueHistoryMap?: Map<string, Array<{ value: number; recorded_at: string }>>
-): BoxCopyPayload[] {
-  return rootIds
-    .map((id) => boxes.find((b) => b.id === id))
-    .filter((b): b is Box => !!b)
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    .map((b) => buildBoxCopyPayloadNode(boxes, items, b.id, valueHistoryMap))
 }
 
 /** Supabase returns item_tags as { tag_id, tag: Tag }[]; normalize to item.tags = Tag[] */

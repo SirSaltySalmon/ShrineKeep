@@ -27,7 +27,8 @@ export interface Box {
 
 export interface Item {
   id: string
-  box_id: string
+  box_id: string | null
+  wishlist_target_box_id?: string | null
   user_id: string
   name: string
   description?: string
@@ -55,6 +56,7 @@ export interface ItemCopyPayload {
   expected_price?: number | null
   thumbnail_url?: string | null
   is_wishlist: boolean
+  wishlist_target_box_id?: string | null
   photos: { url: string; storage_path?: string; is_thumbnail: boolean }[]
   tag_ids: string[]
   value_history?: { value: number; recorded_at: string }[]
@@ -66,6 +68,7 @@ export interface BoxCopyPayload {
   description?: string | null
   children: BoxCopyPayload[]
   items: ItemCopyPayload[]
+  wishlistItems?: ItemCopyPayload[]
 }
 
 export interface Photo {

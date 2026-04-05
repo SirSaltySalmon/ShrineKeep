@@ -93,7 +93,7 @@ export default function SearchResultsClient({
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
   const [userTags, setUserTags] = useState<Tag[]>([])
-  const { copied } = useCopiedItem()
+  const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [showItemDialog, setShowItemDialog] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
@@ -448,7 +448,9 @@ export default function SearchResultsClient({
           )}
         </>
       )}
-      {(selectedItems.length > 0 || (copied !== null && copied.length > 0)) && (
+      {(selectedItems.length > 0 ||
+        !!copiedItemRefs?.itemIds?.length ||
+        !!copiedBoxRefs?.rootBoxIds?.length) && (
         <SelectionActionBar
           selectedItems={selectedItems}
           pasteTarget={

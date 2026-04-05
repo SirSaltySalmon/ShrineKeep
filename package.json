@@ -38,6 +38,7 @@
     "react-dom": "^18.2.0",
     "recharts": "^2.15.4",
     "shadcn": "^3.8.4",
+    "stripe": "^22.0.0",
     "tailwind-merge": "^2.6.1",
     "tailwindcss-animate": "^1.0.7",
     "zustand": "^4.4.7"

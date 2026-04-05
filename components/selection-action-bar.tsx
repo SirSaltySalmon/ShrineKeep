@@ -1,11 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Box, Item } from "@/lib/types"
-import type { ItemCopyPayload } from "@/lib/types"
-import { buildAllItemsCopyPayload, buildBoxCopyPayloadTrees, normalizeItem } from "@/lib/utils"
 import { useCopiedItem } from "@/lib/copied-item-context"
-import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,44 +20,27 @@ import { cn } from "@/lib/utils"
 export interface PasteTarget {
   boxId: string | null
   isWishlist: boolean
+  /** Dashboard box view: duplicate each item as collection vs wishlist like the source. */
+  preserveItemKindsInBox?: boolean
 }
 
 /**
- * Single "price" for copy/paste: on wishlist it's expected_price, on collection it's acquisition_price.
+ * Free tier counts only non-wishlist (collection) rows. Paste can duplicate wishlist rows
+ * without consuming the collection cap when using preserve-item-kinds or wishlist target.
  */
-function getSourcePrice(payload: ItemCopyPayload): number | null {
-  if (payload.is_wishlist) return payload.expected_price ?? null
-  return payload.acquisition_price ?? null
-}
-
-function buildPasteBody(payload: ItemCopyPayload, pasteTarget: PasteTarget): Record<string, unknown> {
-  const base = {
-    name: payload.name,
-    description: payload.description ?? null,
-    thumbnail_url: payload.thumbnail_url ?? null,
-    photos: payload.photos,
-    tag_ids: payload.tag_ids,
-    is_wishlist: pasteTarget.isWishlist,
-    box_id: pasteTarget.isWishlist ? null : pasteTarget.boxId,
-    current_value: payload.current_value ?? null,
-  }
-  const sourcePrice = getSourcePrice(payload)
-
+function countCollectionCreatesFromItemPaste(
+  pasteTarget: PasteTarget,
+  refs: { itemIds: string[]; collectionSourceCount?: number } | null
+): number {
+  if (!refs?.itemIds?.length) return 0
   if (pasteTarget.isWishlist) {
-    return {
-      ...base,
-      acquisition_price: null,
-      acquisition_date: null,
-      expected_price: sourcePrice,
-    }
+    return 0
   }
-
-  return {
-    ...base,
-    expected_price: null,
-    acquisition_price: sourcePrice,
-    acquisition_date: payload.is_wishlist ? null : (payload.acquisition_date ?? null),
+  if (pasteTarget.preserveItemKindsInBox) {
+    const c = refs.collectionSourceCount
+    return typeof c === "number" ? c : refs.itemIds.length
   }
+  return refs.itemIds.length
 }
 
 interface SelectionActionBarProps {
@@ -72,6 +52,12 @@ interface SelectionActionBarProps {
   onClearSelection: () => void
   /** When in selection mode, called when user dismisses/clears so parent can exit selection mode. */
   onExitSelectionMode?: () => void
+  /** Paste/create blocked by free-tier item cap (403 item_limit_reached). */
+  onItemCapReached?: () => void
+  /** When set with itemCap and isPro === false, Paste opens upsell before calling the API if the clipboard would exceed the cap. */
+  totalItemCount?: number
+  itemCap?: number | null
+  isPro?: boolean
   className?: string
 }
 
@@ -83,11 +69,23 @@ export function SelectionActionBar({
   onPasteDone,
   onClearSelection,
   onExitSelectionMode,
+  onItemCapReached,
+  totalItemCount,
+  itemCap = null,
+  isPro = true,
   className,
 }: SelectionActionBarProps) {
-  const { copied, setCopied, copiedBoxTrees, setCopiedBoxTrees, clearClipboard } = useCopiedItem()
+  const {
+    copiedItemRefs,
+    setCopiedItemRefs,
+    copiedBoxRefs,
+    setCopiedBoxRefs,
+    clearClipboard,
+  } = useCopiedItem()
   const [pasting, setPasting] = useState(false)
   const [copying, setCopying] = useState(false)
+  const [copiedDone, setCopiedDone] = useState(false)
+  const [pastedDone, setPastedDone] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleteBoxConfirmNames, setDeleteBoxConfirmNames] = useState("")
@@ -95,10 +93,9 @@ export function SelectionActionBar({
 
   const hasSelection = selectedItems.length > 0 || selectedBoxes.length > 0
   const canCopy = hasSelection
-  const canPaste =
-    !copying &&
-    pasteTarget !== null &&
-    ((copied !== null && copied.length > 0) || (copiedBoxTrees !== null && copiedBoxTrees.length > 0))
+  const hasItemRefs = !!copiedItemRefs?.itemIds?.length
+  const hasBoxRefs = !!copiedBoxRefs?.rootBoxIds?.length
+  const canPaste = !copying && pasteTarget !== null && (hasItemRefs || hasBoxRefs)
 
   const selectedBoxNames = selectedBoxes.map((b) => b.name)
   const deleteBoxNamesMatch =
@@ -114,84 +111,56 @@ export function SelectionActionBar({
         .sort()
         .join(", ")
 
+  useEffect(() => {
+    if (!copiedDone) return
+    const id = window.setTimeout(() => setCopiedDone(false), 1200)
+    return () => window.clearTimeout(id)
+  }, [copiedDone])
+
+  useEffect(() => {
+    if (!pastedDone) return
+    const id = window.setTimeout(() => setPastedDone(false), 1200)
+    return () => window.clearTimeout(id)
+  }, [pastedDone])
+
   const handleCopy = async () => {
     if (!hasSelection) return
     if (!canCopy || copying) return
     setCopying(true)
     try {
-      const supabase = createSupabaseClient()
-      let allItemIds: string[] = []
-      let boxSubtreeItems: Item[] = []
-      let boxes: Box[] = []
-      let rootIds: string[] = []
+      const selectedItemIds = selectedItems.map((i) => i.id)
+      const rootIds = selectedBoxes
+        .filter((b) => !selectedBoxes.some((p) => p.id === (b.parent_box_id ?? "")))
+        .map((b) => b.id)
 
-      // Collect all items that need value_history
-      if (selectedItems.length > 0) {
-        allItemIds.push(...selectedItems.map((i) => i.id))
-      }
-
-      // Fetch box subtree if boxes are selected
-      if (selectedBoxes.length > 0) {
-        rootIds = selectedBoxes
-          .filter((b) => !selectedBoxes.some((p) => p.id === (b.parent_box_id ?? "")))
-          .map((b) => b.id)
-        
-        if (rootIds.length > 0) {
-          try {
-            const res = await fetch("/api/boxes/subtree", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ rootIds }),
-            })
-            if (!res.ok) throw new Error("Failed to fetch subtree")
-            const subtreeData = await res.json()
-            boxes = subtreeData.boxes ?? []
-            const rawItems = subtreeData.items ?? []
-            boxSubtreeItems = rawItems.map((row: unknown) => normalizeItem(row as Record<string, unknown>))
-            allItemIds.push(...boxSubtreeItems.map((i: Item) => i.id))
-          } catch (e) {
-            console.error(e)
-            setCopiedBoxTrees(null)
-            return
-          }
-        }
-      }
-
-      // Fetch value_history for all items in a single query
-      const valueHistoryMap = new Map<string, Array<{ value: number; recorded_at: string }>>()
-      if (allItemIds.length > 0) {
-        const { data: valueHistoryData } = await supabase
-          .from("value_history")
-          .select("item_id, value, recorded_at")
-          .in("item_id", allItemIds)
-          .order("recorded_at", { ascending: true })
-
-        for (const record of valueHistoryData ?? []) {
-          if (!valueHistoryMap.has(record.item_id)) {
-            valueHistoryMap.set(record.item_id, [])
-          }
-          valueHistoryMap.get(record.item_id)!.push({
-            value: Number(record.value),
-            recorded_at: record.recorded_at,
-          })
-        }
-      }
-
-      // Build item payloads
-      if (selectedItems.length > 0) {
-        const payloads = buildAllItemsCopyPayload(selectedItems, valueHistoryMap)
-        setCopied(payloads)
-      } else {
-        setCopied(null)
-      }
-
-      // Build box payloads
+      setCopiedItemRefs(
+        selectedItemIds.length > 0
+          ? {
+              itemIds: selectedItemIds,
+              collectionSourceCount: selectedItems.filter((i) => !i.is_wishlist).length,
+            }
+          : null
+      )
+      setCopiedBoxRefs(rootIds.length > 0 ? { rootBoxIds: rootIds } : null)
       if (rootIds.length > 0) {
-        const trees = buildBoxCopyPayloadTrees(boxes, boxSubtreeItems, rootIds, valueHistoryMap)
-        setCopiedBoxTrees(trees)
-      } else {
-        setCopiedBoxTrees(null)
+        void fetch("/api/boxes/subtree/count", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rootIds }),
+        })
+          .then(async (res) => {
+            if (!res.ok) return null
+            const data = (await res.json()) as { itemCount?: number }
+            if (typeof data.itemCount === "number") {
+              setCopiedBoxRefs({ rootBoxIds: rootIds, estimatedCreateCount: data.itemCount })
+            }
+            return null
+          })
+          .catch(() => null)
       }
+
+      setCopiedDone(true)
+      setPastedDone(false)
     } finally {
       setCopying(false)
     }
@@ -199,37 +168,90 @@ export function SelectionActionBar({
 
   const handlePaste = async () => {
     if (!canPaste || pasting) return
+
+    if (
+      pasteTarget &&
+      !pasteTarget.isWishlist &&
+      !isPro &&
+      itemCap !== null &&
+      typeof totalItemCount === "number" &&
+      onItemCapReached
+    ) {
+      let fromTreeRefs = copiedBoxRefs?.estimatedCreateCount ?? 0
+      if (
+        copiedBoxRefs?.estimatedCreateCount == null &&
+        copiedBoxRefs?.rootBoxIds?.length
+      ) {
+        const countRes = await fetch("/api/boxes/subtree/count", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rootIds: copiedBoxRefs.rootBoxIds }),
+        })
+        if (countRes.ok) {
+          const countData = (await countRes.json()) as { itemCount?: number }
+          if (typeof countData.itemCount === "number") {
+            fromTreeRefs = countData.itemCount
+            setCopiedBoxRefs({
+              rootBoxIds: copiedBoxRefs.rootBoxIds,
+              estimatedCreateCount: countData.itemCount,
+            })
+          }
+        }
+      }
+      const fromTrees = fromTreeRefs
+      const fromItems = countCollectionCreatesFromItemPaste(pasteTarget, copiedItemRefs)
+      const wouldCreate = fromTrees + fromItems
+      if (wouldCreate > 0 && totalItemCount + wouldCreate > itemCap) {
+        onItemCapReached()
+        return
+      }
+    }
+
     setPasting(true)
     try {
-      if (copiedBoxTrees && copiedBoxTrees.length > 0 && pasteTarget && !pasteTarget.isWishlist) {
+      if (hasBoxRefs && pasteTarget && !pasteTarget.isWishlist) {
         const res = await fetch("/api/boxes/paste", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            trees: copiedBoxTrees,
+            sourceRootBoxIds: copiedBoxRefs?.rootBoxIds ?? [],
             targetParentBoxId: pasteTarget.boxId,
           }),
         })
+        const data = await res.json().catch(() => ({} as { error?: string }))
+        if (res.status === 403 && data.error === "item_limit_reached") {
+          onItemCapReached?.()
+          return
+        }
         if (!res.ok) {
-          const data = await res.json()
           throw new Error(data.error ?? "Failed to paste boxes")
         }
       }
-      if (copied && copied.length > 0 && pasteTarget) {
-        for (const payload of copied) {
-          const body = buildPasteBody(payload, pasteTarget)
-          const res = await fetch("/api/items", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          })
-          if (!res.ok) {
-            const data = await res.json()
-            throw new Error(data.error ?? "Failed to paste item")
-          }
+      if (pasteTarget && hasItemRefs) {
+        const res = await fetch("/api/items/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceItemIds: copiedItemRefs?.itemIds ?? [],
+            target: {
+              boxId: pasteTarget.boxId,
+              isWishlist: pasteTarget.isWishlist,
+              ...(pasteTarget.preserveItemKindsInBox ? { preserveItemKindsInBox: true } : {}),
+            },
+          }),
+        })
+        const data = await res.json().catch(() => ({} as { error?: string }))
+        if (res.status === 403 && data.error === "item_limit_reached") {
+          onItemCapReached?.()
+          return
+        }
+        if (!res.ok) {
+          throw new Error(data.error ?? "Failed to paste items")
         }
       }
       onPasteDone()
+      setPastedDone(true)
+      setCopiedDone(false)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       alert(`Paste failed: ${msg}`)
@@ -297,10 +319,14 @@ export function SelectionActionBar({
       ]
         .filter(Boolean)
         .join(", ") + " selected"
-    : copied?.length || copiedBoxTrees?.length
+    : hasItemRefs || hasBoxRefs
       ? [
-          copied?.length ? `${copied.length} item${copied.length === 1 ? "" : "s"}` : null,
-          copiedBoxTrees?.length ? `${copiedBoxTrees.length} box tree${copiedBoxTrees.length === 1 ? "" : "s"}` : null,
+          copiedItemRefs?.itemIds?.length
+            ? `${copiedItemRefs.itemIds.length} item${copiedItemRefs.itemIds.length === 1 ? "" : "s"}`
+            : null,
+          copiedBoxRefs?.rootBoxIds?.length
+            ? `${copiedBoxRefs.rootBoxIds.length} box tree${copiedBoxRefs.rootBoxIds.length === 1 ? "" : "s"}`
+            : null,
         ]
           .filter(Boolean)
           .join(", ") + " in clipboard"
@@ -326,7 +352,7 @@ export function SelectionActionBar({
             className="rounded-lg"
           >
             <Copy className="h-4 w-4 mr-1.5" />
-            {copying ? "Copying…" : "Copy"}
+            {copying ? "Copying…" : copiedDone ? "Copied!" : "Copy"}
           </Button>
           {canPaste && (
             <Button
@@ -338,7 +364,7 @@ export function SelectionActionBar({
               className="rounded-lg"
             >
               <ClipboardPaste className="h-4 w-4 mr-1.5" />
-              {pasting ? "Pasting…" : "Paste"}
+              {pasting ? "Pasting…" : pastedDone ? "Pasted!" : "Paste"}
             </Button>
           )}
           <Button

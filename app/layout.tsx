@@ -22,7 +22,6 @@ import { GeistMono } from "geist/font/mono"
 import { cn } from "@/lib/utils"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { CopiedItemProvider } from "@/lib/copied-item-context"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const geistSans = GeistSans
@@ -81,9 +80,7 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <CopiedItemProvider>
-            <Suspense fallback={null}>{children}</Suspense>
-          </CopiedItemProvider>
+          <Suspense fallback={null}>{children}</Suspense>
         </ThemeProvider>
       </body>
     </html>

@@ -5,6 +5,7 @@ import { Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Plus, Sword } from "lucide-react"
 import DraggableItemCard from "./draggable-item-card"
+import ItemCard from "./item-card"
 import ItemDialog from "./item-dialog"
 import { SelectionActionBar } from "./selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
@@ -29,10 +30,46 @@ interface ItemGridProps {
   selectionMode?: boolean
   /** Called when shift-click happens to enable selection mode. */
   onEnterSelectionMode?: () => void
+  /** Global collection item count (all boxes); used with itemCap to block New Item at limit. */
+  totalItemCount?: number
+  itemCap?: number | null
+  isPro?: boolean
+  /** Shown when user hits the free-tier item cap (new item, save, or paste — wired by parent). */
+  onCapReached?: () => void
+  /** Visual mode for item cards in this grid. */
+  variant?: "collection" | "wishlist"
+  /** Hide Add Item button, useful for read-only sub-sections. */
+  showAddButton?: boolean
+  /** Label for the add button (default "New Item"). */
+  addButtonLabel?: string
+  /** Initial type when opening the new-item dialog from a box (dashboard only; wishlist page ignores). */
+  defaultNewItemMode?: "collection" | "wishlist"
+  /** Empty-state text override. */
+  emptyText?: string
+  /** Wishlist-only action. */
+  onMarkAcquired?: (item: Item) => void
 }
 
-export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTitle, selectionProps, selectionMode, onEnterSelectionMode }: ItemGridProps) {
-  const { copied } = useCopiedItem()
+export default function ItemGrid({
+  items,
+  currentBoxId,
+  onItemUpdate,
+  sectionTitle,
+  selectionProps,
+  selectionMode,
+  onEnterSelectionMode,
+  totalItemCount,
+  itemCap = null,
+  isPro = true,
+  onCapReached,
+  variant = "collection",
+  showAddButton = true,
+  addButtonLabel = "New Item",
+  defaultNewItemMode = "collection",
+  emptyText = "No items yet. Click \"New Item\" to get started.",
+  onMarkAcquired,
+}: ItemGridProps) {
+  const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const internalMarquee = useMarqueeSelection()
 
   const selectedIds = selectionProps?.selectedIds ?? internalMarquee.selectedItemIds
@@ -43,12 +80,20 @@ export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTit
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [showItemDialog, setShowItemDialog] = useState(false)
   const [isNewItem, setIsNewItem] = useState(false)
-
   useEffect(() => {
     if (!selectionProps) setSelectedIds(new Set())
   }, [currentBoxId, setSelectedIds, selectionProps])
 
   const handleNewItem = () => {
+    const atCap =
+      !isPro &&
+      itemCap !== null &&
+      totalItemCount !== undefined &&
+      totalItemCount >= itemCap
+    if (atCap) {
+      onCapReached?.()
+      return
+    }
     setIsNewItem(true)
     setSelectedItem(null)
     setSelectedIds(new Set())
@@ -85,7 +130,7 @@ export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTit
   const addButton = (
     <Button onClick={handleNewItem}>
       <Plus className="h-4 w-4 mr-2" />
-      New Item
+      {addButtonLabel}
     </Button>
   )
 
@@ -99,32 +144,49 @@ export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTit
                 <Sword className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
                 {sectionTitle}
               </h2>
-              {addButton}
+              {showAddButton ? addButton : null}
             </>
           ) : (
-            addButton
+            showAddButton ? addButton : null
           )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
         {items.map((item) => (
-          <DraggableItemCard
-            key={item.id}
-            item={item}
-            selected={selectedIds.has(item.id)}
-            selectionMode={selectionMode ?? false}
-            onClick={handleItemClick}
-            registerCardRef={registerCardRef}
-          />
+          variant === "collection" ? (
+            <DraggableItemCard
+              key={item.id}
+              item={item}
+              selected={selectedIds.has(item.id)}
+              selectionMode={selectionMode ?? false}
+              onClick={handleItemClick}
+              registerCardRef={registerCardRef}
+            />
+          ) : (
+            <div key={item.id} ref={(el) => registerCardRef(item.id, el)} data-item-id={item.id}>
+              <ItemCard
+                item={item}
+                variant="wishlist"
+                selected={selectedIds.has(item.id)}
+                selectionMode={selectionMode ?? false}
+                onClick={handleItemClick}
+                onMarkAcquired={onMarkAcquired}
+              />
+            </div>
+          )
         ))}
         </div>
         {items.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
-            No items yet. Click &quot;New Item&quot; to get started.
+            {emptyText}
           </div>
         )}
       </div>
       {!selectionProps && <MarqueeOverlay />}
-      {!selectionProps && (selectedItems.length > 0 || (copied !== null && copied.length > 0)) && (
+      {variant === "collection" &&
+        !selectionProps &&
+        (selectedItems.length > 0 ||
+          !!copiedItemRefs?.itemIds?.length ||
+          !!copiedBoxRefs?.rootBoxIds?.length) && (
         <SelectionActionBar
           selectedItems={selectedItems}
           pasteTarget={{ boxId: currentBoxId, isWishlist: false }}
@@ -140,6 +202,9 @@ export default function ItemGrid({ items, currentBoxId, onItemUpdate, sectionTit
         isNew={isNewItem}
         boxId={currentBoxId}
         onSave={onItemUpdate}
+        isWishlist={false}
+        defaultNewItemMode={defaultNewItemMode}
+        onCapReached={onCapReached}
       />
     </>
   )

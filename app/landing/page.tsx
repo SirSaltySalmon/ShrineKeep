@@ -10,7 +10,7 @@ const GITHUB_REPO_URL = "https://github.com/SirSaltySalmon/ShrineKeep"
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen min-w-[360px] bg-background overflow-x-auto">
+    <div className="min-h-screen min-w-[360px] bg-background">
       {/* Navigation - container + fluid like rest of app */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
         <ScrollReveal delayMs={50} className="w-full">
@@ -44,7 +44,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section - container, responsive padding & typography */}
-      <main className="container mx-auto px-4 pt-20 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 layout-shrink-visible relative overflow-hidden">
+      <main className="container mx-auto px-4 pt-20 sm:pt-28 md:pt-32 pb-12 sm:pb-16 md:pb-20 relative overflow-hidden">
 
         {/* Motto: scales with viewport */}
         <div className="mb-8 sm:mb-12 md:mb-16">
@@ -172,7 +172,7 @@ export default function LandingPage() {
               </div>
               <div className="flex flex-col justify-center order-1 md:order-2">
                 <h2 className="text-fluid-xl sm:text-fluid-2xl font-semibold text-foreground">
-                  ShrineKeep is a free and open source web app to track your collections, items, and values. With beautiful custom exportable themes.
+                  ShrineKeep is a versatile webapp to track completion, values, and spending for any collection of items. With beautiful custom exportable themes.
                 </h2>
               </div>
             </div>

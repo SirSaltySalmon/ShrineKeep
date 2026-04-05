@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import AppNav from "@/components/app-nav"
+import { CopiedItemProvider } from "@/lib/copied-item-context"
 
 export default async function DashboardLayout({
   children,
@@ -35,7 +36,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-background">
       <AppNav name={displayName} />
-      {children}
+      <CopiedItemProvider>{children}</CopiedItemProvider>
     </div>
   )
 }

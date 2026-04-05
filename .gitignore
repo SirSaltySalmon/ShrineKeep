@@ -34,3 +34,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local AI / agent tooling (not committed)
+.agents/
+.claude/skills/
+skills-lock.json
+
+# local Stripe CLI binary (do not commit)
+stripe.exe
+
+# local editor config, QA output, empty skill stubs
+.claude/
+.gstack/

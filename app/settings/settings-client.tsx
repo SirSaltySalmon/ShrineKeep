@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import {
@@ -15,6 +15,7 @@ import { ThemeEditor } from "@/components/settings/theme-editor"
 import { OptionsSettings } from "@/components/settings/options-settings"
 import { PersonalSettings } from "@/components/settings/personal-settings"
 import TagSettings from "@/components/settings/tag-settings"
+import BillingSettings from "@/components/settings/billing-settings"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   getDefaultColorScheme,
@@ -30,6 +31,12 @@ import type { CSSProperties } from "react"
 import type { FontFamilyId } from "@/lib/fonts"
 import { UserSettings, Theme } from "@/lib/types"
 import { Upload } from "lucide-react"
+
+const SETTINGS_TABS = ["personal", "theme", "options", "tags", "billing"] as const
+
+function isSettingsTab(value: string | null): value is (typeof SETTINGS_TABS)[number] {
+  return value !== null && (SETTINGS_TABS as readonly string[]).includes(value)
+}
 
 export interface InitialProfile {
   displayName: string
@@ -48,6 +55,17 @@ interface SettingsClientProps {
 
 export default function SettingsClient({ initialSettings, initialProfile }: SettingsClientProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const tabFromUrl = searchParams.get("tab")
+  const [activeTab, setActiveTab] = useState<(typeof SETTINGS_TABS)[number]>(() =>
+    isSettingsTab(tabFromUrl) ? tabFromUrl : "personal"
+  )
+
+  useEffect(() => {
+    const t = searchParams.get("tab")
+    if (isSettingsTab(t)) setActiveTab(t)
+  }, [searchParams])
+
   const [theme, setTheme] = useState<Theme>(() => {
     const cs = initialSettings?.color_scheme as Theme | undefined
     if (!cs || typeof cs !== "object") return getDefaultColorScheme()
@@ -168,13 +186,22 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <h1 className="text-fluid-3xl font-bold mb-8">Settings</h1>
 
-        <Tabs defaultValue="personal" className="w-full">
-          <div className="overflow-x-auto -mx-4 px-4 mb-6">
-            <TabsList className="inline-flex w-auto min-w-full">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => {
+            const next = v as (typeof SETTINGS_TABS)[number]
+            setActiveTab(next)
+            router.replace(`/settings?tab=${next}`, { scroll: false })
+          }}
+          className="w-full"
+        >
+          <div className="mb-6 min-w-0">
+            <TabsList className="!grid w-full min-w-0 grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1 overflow-visible">
               <TabsTrigger value="personal" className="whitespace-nowrap shrink-0">Personal</TabsTrigger>
               <TabsTrigger value="theme" className="whitespace-nowrap shrink-0">Theme</TabsTrigger>
               <TabsTrigger value="options" className="whitespace-nowrap shrink-0">Options</TabsTrigger>
               <TabsTrigger value="tags" className="whitespace-nowrap shrink-0">Tags</TabsTrigger>
+              <TabsTrigger value="billing" className="whitespace-nowrap shrink-0">Billing</TabsTrigger>
             </TabsList>
           </div>
 
@@ -280,6 +307,10 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
 
           <TabsContent value="tags" className="mt-6 min-w-0">
             <TagSettings />
+          </TabsContent>
+
+          <TabsContent value="billing" className="mt-6 min-w-0">
+            <BillingSettings />
           </TabsContent>
         </Tabs>
       </div>

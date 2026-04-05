@@ -1,3 +1,40 @@
+## gstack
+
+Use the `/browse` skill from gstack for all web browsing tasks. **Never** use `mcp__claude-in-chrome__*` tools — they are slow and unreliable.
+
+Available gstack skills:
+
+- `/office-hours` — product ideas, brainstorming, "is this worth building"
+- `/plan-ceo-review` — scope, strategy, ambition review
+- `/plan-eng-review` — architecture and engineering review
+- `/plan-design-review` — design review of a plan
+- `/design-consultation` — design system, brand, visual identity
+- `/design-shotgun` — rapid design variants
+- `/design-html` — generate HTML/CSS designs
+- `/review` — code review, pre-landing diff review
+- `/ship` — ship, deploy, push, create a PR
+- `/land-and-deploy` — land and deploy a change
+- `/canary` — canary deploy
+- `/benchmark` — performance benchmarking
+- `/browse` — headless browser QA, web browsing, site testing
+- `/connect-chrome` — connect to headed Chrome
+- `/qa` — full QA testing of a site or feature
+- `/qa-only` — QA without shipping
+- `/design-review` — visual audit and design polish of a live site
+- `/setup-browser-cookies` — configure browser cookies for testing
+- `/setup-deploy` — configure deployment settings
+- `/retro` — weekly retro, what did we ship
+- `/investigate` — bugs, errors, broken behavior
+- `/document-release` — update docs after shipping
+- `/codex` — second opinion, adversarial code review
+- `/cso` — chief security officer review
+- `/autoplan` — run all reviews automatically
+- `/careful` — safety/careful mode
+- `/freeze` — restrict edits to a directory
+- `/guard` — guard mode
+- `/unfreeze` — lift freeze restrictions
+- `/gstack-upgrade` — upgrade gstack
+- `/learn` — log and retrieve project learnings
 
 ## Skill routing
 

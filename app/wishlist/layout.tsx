@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import AppNav from "@/components/app-nav"
+import { CopiedItemProvider } from "@/lib/copied-item-context"
 
 export default async function WishlistLayout({
   children,
@@ -21,7 +22,7 @@ export default async function WishlistLayout({
   // Skip authentication check for public wishlist routes
   if (isPublicWishlistRoute) {
     // Public route - no auth required, no AppNav
-    return <>{children}</>
+    return <CopiedItemProvider>{children}</CopiedItemProvider>
   }
 
   // Authenticated route - require auth and show AppNav
@@ -53,7 +54,7 @@ export default async function WishlistLayout({
   return (
     <div className="min-h-screen bg-background">
       <AppNav name={displayName} />
-      {children}
+      <CopiedItemProvider>{children}</CopiedItemProvider>
     </div>
   )
 }
