@@ -2,10 +2,8 @@
 
 import { useLayoutEffect } from "react"
 import { Item } from "@/lib/types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Image as ImageIcon } from "lucide-react"
-import ThumbnailImage from "@/components/thumbnail-image"
-import { formatCurrency } from "@/lib/utils"
+import { Sparkle } from "lucide-react"
+import ItemGrid from "@/components/item-grid"
 import { applyColorScheme, getDefaultColorScheme } from "@/lib/settings"
 import { Theme } from "@/lib/types"
 import { SiteLogo } from "@/components/site-logo"
@@ -78,66 +76,44 @@ export default function PublicWishlistClient({
   }, [applyColors, colorScheme, headerFontFamily, bodyFontFamily])
 
   const displayName = user.name || user.username || "User"
+  const pageTitle = `${displayName}'s Wishlist`
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background min-w-0 overflow-hidden">
       <header className="border-b min-w-0">
         <div className="container mx-auto px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6 min-w-0">
-          <SiteLogo
-            href="/landing"
-            className="shrink-0 hover:opacity-90"
-            iconClassName="h-8 w-8"
-            textClassName="text-fluid-base font-semibold"
-          />
-          <h1 className="text-fluid-2xl font-bold min-w-0 sm:text-right sm:max-w-xl sm:ml-auto truncate">
-            {displayName}&apos;s Wishlist
-          </h1>
+          <div className="flex flex-row gap-2 items-center">
+            <SiteLogo
+              href="/landing"
+              className="shrink-0 hover:opacity-90"
+              iconClassName="h-8 w-8"
+              textClassName="text-fluid-base font-semibold"
+            />
+            <a href="/landing">
+            <span className="text-fluid-sm text-muted-foreground sm:text-left sm:max-w-xl sm:ml-auto truncate min-w-0">
+              Want your own?
+            </span>
+            </a>
+          </div>
+          <h2 className="font-semibold text-foreground sm:text-right sm:max-w-xl sm:ml-auto truncate min-w-0">
+            {pageTitle}
+          </h2>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
-        {items.length === 0 ? (
-          <div className="text-center py-12 text-fluid-sm text-muted-foreground">
-            This wishlist is empty.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {items.map((item) => (
-              <Card key={item.id} className="overflow-hidden">
-                <div className="relative w-full h-48 bg-muted overflow-hidden">
-                  {item.thumbnail_url ? (
-                    <ThumbnailImage
-                      src={item.thumbnail_url}
-                      alt={item.name}
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <ImageIcon className="h-12 w-12 text-muted-foreground" />
-                    </div>
-                  )}
-                </div>
-                <CardHeader>
-                  <CardTitle className="text-fluid-lg">
-                    {item.name}
-                  </CardTitle>
-                  {item.description && (
-                    <CardDescription className="line-clamp-2">
-                      {item.description}
-                    </CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  {item.expected_price && (
-                    <div className="text-fluid-sm font-medium">
-                      Expected: {formatCurrency(item.expected_price)}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+      <main className="container mx-auto px-4 py-8 min-w-0 overflow-hidden layout-shrink-visible">
+        <h1 className="sr-only">{pageTitle}</h1>
+        <ItemGrid
+          items={items}
+          currentBoxId={null}
+          onItemUpdate={() => {}}
+          sectionTitle="Wishlist"
+          sectionIcon={Sparkle}
+          variant="wishlist"
+          readOnly
+          showAddButton={false}
+          emptyText="This wishlist is empty."
+        />
       </main>
     </div>
   )

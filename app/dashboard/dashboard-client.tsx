@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Plus, Search, Grid3x3, Trash2, Sword, Filter } from "lucide-react"
+import { Search, Trash2, Sword, Filter, Sparkle } from "lucide-react"
 import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { getItemDragId } from "@/components/draggable-item-card"
 import { getBoxDropId } from "@/components/droppable-box-card"
@@ -916,7 +916,7 @@ export default function DashboardClient({
                     <TabsList className="mb-4">
                       <TabsTrigger value="items">Items</TabsTrigger>
                       <TabsTrigger value="unacquired">
-                        Unacquired ({unacquiredItems.length} remaining)
+                        Wishlist ({unacquiredItems.length} remaining)
                       </TabsTrigger>
                     </TabsList>
                     <TabsContent value="items">
@@ -943,11 +943,12 @@ export default function DashboardClient({
                         items={unacquiredItems}
                         currentBoxId={currentBoxId}
                         onItemUpdate={refreshCurrentBoxData}
-                        sectionTitle="Unacquired"
+                        sectionTitle="Wishlist"
+                        sectionIcon={Sparkle}
                         variant="wishlist"
                         addButtonLabel="New Wishlist Item"
                         defaultNewItemMode="wishlist"
-                        emptyText='No unacquired items yet. Click "New Wishlist Item" to add one linked to this box.'
+                        emptyText='No wishlist items in this box yet. Click "New Wishlist Item" to add one linked to this box.'
                         selectionMode={selectionMode}
                         onEnterSelectionMode={() => setSelectionMode(true)}
                         selectionProps={{

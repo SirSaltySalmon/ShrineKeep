@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Item } from "@/lib/types"
 import { Button } from "@/components/ui/button"
-import { Plus, Sword } from "lucide-react"
+import { Plus, Sword, type LucideIcon } from "lucide-react"
 import DraggableItemCard from "./draggable-item-card"
 import ItemCard from "./item-card"
 import ItemDialog from "./item-dialog"
@@ -24,6 +24,8 @@ interface ItemGridProps {
   onItemUpdate: () => void
   /** When set, the section title and Add Item button are shown on one row (title left, button right). */
   sectionTitle?: string
+  /** Icon next to the section title (Lucide). Defaults to Sword. */
+  sectionIcon?: LucideIcon
   /** When provided, use these for selection (dashboard); otherwise use internal useMarqueeSelection (wishlist, search). */
   selectionProps?: ItemGridSelectionProps
   /** When true, click only toggles selection; when false, click opens dialog (shift-click still toggles). */
@@ -48,6 +50,10 @@ interface ItemGridProps {
   emptyText?: string
   /** Wishlist-only action. */
   onMarkAcquired?: (item: Item) => void
+  /** Main wishlist page: ItemDialog stays in locked wishlist mode (no collection toggle). */
+  wishlistDialogLocked?: boolean
+  /** Public shared view: no add, dialog, selection/marquee, or paste bar. */
+  readOnly?: boolean
 }
 
 export default function ItemGrid({
@@ -55,6 +61,7 @@ export default function ItemGrid({
   currentBoxId,
   onItemUpdate,
   sectionTitle,
+  sectionIcon: SectionIcon = Sword,
   selectionProps,
   selectionMode,
   onEnterSelectionMode,
@@ -68,6 +75,8 @@ export default function ItemGrid({
   defaultNewItemMode = "collection",
   emptyText = "No items yet. Click \"New Item\" to get started.",
   onMarkAcquired,
+  wishlistDialogLocked = false,
+  readOnly = false,
 }: ItemGridProps) {
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const internalMarquee = useMarqueeSelection()
@@ -81,8 +90,8 @@ export default function ItemGrid({
   const [showItemDialog, setShowItemDialog] = useState(false)
   const [isNewItem, setIsNewItem] = useState(false)
   useEffect(() => {
-    if (!selectionProps) setSelectedIds(new Set())
-  }, [currentBoxId, setSelectedIds, selectionProps])
+    if (!selectionProps && !readOnly) setSelectedIds(new Set())
+  }, [currentBoxId, setSelectedIds, selectionProps, readOnly])
 
   const handleNewItem = () => {
     const atCap =
@@ -101,6 +110,7 @@ export default function ItemGrid({
   }
 
   const handleItemClick = (item: Item, e: React.MouseEvent) => {
+    if (readOnly) return
     if (selectionMode) {
       setSelectedIds((prev) => {
         const next = new Set(prev)
@@ -134,6 +144,8 @@ export default function ItemGrid({
     </Button>
   )
 
+  const showAdd = showAddButton && !readOnly
+
   return (
     <>
       <div className="rounded-md border bg-light-muted p-4">
@@ -141,13 +153,13 @@ export default function ItemGrid({
           {sectionTitle ? (
             <>
               <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
-                <Sword className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
+                <SectionIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
                 {sectionTitle}
               </h2>
-              {showAddButton ? addButton : null}
+              {showAdd ? addButton : null}
             </>
           ) : (
-            showAddButton ? addButton : null
+            showAdd ? addButton : null
           )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
@@ -162,14 +174,19 @@ export default function ItemGrid({
               registerCardRef={registerCardRef}
             />
           ) : (
-            <div key={item.id} ref={(el) => registerCardRef(item.id, el)} data-item-id={item.id}>
+            <div
+              key={item.id}
+              ref={readOnly ? undefined : (el) => registerCardRef(item.id, el)}
+              data-item-id={item.id}
+            >
               <ItemCard
                 item={item}
                 variant="wishlist"
-                selected={selectedIds.has(item.id)}
-                selectionMode={selectionMode ?? false}
+                selected={readOnly ? false : selectedIds.has(item.id)}
+                selectionMode={readOnly ? false : (selectionMode ?? false)}
                 onClick={handleItemClick}
-                onMarkAcquired={onMarkAcquired}
+                onMarkAcquired={readOnly ? undefined : onMarkAcquired}
+                readOnly={readOnly}
               />
             </div>
           )
@@ -181,9 +198,10 @@ export default function ItemGrid({
           </div>
         )}
       </div>
-      {!selectionProps && <MarqueeOverlay />}
+      {!selectionProps && !readOnly && <MarqueeOverlay />}
       {variant === "collection" &&
         !selectionProps &&
+        !readOnly &&
         (selectedItems.length > 0 ||
           !!copiedItemRefs?.itemIds?.length ||
           !!copiedBoxRefs?.rootBoxIds?.length) && (
@@ -195,17 +213,19 @@ export default function ItemGrid({
           onClearSelection={() => setSelectedIds(new Set())}
         />
       )}
-      <ItemDialog
-        open={showItemDialog}
-        onOpenChange={setShowItemDialog}
-        item={selectedItem}
-        isNew={isNewItem}
-        boxId={currentBoxId}
-        onSave={onItemUpdate}
-        isWishlist={false}
-        defaultNewItemMode={defaultNewItemMode}
-        onCapReached={onCapReached}
-      />
+      {!readOnly && (
+        <ItemDialog
+          open={showItemDialog}
+          onOpenChange={setShowItemDialog}
+          item={selectedItem}
+          isNew={isNewItem}
+          boxId={currentBoxId}
+          onSave={onItemUpdate}
+          isWishlist={wishlistDialogLocked}
+          defaultNewItemMode={defaultNewItemMode}
+          onCapReached={onCapReached}
+        />
+      )}
     </>
   )
 }

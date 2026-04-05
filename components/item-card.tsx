@@ -1,9 +1,9 @@
 "use client"
 
 import { Item, type TagColor } from "@/lib/types"
-import { getTagChipStyle, formatCurrency, formatDate } from "@/lib/utils"
+import { cn, getTagChipStyle, formatCurrency, formatDate } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Selectable } from "@/components/selectable"
+import { Selectable, CARD_HOVER_MOTION_CLASS } from "@/components/selectable"
 import { Button } from "@/components/ui/button"
 import { Image as ImageIcon, Check } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
@@ -33,6 +33,8 @@ interface ItemCardProps {
   selectionMode?: boolean
   onClick: (item: Item, e: React.MouseEvent) => void
   onMarkAcquired?: (item: Item) => void
+  /** Shared / public view: no click affordance, dialog, or mark-acquired. */
+  readOnly?: boolean
 }
 
 export default function ItemCard({
@@ -42,14 +44,9 @@ export default function ItemCard({
   selectionMode = false,
   onClick,
   onMarkAcquired,
+  readOnly = false,
 }: ItemCardProps) {
-  return (
-    <Selectable
-      selected={selected}
-      selectionMode={selectionMode}
-      className="item-card-no-select"
-      onClick={(e) => onClick(item, e)}
-    >
+  const card = (
       <Card>
       <div className="relative w-full h-48 bg-muted rounded-t-lg overflow-hidden">
         {item.thumbnail_url ? (
@@ -128,6 +125,22 @@ export default function ItemCard({
         )}
       </CardContent>
     </Card>
+  )
+
+  if (readOnly) {
+    return (
+      <div className={cn(CARD_HOVER_MOTION_CLASS, "cursor-default")}>{card}</div>
+    )
+  }
+
+  return (
+    <Selectable
+      selected={selected}
+      selectionMode={selectionMode}
+      className="item-card-no-select"
+      onClick={(e) => onClick(item, e)}
+    >
+      {card}
     </Selectable>
   )
 }

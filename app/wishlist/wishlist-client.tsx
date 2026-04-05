@@ -1,19 +1,17 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Item } from "@/lib/types"
 import { normalizeItem } from "@/lib/utils"
 import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
 import { SelectionModeToggle } from "@/components/selection-mode-toggle"
 import { WishlistSharingPanel } from "@/components/wishlist-sharing-panel"
-import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
-import ItemCard from "@/components/item-card"
-import ItemDialog from "@/components/item-dialog"
+import ItemGrid from "@/components/item-grid"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
+import { Sparkle } from "lucide-react"
 
 interface WishlistClientProps {
   initialWishlistIsPublic: boolean
@@ -28,7 +26,6 @@ export default function WishlistClient({
 }: WishlistClientProps) {
   const supabase = createSupabaseClient()
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
-  const gridRef = useRef<HTMLDivElement>(null)
   const {
     selectedItemIds,
     setSelectedItemIds,
@@ -39,8 +36,6 @@ export default function WishlistClient({
   const [selectionMode, setSelectionMode] = useState(false)
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedItem, setSelectedItem] = useState<Item | null>(null)
-  const [showItemDialog, setShowItemDialog] = useState(false)
   const [itemToMark, setItemToMark] = useState<Item | null>(null)
   const [marking, setMarking] = useState(false)
   const [wishlistIsPublic, setWishlistIsPublic] = useState(initialWishlistIsPublic)
@@ -88,30 +83,6 @@ export default function WishlistClient({
     setItemToMark(item)
   }
 
-  const handleItemClick = (item: Item, e: React.MouseEvent) => {
-    if (selectionMode) {
-      setSelectedItemIds((prev) => {
-        const next = new Set(prev)
-        if (next.has(item.id)) next.delete(item.id)
-        else next.add(item.id)
-        return next
-      })
-      return
-    }
-    if (e.shiftKey) {
-      setSelectedItemIds((prev) => {
-        const next = new Set(prev)
-        if (next.has(item.id)) next.delete(item.id)
-        else next.add(item.id)
-        return next
-      })
-      return
-    }
-    setSelectedItemIds(new Set())
-    setSelectedItem(item)
-    setShowItemDialog(true)
-  }
-
   const selectedItems = items.filter((i) => selectedItemIds.has(i.id))
   const wishlistActionBarVisible =
     selectedItems.length > 0 ||
@@ -152,47 +123,30 @@ export default function WishlistClient({
 
   return (
     <div className="min-h-screen bg-background min-w-0 overflow-hidden">
-      <header className="border-b min-w-0 overflow-hidden">
-        <div className="container mx-auto px-4 py-4 min-w-0">
-          <h1 className="text-fluid-2xl font-bold truncate min-w-0">Wishlist</h1>
-        </div>
-      </header>
+      <main
+        className="container mx-auto px-4 py-8 min-w-0 overflow-hidden layout-shrink-visible"
+        onMouseDown={handleGridMouseDown}
+      >
+        <h1 className="sr-only">Wishlist</h1>
+        <ItemGrid
+          items={items}
+          currentBoxId={null}
+          onItemUpdate={loadWishlistItems}
+          sectionTitle="Wishlist"
+          sectionIcon={Sparkle}
+          addButtonLabel="Add to Wishlist"
+          variant="wishlist"
+          emptyText="Your wishlist is empty. Add items you want to acquire!"
+          onMarkAcquired={openMarkAsAcquired}
+          wishlistDialogLocked={true}
+          selectionMode={selectionMode}
+          selectionProps={{
+            selectedIds: selectedItemIds,
+            setSelectedIds: setSelectedItemIds,
+            registerCardRef: registerItemCardRef,
+          }}
+        />
 
-      <main className="container mx-auto px-4 py-8 min-w-0 overflow-hidden">
-        <div className="mb-4 min-w-0">
-          <Button onClick={() => {
-            setSelectedItem(null)
-            setShowItemDialog(true)
-          }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add to Wishlist
-          </Button>
-        </div>
-
-        <div
-          ref={gridRef}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative"
-          onMouseDown={handleGridMouseDown}
-        >
-          {items.map((item) => (
-            <div
-              key={item.id}
-              ref={(el) => registerItemCardRef(item.id, el)}
-              data-item-id={item.id}
-            >
-              <ItemCard
-                item={item}
-                variant="wishlist"
-                selected={selectedItemIds.has(item.id)}
-                selectionMode={selectionMode}
-                onClick={handleItemClick}
-                onMarkAcquired={openMarkAsAcquired}
-              />
-            </div>
-          ))}
-        </div>
-        <MarqueeOverlay />
-        
         <div className="mt-8 w-full flex justify-center">
           <WishlistSharingPanel
             layout="card"
@@ -231,22 +185,6 @@ export default function WishlistClient({
           itemCount={items.length}
         />
 
-        {items.length === 0 && (
-          <div className="text-center py-12 text-fluid-sm text-muted-foreground min-w-0">
-            Your wishlist is empty. Add items you want to acquire!
-          </div>
-        )}
-
-        <ItemDialog
-          open={showItemDialog}
-          onOpenChange={setShowItemDialog}
-          item={selectedItem}
-          isNew={!selectedItem}
-          boxId={null}
-          onSave={loadWishlistItems}
-          isWishlist={true}
-        />
-
         <MarkAcquiredDialog
           item={itemToMark}
           open={!!itemToMark}
@@ -254,6 +192,7 @@ export default function WishlistClient({
           onOpenChange={(open) => !open && setItemToMark(null)}
           onConfirm={handleMarkAsAcquiredConfirm}
         />
+        <MarqueeOverlay />
       </main>
     </div>
   )
