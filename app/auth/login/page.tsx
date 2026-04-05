@@ -132,6 +132,17 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
+          <p className="text-fluid-xs text-center text-muted-foreground">
+            By signing in, you agree to our{" "}
+            <Link href="/legal/terms" className="underline underline-offset-2 hover:no-underline">
+              Terms and Conditions
+            </Link>{" "}
+            and{" "}
+            <Link href="/legal/privacy" className="underline underline-offset-2 hover:no-underline">
+              Privacy Policy
+            </Link>
+            .
+          </p>
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />

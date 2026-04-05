@@ -213,6 +213,20 @@ export default function LandingPage() {
           </div>
         </ScrollReveal>
       </section>
+
+      <footer className="border-t border-border bg-background">
+        <div className="container mx-auto px-4 py-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-fluid-sm text-muted-foreground">
+          <p>© {new Date().getFullYear()} ShrineKeep</p>
+          <div className="flex items-center gap-4">
+            <Link href="/legal/privacy" className="hover:text-foreground transition-colors">
+              Privacy Policy
+            </Link>
+            <Link href="/legal/terms" className="hover:text-foreground transition-colors">
+              Terms and Conditions
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

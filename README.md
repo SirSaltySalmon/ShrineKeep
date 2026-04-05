@@ -186,6 +186,7 @@ ShrineKeep/
 - Public collections are viewable by friends
 - File uploads validated (type and size)
 - Authentication via Supabase Auth
+- **Moderation**: operator-only `POST /api/moderation/ban-user` (shared secret) cancels Pro in Stripe, emails the user, purges their storage prefixes, and deletes their Auth user. See [docs/moderation.md](docs/moderation.md).
 
 ## Contributing
 
