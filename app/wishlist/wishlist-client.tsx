@@ -6,9 +6,8 @@ import { Item } from "@/lib/types"
 import { normalizeItem } from "@/lib/utils"
 import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
 import { SelectionModeToggle } from "@/components/selection-mode-toggle"
+import { WishlistSharingPanel } from "@/components/wishlist-sharing-panel"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Plus } from "lucide-react"
 import ItemCard from "@/components/item-card"
 import ItemDialog from "@/components/item-dialog"
@@ -16,7 +15,17 @@ import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
 
-export default function WishlistClient() {
+interface WishlistClientProps {
+  initialWishlistIsPublic: boolean
+  initialWishlistShareToken: string | null
+  initialWishlistApplyColors: boolean
+}
+
+export default function WishlistClient({
+  initialWishlistIsPublic,
+  initialWishlistShareToken,
+  initialWishlistApplyColors,
+}: WishlistClientProps) {
   const supabase = createSupabaseClient()
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const gridRef = useRef<HTMLDivElement>(null)
@@ -34,10 +43,19 @@ export default function WishlistClient() {
   const [showItemDialog, setShowItemDialog] = useState(false)
   const [itemToMark, setItemToMark] = useState<Item | null>(null)
   const [marking, setMarking] = useState(false)
+  const [wishlistIsPublic, setWishlistIsPublic] = useState(initialWishlistIsPublic)
+  const [wishlistShareToken, setWishlistShareToken] = useState<string | null>(initialWishlistShareToken)
+  const [wishlistApplyColors, setWishlistApplyColors] = useState(initialWishlistApplyColors)
 
   useEffect(() => {
     loadWishlistItems()
   }, [])
+
+  useEffect(() => {
+    setWishlistIsPublic(initialWishlistIsPublic)
+    setWishlistShareToken(initialWishlistShareToken)
+    setWishlistApplyColors(initialWishlistApplyColors)
+  }, [initialWishlistIsPublic, initialWishlistShareToken, initialWishlistApplyColors])
 
   const loadWishlistItems = async () => {
     try {
@@ -174,6 +192,18 @@ export default function WishlistClient() {
           ))}
         </div>
         <MarqueeOverlay />
+        
+        <div className="mt-8 w-full flex justify-center">
+          <WishlistSharingPanel
+            layout="card"
+            wishlistIsPublic={wishlistIsPublic}
+            wishlistShareToken={wishlistShareToken}
+            wishlistApplyColors={wishlistApplyColors}
+            onPublicChange={setWishlistIsPublic}
+            onApplyColorsChange={setWishlistApplyColors}
+            onShareTokenChange={setWishlistShareToken}
+          />
+        </div>
 
         {wishlistActionBarVisible && (
           <SelectionActionBar

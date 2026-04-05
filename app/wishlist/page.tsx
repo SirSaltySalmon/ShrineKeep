@@ -12,5 +12,17 @@ export default async function WishlistPage() {
     redirect("/auth/login")
   }
 
-  return <WishlistClient />
+  const { data: settings } = await supabase
+    .from("user_settings")
+    .select("wishlist_is_public, wishlist_share_token, wishlist_apply_colors")
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  return (
+    <WishlistClient
+      initialWishlistIsPublic={settings?.wishlist_is_public ?? false}
+      initialWishlistShareToken={settings?.wishlist_share_token ?? null}
+      initialWishlistApplyColors={settings?.wishlist_apply_colors ?? false}
+    />
+  )
 }
