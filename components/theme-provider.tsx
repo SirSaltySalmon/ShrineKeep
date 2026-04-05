@@ -15,8 +15,10 @@ import type { FontFamilyId } from "@/lib/fonts"
 /** Auth and marketing pages: no account theme; reset document to built-in defaults. */
 function shouldResetDocumentToDefaults(pathname: string): boolean {
   if (!pathname) return false
+  if (pathname === "/") return true
   if (pathname.startsWith("/auth/")) return true
   if (pathname === "/landing" || pathname.startsWith("/landing/")) return true
+  if (pathname === "/legal" || pathname.startsWith("/legal/")) return true
   return false
 }
 
