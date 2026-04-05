@@ -1,8 +1,9 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { safePostLoginPath } from "@/lib/auth/safe-redirect"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,8 +12,10 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import TurnstileWidget, { type TurnstileWidgetRef } from "@/components/turnstile-widget"
 import { SiteLogoMark } from "@/components/site-logo"
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const nextPath = safePostLoginPath(searchParams.get("next"))
   const supabase = createSupabaseClient()
   const turnstileRef = useRef<TurnstileWidgetRef>(null)
   const [email, setEmail] = useState("")
@@ -46,7 +49,7 @@ export default function LoginPage() {
       turnstileRef.current?.reset()
       setLoading(false)
     } else {
-      router.push("/dashboard")
+      router.push(nextPath)
       router.refresh()
     }
   }
@@ -55,10 +58,13 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
+    const callback = new URL(`${window.location.origin}/auth/callback`)
+    callback.searchParams.set("next", nextPath)
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: callback.toString(),
       },
     })
 
@@ -189,5 +195,23 @@ export default function LoginPage() {
         </CardFooter>
       </Card>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4 dark:from-gray-900 dark:to-gray-800">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-center">Loading…</CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   )
 }

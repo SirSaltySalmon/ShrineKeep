@@ -1,67 +1,9 @@
-import { timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-export function getModerationSecret(): string | null {
-  const s = process.env.MODERATION_SECRET?.trim()
-  return s && s.length > 0 ? s : null
-}
-
-/** Constant-time compare for `?key=` on the moderation page (server-only). */
-export function isValidModerationPageKey(candidate: string | undefined | null): boolean {
-  const expected = getModerationSecret()
-  if (!expected || candidate == null) {
-    return false
-  }
-  if (candidate.length !== expected.length) {
-    return false
-  }
-  try {
-    return timingSafeEqual(Buffer.from(candidate, "utf8"), Buffer.from(expected, "utf8"))
-  } catch {
-    return false
-  }
-}
-
-export function authorizeModeration(request: NextRequest): boolean {
-  const expected = getModerationSecret()
-  if (!expected) {
-    return false
-  }
-
-  const authHeader = request.headers.get("authorization")
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice(7)
-    if (token.length !== expected.length) {
-      return false
-    }
-    try {
-      return timingSafeEqual(Buffer.from(token, "utf8"), Buffer.from(expected, "utf8"))
-    } catch {
-      return false
-    }
-  }
-
-  const headerSecret = request.headers.get("x-moderation-secret")
-  if (headerSecret != null) {
-    if (headerSecret.length !== expected.length) {
-      return false
-    }
-    try {
-      return timingSafeEqual(
-        Buffer.from(headerSecret, "utf8"),
-        Buffer.from(expected, "utf8")
-      )
-    } catch {
-      return false
-    }
-  }
-
-  return false
-}
-
 /**
- * Optional CORS for browser GUIs that call production from localhost.
+ * Optional CORS for browser tools calling moderation APIs from another origin.
+ * Requires `credentials: "include"` on fetch when using cookies across origins.
  * Set MODERATION_CORS_ORIGINS to a comma-separated list (e.g. http://localhost:3000).
  */
 function corsHeadersForRequest(request: NextRequest): Record<string, string> | null {
@@ -90,7 +32,8 @@ function corsHeadersForRequest(request: NextRequest): Record<string, string> | n
     "Access-Control-Allow-Origin": origin,
     Vary: "Origin",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-moderation-secret",
+    "Access-Control-Allow-Headers": "Content-Type, Cookie",
+    "Access-Control-Allow-Credentials": "true",
     "Access-Control-Max-Age": "86400",
   }
 }

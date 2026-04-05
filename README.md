@@ -19,9 +19,12 @@ A versatile utility webapp to track completion, values, and spending for any col
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14+ (React, TypeScript)
+- **Frontend**: Next.js 16 (React, TypeScript)
 - **Styling**: Tailwind CSS + shadcn/ui components
 - **Backend**: Supabase (PostgreSQL, Auth, Storage)
+- **CAPTCHA**: Cloudflare Turnstile
+- **Email**: Resend
+- **Billing**: Stripe
 - **Deployment**: Vercel (recommended)
 - **Charts**: Recharts
 - **Drag & Drop**: @dnd-kit
@@ -35,6 +38,9 @@ A versatile utility webapp to track completion, values, and spending for any col
 - Node.js 18+ and npm
 - A Supabase account (free tier works)
 - SerpAPI API key (optional, for image search)
+- Cloudflare Turnstile (optional)
+- Stripe (optional)
+- Resend (optional)
 
 ### Setup Instructions
 Detailed instructions available in SETUP.md
@@ -86,13 +92,20 @@ Detailed instructions available in SETUP.md
      ```
      SERPAPI_API_KEY=your_serpapi_api_key
      ```
+8. **Set up Stripe (Optional)**
+   - For implementing paid subscriptions.
+   - Detailed instructions will be written later. Fill out .env variables for Stripe if you can figure it out yourself.
 
-8. **Run the development server**
+9. **Set up Resend (Optional)**
+   - For sending emails and moderation.
+   - Detailed instructions will be written later. Fill out .env variables for Resend if you can figure it out yourself.
+
+10. **Run the development server**
    ```bash
    npm run dev
    ```
 
-9. **Open your browser**
+11. **Open your browser**
    - Navigate to [http://localhost:3000](http://localhost:3000)
 
 ## Deployment
@@ -116,39 +129,7 @@ Vercel will automatically:
 
 ### Environment Variables for Production
 
-Make sure to add all environment variables in your Vercel project settings:
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (optional, only if you need server-side admin access)
-- `SERPAPI_API_KEY` (optional, for image search; keep server-side)
-
-## Project Structure
-
-```
-ShrineKeep/
-├── app/                    # Next.js app directory
-│   ├── auth/              # Authentication pages
-│   ├── dashboard/         # Main dashboard
-│   ├── settings/           # Settings page
-│   └── wishlist/          # Wishlist page
-│       └── [token]/       # Public wishlist view
-├── components/            # React components
-│   ├── ui/               # shadcn/ui components
-│   ├── settings/         # Settings components
-│   ├── box-grid.tsx      # Box display component
-│   ├── item-grid.tsx     # Item display component
-│   ├── item-dialog.tsx   # Item create/edit dialog
-│   ├── theme-provider.tsx # Theme management
-│   └── value-graph.tsx   # Value tracking graph
-├── lib/                   # Utilities and helpers
-│   ├── supabase/         # Supabase client setup
-│   ├── types.ts          # TypeScript types
-│   ├── utils.ts          # Utility functions
-│   └── settings.ts       # Settings utilities
-├── supabase/             # Database schema
-│   └── schema.sql        # Complete database schema
-└── public/               # Static assets
-```
+Make sure to add all environment variables in your Vercel project settings. Refer to **.env.local.example**
 
 ## Key Features Implementation
 
@@ -162,11 +143,14 @@ ShrineKeep/
 - Track current value, acquisition price, and date
 - 4MB max photo size
 - Automatic value history tracking
+- Free 50 items for non-paying users. Pro users can have unlimited items
 
 ### Wishlists
 - Create wishlist items with expected prices
+- Wishlist items do not contribute to the free 50 items cap
 - One-click "Mark as Acquired" converts to regular item
 - Separate from regular collections
+- Associate with a box to designate it as part of a collection
 
 ### Value Tracking
 - Every value change is recorded with timestamp
@@ -180,13 +164,12 @@ ShrineKeep/
 - Images are referenced (not downloaded)
 
 ## Security
-
 - Row-Level Security (RLS) enabled on all tables
 - Users can only access their own data
 - Public collections are viewable by friends
 - File uploads validated (type and size)
 - Authentication via Supabase Auth
-- **Moderation**: operator-only `POST /api/moderation/ban-user` (shared secret) cancels Pro in Stripe, emails the user, purges their storage prefixes, and deletes their Auth user. `/moderation?key=<secret>` opens the lookup + ban GUI. See [docs/moderation.md](docs/moderation.md).
+- **Moderation**: accounts listed in `MODERATOR_EMAILS` can use `/moderation` and moderation APIs; the server verifies the Supabase session JWT (email cannot be spoofed by the client). Ban flow cancels Pro when applicable, emails the user, purges storage, and deletes the Auth user. See [docs/moderation.md](docs/moderation.md).
 
 ## Contributing
 

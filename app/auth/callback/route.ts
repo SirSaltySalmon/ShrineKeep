@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import type { CookieMethodsServer } from "@supabase/ssr"
+import { safePostLoginPath } from "@/lib/auth/safe-redirect"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
@@ -12,13 +13,14 @@ import type { NextRequest } from "next/server"
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get("code")
-  const redirectTo = new URL("/dashboard", request.url)
+  const afterLogin = safePostLoginPath(requestUrl.searchParams.get("next"))
+  const redirectTarget = new URL(afterLogin, requestUrl.origin)
 
   if (!code) {
     return NextResponse.redirect(new URL("/auth/login", request.url))
   }
 
-  const response = NextResponse.redirect(redirectTo)
+  const response = NextResponse.redirect(redirectTarget)
 
   const cookieMethods: CookieMethodsServer = {
     getAll() {

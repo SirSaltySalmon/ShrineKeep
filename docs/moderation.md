@@ -1,69 +1,70 @@
 # Moderation: ban user
 
-Server-only workflow to ban an account for terms violations: cancel Stripe Pro when applicable, email the user (including Pro cancellation wording when relevant), delete their objects in Supabase Storage, then delete the Auth user so PostgreSQL `ON DELETE CASCADE` removes all `public.*` data (including wishlist share tokens).
+Server workflow to ban an account for terms violations: cancel Stripe Pro when applicable, email the user (including Pro cancellation wording when relevant), delete their objects in Supabase Storage, then delete the Auth user so PostgreSQL `ON DELETE CASCADE` removes all `public.*` data (including wishlist share tokens).
 
-Treat `MODERATION_SECRET` like a root password: never commit it. The moderation UI requires it in the URL (see below), which can appear in browser history and access logs—use only on trusted networks.
+## Who can moderate
+
+Access is **not** a shared password in the URL. It requires:
+
+1. A normal **Supabase Auth session** (sign in with email/password or Google).
+2. An account whose **email** appears on the server allowlist **`MODERATOR_EMAILS`** (comma-separated, case-insensitive).
+
+The **page** (`/moderation`) and **APIs** (`/api/moderation/*`) both call `supabase.auth.getUser()`, which validates the session JWT server-side. The client cannot spoof the email; only Supabase-trusted session cookies count.
+
+If the allowlist is empty or unset, moderation APIs return `503` and the page explains that configuration is missing.
 
 ## Web GUI (`/moderation`)
 
-1. Open **`/moderation?key=<MODERATION_SECRET>`** (same value as your env secret). Use `encodeURIComponent(secret)` if the secret contains `&`, `?`, `#`, spaces, or non-ASCII characters. The server checks `key` with a constant-time compare; if it does not match, the page shows **Unauthorized.** If it matches, the form is shown and the moderation secret field is prefilled.
-2. Choose **API target**: same site, production, localhost, or a custom base URL; enter **Auth user UUID**; **Fetch user** to load email, username, and Pro status; check the confirmation box; **Ban user permanently**.
+1. Ensure **`MODERATOR_EMAILS`** includes your moderator account email(s) in the deployment’s environment.
+2. Open **`/moderation`**. If you are not signed in or your email is not on the list, you see **Unauthorized** and a **Sign in** link (`/auth/login?next=/moderation`).
+3. After signing in as a moderator, look up a user by **Auth UUID**, verify details, confirm, then **Ban user permanently**.
 
-The GUI sends the secret from your browser to the API you selected (visible in DevTools on that machine). Optional **Remember in this browser** writes the secret to `sessionStorage` when enabled; if you opened via `?key=…`, the field is already prefilled and `sessionStorage` is not used to restore a previous value on load.
+Lookup and ban requests use **`fetch` with `credentials: "include"`** so your session cookie is sent to the **same origin** as the app. Open the moderation UI on the environment you are acting on (e.g. production site for production bans).
 
-**Note:** Visiting `/moderation` without a correct `?key=` shows Unauthorized; refreshing without `key` in the URL also shows Unauthorized.
+## API endpoints
 
-**Cross-origin:** To use a local tab (`http://localhost:3000`) against **production** APIs, production must allow your origin, e.g. `MODERATION_CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000`. Same-origin use does not need CORS.
+Both require a **valid moderator session** (same rules as above).
 
-## Lookup endpoint
+### Lookup
 
 - **URL**: `POST /api/moderation/lookup-user`
-- **Auth**: Same headers as ban (`Authorization: Bearer` or `x-moderation-secret`).
 - **Body**: `{ "user_id": "<uuid>" }`
-- **Response**: Auth email, profile fields, and whether a Pro subscription row exists (for verification before ban).
+- **Response**: Auth email, profile fields, and whether a Pro subscription row exists.
 
-## Ban endpoint
+### Ban
 
 - **URL**: `POST /api/moderation/ban-user`
-- **Headers** (either):
-  - `Authorization: Bearer <MODERATION_SECRET>`
-  - `x-moderation-secret: <MODERATION_SECRET>`
-- **Body** (JSON):
-
-```json
-{ "user_id": "<uuid>" }
-```
+- **Body**: `{ "user_id": "<uuid>" }`
 
 ## Environment variables
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `MODERATION_SECRET` | Yes | Shared secret for the endpoint; use a long random string. |
+| `MODERATOR_EMAILS` | Yes | Comma-separated moderator emails (e.g. `you@domain.com,other@domain.com`). |
 | `RESEND_API_KEY` | Yes | Resend API key for ban notification email. |
-| `MODERATION_EMAIL_FROM` | Yes | Verified sender in Resend (e.g. `ShrineKeep <noreply@yourdomain.com>`). |
+| `MODERATION_EMAIL_FROM` | Yes | Verified sender in Resend. |
 | `NEXT_PUBLIC_APP_URL` | No | Used to derive the app name in the email (hostname); defaults to “ShrineKeep” if unset. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role (already required for server features). |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role for admin user lookup, storage delete, Auth delete. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL. |
-| `STRIPE_SECRET_KEY` | Yes | Required for the Stripe cancellation step (same as checkout/webhooks). |
-| `MODERATION_CORS_ORIGINS` | No | Comma-separated `Origin` values allowed for browser `fetch` to moderation APIs from another host (e.g. local GUI → production). |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | For session verification via `getUser()`. |
+| `STRIPE_SECRET_KEY` | Yes | Stripe cancellation (same as checkout/webhooks). |
+| `MODERATION_CORS_ORIGINS` | No | Rare: comma-separated origins if you must call moderation APIs from another origin with `credentials: "include"` (advanced). |
 
-Copy from [`.env.local.example`](../.env.local.example) and fill values locally; configure the same on your host (e.g. Vercel).
+Copy from [`.env.local.example`](../.env.local.example); set the same on production (e.g. Vercel).
 
-## Order of operations
+## Order of operations (ban)
 
-1. Load the Auth user by `user_id`; require a non-empty `email`.
-2. **Stripe** — Read `public.subscriptions` for that user. If `stripe_subscription_id` is set, retrieve the subscription and **immediately cancel** it when Stripe status is still billable (`active`, `trialing`, `past_due`, `unpaid`, `incomplete`, `paused`). If the subscription is already ended in Stripe, no API cancel call is needed. If Stripe returns an error, the handler stops **before** email, storage, or Auth delete.
-3. **Email** — Send the ban message via Resend. If the user had a `stripe_subscription_id` in the database (Pro record), the email adds a short paragraph that **an active Pro subscription has been cancelled** and they will not be charged again for Pro. If Resend fails, the handler stops **before** storage purge and Auth delete (the account and files remain; Stripe may already be canceled — resolve manually if needed).
-4. **Storage** — Remove all objects under `item-photos/{user_id}/items/` and `avatars/{user_id}/` (recursive listing). Supabase does not delete storage when DB rows are removed.
-5. **Auth** — `auth.admin.deleteUser(user_id)` so `public.users` and dependent rows (including `user_settings.wishlist_share_token`) cascade away. Public wishlist URLs then return 404.
+1. Load the target Auth user by `user_id`; require a non-empty `email`.
+2. **Stripe** — cancel billable subscription when `stripe_subscription_id` exists.
+3. **Email** — Resend ban message; optional Pro-cancellation paragraph when applicable.
+4. **Storage** — delete `item-photos/{user_id}/items/**` and `avatars/{user_id}/**`.
+5. **Auth** — `auth.admin.deleteUser` so DB cascades (including wishlist share token).
 
 ## Stripe webhooks after ban
 
-After Auth deletion, `public.subscriptions` is gone. Stripe may still send `customer.subscription.updated` / `deleted`. The webhook handler updates by `stripe_customer_id` or `stripe_subscription_id`; if no row matches, it logs and continues without failing the webhook. No change required for normal operation.
+After Auth deletion, `public.subscriptions` may be gone. Webhook handlers that update by Stripe ids may match zero rows; they log and continue.
 
-## Response shape
-
-Success (`200`):
+## Response shape (ban success)
 
 ```json
 {
@@ -74,22 +75,9 @@ Success (`200`):
 }
 ```
 
-Common errors: `401` wrong/missing secret, `400` bad `user_id` or user without email, `404` unknown user, `502` Stripe or Resend failure, `500` storage or Auth delete failure (response may include `partial` for manual follow-up).
-
-## Example (curl)
-
-```bash
-curl -sS -X POST "$NEXT_PUBLIC_APP_URL/api/moderation/ban-user" \
-  -H "Authorization: Bearer $MODERATION_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{"user_id":"00000000-0000-4000-8000-000000000000"}'
-```
-
 ## Data map checklist (extend when adding features)
 
-When you add user-owned data, update this list and the purge logic if needed.
-
-**PostgreSQL** — tables that reference `public.users(id)` with `ON DELETE CASCADE` in [supabase/schema.sql](../supabase/schema.sql): `users`, `boxes`, `items`, `tags`, `friendships`, `wish_lists`, `user_settings` (wishlist share token), `subscriptions`, plus dependent rows (`photos`, `item_tags`, `value_history`, `wish_list_items`) via FK chains.
+**PostgreSQL** — tables referencing `public.users(id)` with `ON DELETE CASCADE` in [supabase/schema.sql](../supabase/schema.sql): `users`, `boxes`, `items`, `tags`, `friendships`, `wish_lists`, `user_settings`, `subscriptions`, plus dependent rows via FK chains.
 
 **Storage**
 
@@ -98,8 +86,8 @@ When you add user-owned data, update this list and the purge logic if needed.
 
 **External**
 
-- **Stripe**: subscription canceled by moderation; optional future hardening: `customers.del` for GDPR-style cleanup in Stripe.
+- **Stripe**: subscription canceled by moderation.
 
 ## Resend
 
-Verify your sending domain in the Resend dashboard before production use. Ban emails will not deliver if `MODERATION_EMAIL_FROM` uses an unverified domain.
+Verify your sending domain in the Resend dashboard. Unverified `MODERATION_EMAIL_FROM` domains will not deliver.

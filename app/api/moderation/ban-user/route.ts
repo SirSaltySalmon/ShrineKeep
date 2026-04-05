@@ -1,13 +1,12 @@
 import type { NextRequest } from "next/server"
 import { cancelUserProSubscription } from "@/lib/moderation/cancel-user-subscription"
 import { deleteUserStorage } from "@/lib/moderation/delete-user-storage"
-import { sendBanEmail } from "@/lib/moderation/send-ban-email"
+import { requireModerator } from "@/lib/moderation/moderator-session"
 import {
-  authorizeModeration,
-  getModerationSecret,
   moderationJsonResponse,
   moderationOptionsResponse,
 } from "@/lib/moderation/request-auth"
+import { sendBanEmail } from "@/lib/moderation/send-ban-email"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 
 export const runtime = "nodejs"
@@ -21,22 +20,15 @@ export async function OPTIONS(request: NextRequest) {
 
 /**
  * POST /api/moderation/ban-user
- * Server-only. Cancels Pro in Stripe, sends ban email, purges storage, deletes Auth user (DB cascades).
+ * Requires signed-in user whose email is on MODERATOR_EMAILS (session verified server-side).
+ * Cancels Pro in Stripe, sends ban email, purges storage, deletes Auth user (DB cascades).
  *
- * Headers: Authorization: Bearer <MODERATION_SECRET> or x-moderation-secret: <MODERATION_SECRET>
  * Body: { "user_id": "<uuid>" }
  */
 export async function POST(request: NextRequest) {
-  if (!getModerationSecret()) {
-    return moderationJsonResponse(
-      request,
-      { error: "Moderation is not configured (MODERATION_SECRET missing)." },
-      503
-    )
-  }
-
-  if (!authorizeModeration(request)) {
-    return moderationJsonResponse(request, { error: "Unauthorized" }, 401)
+  const mod = await requireModerator(request)
+  if (!mod.ok) {
+    return mod.response
   }
 
   let body: unknown

@@ -1,11 +1,10 @@
 import type { NextRequest } from "next/server"
-import { createSupabaseServiceClient } from "@/lib/supabase/service"
+import { requireModerator } from "@/lib/moderation/moderator-session"
 import {
-  authorizeModeration,
-  getModerationSecret,
   moderationJsonResponse,
   moderationOptionsResponse,
 } from "@/lib/moderation/request-auth"
+import { createSupabaseServiceClient } from "@/lib/supabase/service"
 
 export const runtime = "nodejs"
 
@@ -18,19 +17,12 @@ export async function OPTIONS(request: NextRequest) {
 
 /**
  * POST /api/moderation/lookup-user
- * Same auth as ban-user. Returns auth + profile fields for operator verification.
+ * Requires signed-in user whose email is on MODERATOR_EMAILS. Returns auth + profile for verification.
  */
 export async function POST(request: NextRequest) {
-  if (!getModerationSecret()) {
-    return moderationJsonResponse(
-      request,
-      { error: "Moderation is not configured (MODERATION_SECRET missing)." },
-      503
-    )
-  }
-
-  if (!authorizeModeration(request)) {
-    return moderationJsonResponse(request, { error: "Unauthorized" }, 401)
+  const mod = await requireModerator(request)
+  if (!mod.ok) {
+    return mod.response
   }
 
   let body: unknown

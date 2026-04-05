@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -12,16 +12,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-
-const SECRET_STORAGE_KEY = "shrinekeep_moderation_secret"
 
 type LookupUser = {
   id: string
@@ -36,39 +27,12 @@ type LookupUser = {
   subscription_status: string | null
 }
 
-type ApiTarget = "same" | "production" | "local" | "custom"
-
-function resolveApiBase(target: ApiTarget, customUrl: string): string {
-  if (target === "same") {
-    return ""
-  }
-  if (target === "production") {
-    return "https://www.shrinekeep.com"
-  }
-  if (target === "local") {
-    return "http://localhost:3000"
-  }
-  const u = customUrl.trim().replace(/\/$/, "")
-  return u
+const fetchOpts: RequestInit = {
+  credentials: "include",
+  headers: { "Content-Type": "application/json" },
 }
 
-function apiUrl(base: string, path: string): string {
-  if (!base) {
-    return path
-  }
-  return `${base}${path}`
-}
-
-type ModerationClientProps = {
-  /** Prefilled from a validated `?key=` query (same value as `MODERATION_SECRET`). */
-  initialSecret: string
-}
-
-export function ModerationClient({ initialSecret }: ModerationClientProps) {
-  const [apiTarget, setApiTarget] = useState<ApiTarget>("same")
-  const [customBaseUrl, setCustomBaseUrl] = useState("")
-  const [secret, setSecret] = useState(initialSecret)
-  const [rememberSecret, setRememberSecret] = useState(false)
+export function ModerationClient() {
   const [userId, setUserId] = useState("")
   const [user, setUser] = useState<LookupUser | null>(null)
   const [lookupError, setLookupError] = useState<string | null>(null)
@@ -77,51 +41,11 @@ export function ModerationClient({ initialSecret }: ModerationClientProps) {
   const [banLoading, setBanLoading] = useState(false)
   const [banMessage, setBanMessage] = useState<string | null>(null)
   const [banError, setBanError] = useState<string | null>(null)
-  /** Set after mount so SSR and first client paint match (avoids reading `window` during SSR). */
   const [clientOrigin, setClientOrigin] = useState<string | null>(null)
-
-  const apiBase = useMemo(
-    () => resolveApiBase(apiTarget, customBaseUrl),
-    [apiTarget, customBaseUrl]
-  )
 
   useEffect(() => {
     setClientOrigin(window.location.origin)
   }, [])
-
-  useEffect(() => {
-    if (initialSecret) {
-      return
-    }
-    try {
-      const stored = sessionStorage.getItem(SECRET_STORAGE_KEY)
-      if (stored) {
-        setSecret(stored)
-        setRememberSecret(true)
-      }
-    } catch {
-      /* private mode */
-    }
-  }, [initialSecret])
-
-  useEffect(() => {
-    try {
-      if (rememberSecret && secret) {
-        sessionStorage.setItem(SECRET_STORAGE_KEY, secret)
-      } else {
-        sessionStorage.removeItem(SECRET_STORAGE_KEY)
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [rememberSecret, secret])
-
-  const authHeaders = useCallback(() => {
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${secret.trim()}`,
-    } as Record<string, string>
-  }, [secret])
 
   const runLookup = async () => {
     setLookupError(null)
@@ -135,22 +59,22 @@ export function ModerationClient({ initialSecret }: ModerationClientProps) {
       setLookupError("Enter a user UUID.")
       return
     }
-    if (!secret.trim()) {
-      setLookupError("Enter your moderation secret.")
-      return
-    }
 
     setLookupLoading(true)
     try {
-      const res = await fetch(apiUrl(apiBase, "/api/moderation/lookup-user"), {
+      const res = await fetch("/api/moderation/lookup-user", {
+        ...fetchOpts,
         method: "POST",
-        headers: authHeaders(),
         body: JSON.stringify({ user_id: trimmed }),
       })
       const data = (await res.json()) as { error?: string; user?: LookupUser }
 
       if (!res.ok) {
-        setLookupError(data.error ?? `Request failed (${res.status})`)
+        if (res.status === 401 || res.status === 403) {
+          setLookupError(data.error ?? "Session expired or not a moderator. Refresh and sign in again.")
+        } else {
+          setLookupError(data.error ?? `Request failed (${res.status})`)
+        }
         return
       }
       if (!data.user) {
@@ -161,7 +85,7 @@ export function ModerationClient({ initialSecret }: ModerationClientProps) {
     } catch (e) {
       const msg =
         e instanceof TypeError && e.message === "Failed to fetch"
-          ? "Network error. If this is a different host than the page you are on, set MODERATION_CORS_ORIGINS on the API server (see docs/moderation.md)."
+          ? "Network error."
           : e instanceof Error
             ? e.message
             : "Lookup failed."
@@ -180,16 +104,12 @@ export function ModerationClient({ initialSecret }: ModerationClientProps) {
       setBanError("Confirm that you have verified this is the correct user.")
       return
     }
-    if (!secret.trim()) {
-      setBanError("Enter your moderation secret.")
-      return
-    }
 
     setBanLoading(true)
     try {
-      const res = await fetch(apiUrl(apiBase, "/api/moderation/ban-user"), {
+      const res = await fetch("/api/moderation/ban-user", {
+        ...fetchOpts,
         method: "POST",
-        headers: authHeaders(),
         body: JSON.stringify({ user_id: user.id }),
       })
       const data = (await res.json()) as {
@@ -201,7 +121,11 @@ export function ModerationClient({ initialSecret }: ModerationClientProps) {
       }
 
       if (!res.ok) {
-        setBanError(data.error ?? `Ban failed (${res.status})`)
+        if (res.status === 401 || res.status === 403) {
+          setBanError(data.error ?? "Session expired or not a moderator. Refresh and sign in again.")
+        } else {
+          setBanError(data.error ?? `Ban failed (${res.status})`)
+        }
         return
       }
 
@@ -217,7 +141,7 @@ export function ModerationClient({ initialSecret }: ModerationClientProps) {
     } catch (e) {
       const msg =
         e instanceof TypeError && e.message === "Failed to fetch"
-          ? "Network error. Check CORS settings if calling another host."
+          ? "Network error."
           : e instanceof Error
             ? e.message
             : "Ban failed."
@@ -232,79 +156,16 @@ export function ModerationClient({ initialSecret }: ModerationClientProps) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Moderation</h1>
         <p className="text-muted-foreground mt-1 text-sm">
-          Look up a user by Supabase Auth user id (UUID), verify their details, then ban. This uses
-          the same server routes as programmatic moderation. Your moderation secret was loaded from
-          your authorized link; bookmark that URL if you need to return—opening{" "}
-          <code className="text-foreground rounded bg-muted px-1 py-0.5 text-xs">/moderation</code>{" "}
-          without{" "}
-          <code className="text-foreground rounded bg-muted px-1 py-0.5 text-xs">?key=…</code> will
-          not work.
+          Signed in as a moderator on{" "}
+          <span className="text-foreground font-mono text-xs">
+            {clientOrigin ?? "—"}
+          </span>
+          . Look up a user by Supabase Auth user id (UUID), verify their details, then ban. Requests
+          use your session cookie; the server checks your email against{" "}
+          <code className="text-foreground rounded bg-muted px-1 py-0.5 text-xs">MODERATOR_EMAILS</code>
+          .
         </p>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>API target</CardTitle>
-          <CardDescription>
-            Choose which deployment receives lookup and ban requests. Use &quot;This site&quot; when
-            this tab is already on the environment you are moderating.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="api-target">Environment</Label>
-            <Select
-              value={apiTarget}
-              onValueChange={(v) => setApiTarget(v as ApiTarget)}
-            >
-              <SelectTrigger id="api-target">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="same">This site (same origin)</SelectItem>
-                <SelectItem value="production">Production (www.shrinekeep.com)</SelectItem>
-                <SelectItem value="local">Local (localhost:3000)</SelectItem>
-                <SelectItem value="custom">Custom base URL</SelectItem>
-              </SelectContent>
-            </Select>
-            {apiTarget === "custom" && (
-              <Input
-                placeholder="https://example.com"
-                value={customBaseUrl}
-                onChange={(e) => setCustomBaseUrl(e.target.value)}
-                className="mt-2"
-              />
-            )}
-            <p className="text-muted-foreground text-xs">
-              Active base:{" "}
-              <span className="font-mono text-foreground">
-                {apiBase || clientOrigin || "—"}
-              </span>
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="mod-secret">Moderation secret</Label>
-            <Input
-              id="mod-secret"
-              type="password"
-              autoComplete="off"
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              placeholder="MODERATION_SECRET"
-            />
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={rememberSecret}
-                onChange={(e) => setRememberSecret(e.target.checked)}
-                className="border-input h-4 w-4 rounded"
-              />
-              Remember in this browser (sessionStorage only)
-            </label>
-          </div>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
