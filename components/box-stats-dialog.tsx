@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Skeleton } from "boneyard-js/react"
 import { Loader2 } from "lucide-react"
 import {
   Dialog,
@@ -58,7 +59,45 @@ export default function BoxStatsDialog({
           </DialogDescription>
         </DialogHeader>
         {loading ? (
-          <div className="py-8 text-center text-fluid-sm text-muted-foreground">Loading...</div>
+          <Skeleton
+            name="box-stats-dialog"
+            loading
+            animate="shimmer"
+            color="hsl(var(--muted))"
+            darkColor="hsl(var(--muted))"
+            fallback={
+              <div className="space-y-6 py-4 animate-pulse">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="h-20 rounded-md bg-muted" />
+                  <div className="h-20 rounded-md bg-muted" />
+                  <div className="h-20 rounded-md bg-muted" />
+                </div>
+                <div className="h-12 rounded-md bg-muted" />
+                <div className="h-[260px] rounded-md bg-muted" />
+              </div>
+            }
+            fixture={
+              <div className="space-y-6 py-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="h-20 rounded-md bg-muted" />
+                  <div className="h-20 rounded-md bg-muted" />
+                  <div className="h-20 rounded-md bg-muted" />
+                </div>
+                <div className="h-12 rounded-md bg-muted" />
+                <div className="h-[260px] rounded-md bg-muted" />
+              </div>
+            }
+          >
+            <div className="space-y-6 py-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="h-20 rounded-md bg-muted" />
+                <div className="h-20 rounded-md bg-muted" />
+                <div className="h-20 rounded-md bg-muted" />
+              </div>
+              <div className="h-12 rounded-md bg-muted" />
+              <div className="h-[260px] rounded-md bg-muted" />
+            </div>
+          </Skeleton>
         ) : (
           <div className="space-y-6 py-4">
             <BoxStatsSummary

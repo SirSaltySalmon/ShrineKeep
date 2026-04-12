@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { Skeleton } from "boneyard-js/react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { ValueHistory } from "@/lib/types"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts"
@@ -30,9 +31,15 @@ interface ValueGraphProps {
   itemId: string
   acquisitionDate?: string | null
   currentValue?: string
+  forceLoading?: boolean
 }
 
-export default function ValueGraph({ itemId, acquisitionDate, currentValue }: ValueGraphProps) {
+export default function ValueGraph({
+  itemId,
+  acquisitionDate,
+  currentValue,
+  forceLoading = false,
+}: ValueGraphProps) {
   const supabase = createSupabaseClient()
   const [history, setHistory] = useState<ValueHistory[]>([])
   const [loading, setLoading] = useState(true)
@@ -116,8 +123,45 @@ export default function ValueGraph({ itemId, acquisitionDate, currentValue }: Va
     }
   }
 
-  if (loading) {
-    return <div>Loading graph...</div>
+  if (loading || forceLoading) {
+    return (
+      <Skeleton
+        name="value-graph"
+        loading
+        animate="shimmer"
+        color="hsl(var(--muted))"
+        darkColor="hsl(var(--muted))"
+        fallback={
+          <div className="space-y-4 animate-pulse">
+            <div className="h-8 w-40 rounded-md bg-muted" />
+            <div className="h-[300px] rounded-md bg-muted" />
+            <div className="space-y-2">
+              <div className="h-16 rounded-md bg-muted" />
+              <div className="h-16 rounded-md bg-muted" />
+            </div>
+          </div>
+        }
+        fixture={
+          <div className="space-y-4">
+            <div className="h-8 w-40 rounded-md bg-muted" />
+            <div className="h-[300px] rounded-md bg-muted" />
+            <div className="space-y-2">
+              <div className="h-16 rounded-md bg-muted" />
+              <div className="h-16 rounded-md bg-muted" />
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="h-8 w-40 rounded-md bg-muted" />
+          <div className="h-[300px] rounded-md bg-muted" />
+          <div className="space-y-2">
+            <div className="h-16 rounded-md bg-muted" />
+            <div className="h-16 rounded-md bg-muted" />
+          </div>
+        </div>
+      </Skeleton>
+    )
   }
 
   if (history.length === 0) {

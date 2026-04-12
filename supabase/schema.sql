@@ -123,6 +123,7 @@ CREATE TABLE IF NOT EXISTS public.user_settings (
   wishlist_share_token TEXT UNIQUE,
   wishlist_apply_colors BOOLEAN DEFAULT false NOT NULL,
   use_custom_display_name BOOLEAN DEFAULT true NOT NULL,
+  dashboard_demo_prompt_dismissed BOOLEAN DEFAULT false NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
@@ -472,6 +473,8 @@ BEGIN
       'user_' || substr(NEW.id::text, 1, 8)
     )
   );
+  INSERT INTO public.user_settings (user_id)
+  VALUES (NEW.id);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

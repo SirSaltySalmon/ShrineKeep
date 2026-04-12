@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
+import { Skeleton } from "boneyard-js/react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Item, Tag } from "@/lib/types"
 import {
@@ -23,6 +24,7 @@ import { useCopiedItem } from "@/lib/copied-item-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ArrowLeft, ChevronLeft, ChevronRight, Filter, X } from "lucide-react"
+import { COLLECTION_ITEM_SKELETON_FIXTURES } from "@/components/boneyard-fixtures"
 
 const PER_PAGE = 10
 
@@ -379,7 +381,41 @@ export default function SearchResultsClient({
               : `${totalItems} item${totalItems === 1 ? "" : "s"} found`}
       </p>
       {loading ? (
-        <div className="text-center py-12 text-fluid-sm text-muted-foreground min-w-0">Loading...</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+          {COLLECTION_ITEM_SKELETON_FIXTURES.map((item) => (
+            <Skeleton
+              key={item.id}
+              name="search-results-card"
+              loading
+              animate="shimmer"
+              color="hsl(var(--muted))"
+              darkColor="hsl(var(--muted))"
+              fallback={
+                <div className="rounded-lg border bg-card overflow-hidden animate-pulse">
+                  <div className="h-48 bg-muted" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-5 w-2/3 rounded-md bg-muted" />
+                    <div className="h-4 w-5/6 rounded-md bg-muted" />
+                    <div className="h-4 w-1/2 rounded-md bg-muted" />
+                  </div>
+                </div>
+              }
+              fixture={
+                <ItemCard
+                  item={item}
+                  variant="collection"
+                  onClick={() => {}}
+                />
+              }
+            >
+              <ItemCard
+                item={item}
+                variant="collection"
+                onClick={() => {}}
+              />
+            </Skeleton>
+          ))}
+        </div>
       ) : items.length === 0 ? (
         <div className="text-center py-12 text-fluid-sm text-muted-foreground min-w-0">No items match your search.</div>
       ) : (

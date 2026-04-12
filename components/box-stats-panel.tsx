@@ -1,21 +1,29 @@
 "use client"
 
 import { useState } from "react"
+import { Skeleton } from "boneyard-js/react"
+import panelBones from "@/app/bones/box-stats-panel.bones.json"
 import { Button } from "@/components/ui/button"
 import { ChevronDown, ChevronUp, Loader2 } from "lucide-react"
 import { useBoxStats } from "@/lib/hooks/use-box-stats"
 import { BoxStatsSummary, BoxStatsCharts } from "@/components/box-stats-content"
 import { DateRangeFilter } from "@/components/date-range-filter"
-import { Skeleton } from "boneyard-js/react"
 
 interface BoxStatsPanelProps {
   boxId: string
   boxName: string
   refreshKey?: number
   graphOverlay?: boolean
+  forceLoading?: boolean
 }
 
-export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0, graphOverlay = true }: BoxStatsPanelProps) {
+export default function BoxStatsPanel({
+  boxId,
+  boxName,
+  refreshKey = 0,
+  graphOverlay = true,
+  forceLoading = false,
+}: BoxStatsPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
@@ -34,73 +42,134 @@ export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0, graphOve
     toDate: toDate || undefined,
   })
 
-  return (
-    <Skeleton name="box-stats-panel" loading={loading} transition={true}>
-      <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
-        <div className="p-4 layout-shrink-visible">
-          <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
-              <BoxStatsSummary
-                currentValue={currentValue}
-                totalAcquisition={totalAcquisition}
-                profit={profit}
-                variant="inline"
-              />
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setExpanded((e) => !e)}
-              className="shrink-0"
-            >
-              {expanded ? (
-                <>
-                  <ChevronUp className="h-4 w-4 mr-1" />
-                  Collapse
-                </>
-              ) : (
-                <>
+  if (loading || forceLoading) {
+    return (
+      <Skeleton
+        name="box-stats-panel"
+        initialBones={panelBones as any}
+        loading={loading || forceLoading}
+        animate="shimmer"
+        color="hsl(var(--muted))"
+        darkColor="hsl(var(--muted))"
+        fallback={
+          <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
+            <div className="p-4 layout-shrink-visible animate-pulse">
+              <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
+                <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
+                  <div className="h-6 w-28 rounded-md bg-muted" />
+                  <div className="h-6 w-28 rounded-md bg-muted" />
+                  <div className="h-6 w-24 rounded-md bg-muted" />
+                </div>
+                <Button variant="ghost" size="sm" className="shrink-0">
                   <ChevronDown className="h-4 w-4 mr-1" />
                   Expand
-                </>
-              )}
-            </Button>
+                </Button>
+              </div>
+            </div>
+          </div>
+        }
+        fixture={
+          <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
+            <div className="p-4 layout-shrink-visible">
+              <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
+                <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
+                  <div className="h-6 w-28 rounded-md bg-muted" />
+                  <div className="h-6 w-28 rounded-md bg-muted" />
+                  <div className="h-6 w-24 rounded-md bg-muted" />
+                </div>
+                <Button variant="ghost" size="sm" className="shrink-0">
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  Expand
+                </Button>
+              </div>
+            </div>
+          </div>
+        }
+      >
+        <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
+          <div className="p-4 layout-shrink-visible">
+            <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
+                <div className="h-6 w-28 rounded-md bg-muted" />
+                <div className="h-6 w-28 rounded-md bg-muted" />
+                <div className="h-6 w-24 rounded-md bg-muted" />
+              </div>
+              <Button variant="ghost" size="sm" className="shrink-0">
+                <ChevronDown className="h-4 w-4 mr-1" />
+                Expand
+              </Button>
+            </div>
           </div>
         </div>
+      </Skeleton>
+    )
+  }
 
-        {expanded && (
-          <div className="border-t bg-light-muted px-4 py-4 space-y-4">
-            <DateRangeFilter
-              fromDate={fromDate}
-              toDate={toDate}
-              onApplyRange={(from, to) => {
-                setFromDate(from)
-                setToDate(to)
-              }}
-              onReset={() => {
-                setFromDate("")
-                setToDate("")
-              }}
-            />
-            {isRefreshing && (
-              <p
-                className="flex items-center gap-2 text-fluid-xs text-muted-foreground min-h-[1.25rem]"
-                aria-live="polite"
-              >
-                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
-                Updating…
-              </p>
-            )}
-            <BoxStatsCharts
-              valueChartData={valueChartData}
-              acquisitionChartData={acquisitionChartData}
-              graphOverlay={graphOverlay}
-              fromDate={fromDate || undefined}
-              toDate={toDate || undefined}
+  return (
+    <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
+      <div className="p-4 layout-shrink-visible">
+        <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
+            <BoxStatsSummary
+              currentValue={currentValue}
+              totalAcquisition={totalAcquisition}
+              profit={profit}
+              variant="inline"
             />
           </div>
-        )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setExpanded((e) => !e)}
+            className="shrink-0"
+          >
+            {expanded ? (
+              <>
+                <ChevronUp className="h-4 w-4 mr-1" />
+                Collapse
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4 mr-1" />
+                Expand
+              </>
+            )}
+          </Button>
+        </div>
       </div>
-    </Skeleton>
+
+      {expanded && (
+        <div className="border-t bg-light-muted px-4 py-4 space-y-4">
+          <DateRangeFilter
+            fromDate={fromDate}
+            toDate={toDate}
+            onApplyRange={(from, to) => {
+              setFromDate(from)
+              setToDate(to)
+            }}
+            onReset={() => {
+              setFromDate("")
+              setToDate("")
+            }}
+          />
+          {isRefreshing && (
+            <p
+              className="flex items-center gap-2 text-fluid-xs text-muted-foreground min-h-[1.25rem]"
+              aria-live="polite"
+            >
+              <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+              Updating…
+            </p>
+          )}
+          <BoxStatsCharts
+            valueChartData={valueChartData}
+            acquisitionChartData={acquisitionChartData}
+            graphOverlay={graphOverlay}
+            fromDate={fromDate || undefined}
+            toDate={toDate || undefined}
+          />
+        </div>
+      )}
+    </div>
   )
 }

@@ -22,7 +22,7 @@ import { GeistMono } from "geist/font/mono"
 import { cn } from "@/lib/utils"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import "@/bones/registry"
+import BoneyardRegistryLoader from "@/components/boneyard-registry-loader"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const geistSans = GeistSans
@@ -81,6 +81,7 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
+          <BoneyardRegistryLoader />
           <Suspense fallback={null}>{children}</Suspense>
         </ThemeProvider>
       </body>

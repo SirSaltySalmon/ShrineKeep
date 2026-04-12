@@ -1,7 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, type ReactNode } from "react"
+import Link from "next/link"
 import { Item } from "@/lib/types"
+import { Skeleton } from "boneyard-js/react"
 import { Button } from "@/components/ui/button"
 import { Plus, Sword, type LucideIcon } from "lucide-react"
 import DraggableItemCard from "./draggable-item-card"
@@ -10,7 +12,10 @@ import ItemDialog from "./item-dialog"
 import { SelectionActionBar } from "./selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
-import { Skeleton } from "boneyard-js/react"
+import {
+  COLLECTION_ITEM_SKELETON_FIXTURES,
+  WISHLIST_ITEM_SKELETON_FIXTURES,
+} from "@/components/boneyard-fixtures"
 
 /** When provided (e.g. by dashboard), selection is controlled by parent; otherwise ItemGrid uses internal marquee selection. */
 export interface ItemGridSelectionProps {
@@ -21,12 +26,15 @@ export interface ItemGridSelectionProps {
 
 interface ItemGridProps {
   items: Item[]
+  loading?: boolean
   currentBoxId: string | null
   onItemUpdate: () => void
   /** When set, the section title and Add Item button are shown on one row (title left, button right). */
   sectionTitle?: string
   /** Icon next to the section title (Lucide). Defaults to Sword. */
   sectionIcon?: LucideIcon
+  /** Optional custom header content to render in place of the section title (e.g. tabs). */
+  headerContent?: ReactNode
   /** When provided, use these for selection (dashboard); otherwise use internal useMarqueeSelection (wishlist, search). */
   selectionProps?: ItemGridSelectionProps
   /** When true, click only toggles selection; when false, click opens dialog (shift-click still toggles). */
@@ -55,16 +63,16 @@ interface ItemGridProps {
   wishlistDialogLocked?: boolean
   /** Public shared view: no add, dialog, selection/marquee, or paste bar. */
   readOnly?: boolean
-  /** Show boneyard skeleton overlay while data is loading. */
-  loading?: boolean
 }
 
 export default function ItemGrid({
   items,
+  loading = false,
   currentBoxId,
   onItemUpdate,
   sectionTitle,
   sectionIcon: SectionIcon = Sword,
+  headerContent,
   selectionProps,
   selectionMode,
   onEnterSelectionMode,
@@ -80,7 +88,6 @@ export default function ItemGrid({
   onMarkAcquired,
   wishlistDialogLocked = false,
   readOnly = false,
-  loading = false,
 }: ItemGridProps) {
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const internalMarquee = useMarqueeSelection()
@@ -149,64 +156,126 @@ export default function ItemGrid({
   )
 
   const showAdd = showAddButton && !readOnly
-  const skeletonName = variant === "wishlist" ? "item-grid-wishlist" : "item-grid-collection"
+  const skeletonItems =
+    variant === "wishlist"
+      ? WISHLIST_ITEM_SKELETON_FIXTURES
+      : COLLECTION_ITEM_SKELETON_FIXTURES
+  const showUsageStatus =
+    variant === "collection" &&
+    !isPro &&
+    itemCap !== null &&
+    totalItemCount !== undefined
+  const nearCap = showUsageStatus && totalItemCount >= itemCap - 5
+  const remainingItems = showUsageStatus ? itemCap - totalItemCount : null
 
   return (
     <>
-      <Skeleton name={skeletonName} loading={loading} transition={true}>
-        <div className="rounded-md border bg-light-muted p-4">
-          <div className={sectionTitle ? "flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0" : "mb-4 min-w-0"}>
-            {sectionTitle ? (
-              <>
+      <div className="rounded-md border bg-light-muted p-4">
+        <div className={sectionTitle || headerContent ? "flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0" : "mb-4 min-w-0"}>
+          {sectionTitle || headerContent ? (
+            <>
+              {headerContent ? (
+                <div className="min-w-0">
+                  {headerContent}
+                </div>
+              ) : (
                 <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
                   <SectionIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
                   {sectionTitle}
                 </h2>
-                {showAdd ? addButton : null}
-              </>
-            ) : (
-              showAdd ? addButton : null
-            )}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
-          {items.map((item) => (
-            variant === "collection" ? (
-              <DraggableItemCard
-                key={item.id}
-                item={item}
-                selected={selectedIds.has(item.id)}
-                selectionMode={selectionMode ?? false}
-                onClick={handleItemClick}
-                registerCardRef={registerCardRef}
-              />
-            ) : (
-              <div
-                key={item.id}
-                ref={readOnly ? undefined : (el) => registerCardRef(item.id, el)}
-                data-item-id={item.id}
-              >
-                <ItemCard
-                  item={item}
-                  variant="wishlist"
-                  selected={readOnly ? false : selectedIds.has(item.id)}
-                  selectionMode={readOnly ? false : (selectionMode ?? false)}
-                  onClick={handleItemClick}
-                  onMarkAcquired={readOnly ? undefined : onMarkAcquired}
-                  readOnly={readOnly}
-                />
-              </div>
-            )
-          ))}
-          </div>
-          {items.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              {emptyText}
-            </div>
+              )}
+              {showAdd ? addButton : null}
+            </>
+          ) : (
+            showAdd ? addButton : null
           )}
         </div>
-      </Skeleton>
-      {!selectionProps && !readOnly && <MarqueeOverlay />}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
+        {(loading ? skeletonItems : items).map((item) => (
+          loading ? (
+            <Skeleton
+              key={item.id}
+              name={variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card"}
+              loading
+              animate="shimmer"
+              color="hsl(var(--muted))"
+              darkColor="hsl(var(--muted))"
+              fallback={
+                <div className="rounded-lg border bg-card overflow-hidden animate-pulse">
+                  <div className="h-48 bg-muted" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-5 w-2/3 rounded-md bg-muted" />
+                    <div className="h-4 w-5/6 rounded-md bg-muted" />
+                    <div className="h-4 w-1/2 rounded-md bg-muted" />
+                  </div>
+                </div>
+              }
+              fixture={
+                <ItemCard
+                  item={item}
+                  variant={variant}
+                  onClick={() => {}}
+                  onMarkAcquired={variant === "wishlist" ? () => {} : undefined}
+                />
+              }
+            >
+              <ItemCard
+                item={item}
+                variant={variant}
+                onClick={() => {}}
+                onMarkAcquired={variant === "wishlist" ? () => {} : undefined}
+              />
+            </Skeleton>
+          ) : variant === "collection" ? (
+            <DraggableItemCard
+              key={item.id}
+              item={item}
+              selected={selectedIds.has(item.id)}
+              selectionMode={selectionMode ?? false}
+              onClick={handleItemClick}
+              registerCardRef={registerCardRef}
+            />
+          ) : (
+            <div
+              key={item.id}
+              ref={readOnly ? undefined : (el) => registerCardRef(item.id, el)}
+              data-item-id={item.id}
+            >
+              <ItemCard
+                item={item}
+                variant="wishlist"
+                selected={readOnly ? false : selectedIds.has(item.id)}
+                selectionMode={readOnly ? false : (selectionMode ?? false)}
+                onClick={handleItemClick}
+                onMarkAcquired={readOnly ? undefined : onMarkAcquired}
+                readOnly={readOnly}
+              />
+            </div>
+          )
+        ))}
+        </div>
+        {!loading && items.length === 0 && (
+          <div className="min-h-[424px] text-center py-12 text-muted-foreground">
+            {emptyText}
+          </div>
+        )}
+        {showUsageStatus && (
+          <div className="mt-4 text-fluid-xs text-muted-foreground" role="status">
+            {totalItemCount} of {itemCap} items used
+            {nearCap && remainingItems !== null && remainingItems > 0 && (
+              <span className="ml-2">
+                — {remainingItems} item{remainingItems === 1 ? "" : "s"} left on free tier.{" "}
+                <Link href="/settings?tab=billing" className="text-primary underline underline-offset-2 hover:no-underline">
+                  Upgrade
+                </Link>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      {!loading && !selectionProps && !readOnly && <MarqueeOverlay />}
       {variant === "collection" &&
+        !loading &&
         !selectionProps &&
         !readOnly &&
         (selectedItems.length > 0 ||
@@ -220,7 +289,7 @@ export default function ItemGrid({
           onClearSelection={() => setSelectedIds(new Set())}
         />
       )}
-      {!readOnly && (
+      {!loading && !readOnly && (
         <ItemDialog
           open={showItemDialog}
           onOpenChange={setShowItemDialog}

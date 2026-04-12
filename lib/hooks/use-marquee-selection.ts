@@ -9,6 +9,31 @@ function rectsIntersect(
   return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom)
 }
 
+function hasDirectTextNode(el: HTMLElement): boolean {
+  return Array.from(el.childNodes).some(
+    (node) => node.nodeType === Node.TEXT_NODE && (node.textContent?.trim().length ?? 0) > 0
+  )
+}
+
+function isTextSelectableTarget(target: HTMLElement): boolean {
+  if (
+    target.closest(
+      "input, textarea, select, option, label, [contenteditable=''], [contenteditable='true'], [contenteditable='plaintext-only']"
+    )
+  ) {
+    return true
+  }
+
+  if (target.closest("[data-allow-text-selection]")) return true
+
+  const textLikeAncestor = target.closest(
+    "p, span, h1, h2, h3, h4, h5, h6, li, dt, dd, td, th, blockquote, code, pre, strong, em, small, mark"
+  )
+  if (textLikeAncestor) return true
+
+  return hasDirectTextNode(target)
+}
+
 export type MarqueeRect = { startX: number; startY: number; endX: number; endY: number }
 
 export interface UseMarqueeSelectionReturn {
@@ -41,6 +66,20 @@ export function useMarqueeSelection(): UseMarqueeSelectionReturn {
   const itemCardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const boxCardRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const marqueeCurrentRef = useRef<MarqueeRect | null>(null)
+  const previousUserSelectRef = useRef<string | null>(null)
+  const dragThresholdPassedRef = useRef(false)
+
+  const disableTextSelection = useCallback(() => {
+    if (previousUserSelectRef.current !== null) return
+    previousUserSelectRef.current = document.body.style.userSelect
+    document.body.style.userSelect = "none"
+  }, [])
+
+  const restoreTextSelection = useCallback(() => {
+    if (previousUserSelectRef.current === null) return
+    document.body.style.userSelect = previousUserSelectRef.current
+    previousUserSelectRef.current = null
+  }, [])
 
   const registerItemCardRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) itemCardRefs.current.set(id, el)
@@ -60,7 +99,10 @@ export function useMarqueeSelection(): UseMarqueeSelectionReturn {
     if (target.closest("button, a, [role='button'], [data-drag-handle]")) return
     // Don't start marquee if clicking on a card
     if (target.closest("[data-item-id], [data-box-id]")) return
-    
+    // Preserve native text interactions (drag-select and double-click word selection)
+    if (isTextSelectableTarget(target)) return
+
+    dragThresholdPassedRef.current = false
     setMarquee({ startX: e.clientX, startY: e.clientY, endX: e.clientX, endY: e.clientY })
   }, [])
 
@@ -72,7 +114,14 @@ export function useMarqueeSelection(): UseMarqueeSelectionReturn {
     if (marquee === null) return
     const onMove = (e: MouseEvent) => {
       setMarquee((m) => {
-        const next = m ? { ...m, endX: e.clientX, endY: e.clientY } : null
+        if (!m) return null
+        const next = { ...m, endX: e.clientX, endY: e.clientY }
+        const width = Math.abs(next.endX - next.startX)
+        const height = Math.abs(next.endY - next.startY)
+        if (!dragThresholdPassedRef.current && (width >= 4 || height >= 4)) {
+          dragThresholdPassedRef.current = true
+          disableTextSelection()
+        }
         marqueeCurrentRef.current = next
         return next
       })
@@ -115,17 +164,18 @@ export function useMarqueeSelection(): UseMarqueeSelectionReturn {
           setSelectedBoxIds(new Set())
         }
       }
+      dragThresholdPassedRef.current = false
+      restoreTextSelection()
     }
-    const prevUserSelect = document.body.style.userSelect
-    document.body.style.userSelect = "none"
     window.addEventListener("mousemove", onMove)
     window.addEventListener("mouseup", onUp)
     return () => {
-      document.body.style.userSelect = prevUserSelect
+      dragThresholdPassedRef.current = false
+      restoreTextSelection()
       window.removeEventListener("mousemove", onMove)
       window.removeEventListener("mouseup", onUp)
     }
-  }, [marquee !== null])
+  }, [marquee !== null, disableTextSelection, restoreTextSelection])
 
   const MarqueeOverlay = useCallback((): React.ReactElement | null => {
     if (!marquee) return null

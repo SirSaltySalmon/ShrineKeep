@@ -1,7 +1,11 @@
 {
-  "out": "./bones",
-  "wait": 1200,
-  "color": "rgba(0,0,0,0.08)",
-  "darkColor": "rgba(255,255,255,0.08)",
-  "animate": "pulse"
+  "out": "./app/bones",
+  "wait": 900,
+  "animate": "shimmer",
+  "color": "hsl(var(--muted))",
+  "darkColor": "hsl(var(--muted))",
+  "shimmerColor": "hsl(var(--accent))",
+  "darkShimmerColor": "hsl(var(--accent))",
+  "speed": "1.9s",
+  "shimmerAngle": 105
 }

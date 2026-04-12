@@ -66,22 +66,22 @@ export function BoxStatsSummary({
   }
 
   return (
-    <div className="flex items-center gap-4">
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-xs text-muted-foreground">Value</span>
-        <span className="text-base font-bold" style={{ color: valueColor }}>
+    <div className="flex items-center gap-10">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs text-muted-foreground leading-none">Value</span>
+        <span className="text-base font-bold leading-tight" style={{ color: valueColor }}>
           {formatCurrency(currentValue)}
         </span>
       </div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-xs text-muted-foreground">Acquisition</span>
-        <span className="text-base font-bold" style={{ color: acquisitionColor }}>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs text-muted-foreground leading-none">Cost</span>
+        <span className="text-base font-bold leading-tight" style={{ color: acquisitionColor }}>
           {formatCurrency(totalAcquisition)}
         </span>
       </div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-xs text-muted-foreground">Profit</span>
-        <span className="text-base font-bold text-foreground">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-xs text-muted-foreground leading-none">Profit</span>
+        <span className="text-base font-bold text-foreground leading-tight">
           {formatCurrency(profit)}
         </span>
       </div>

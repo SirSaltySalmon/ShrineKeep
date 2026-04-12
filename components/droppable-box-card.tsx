@@ -35,11 +35,6 @@ export function getBoxDragId(boxId: string) {
 }
 
 export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStats, selected = false, selectionMode = false, registerBoxCardRef }: DroppableBoxCardProps) {
-  const { isOver, setNodeRef: setDropRef } = useDroppable({
-    id: getBoxDropId(box.id),
-    data: { type: "box", box },
-  })
-
   const {
     attributes,
     listeners,
@@ -49,6 +44,14 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
   } = useDraggable({
     id: getBoxDragId(box.id),
     data: { type: "box", box },
+  })
+
+  // Same DOM node is both draggable and droppable; disable drop while this card
+  // is the drag source so collision detection does not highlight it over itself.
+  const { isOver, setNodeRef: setDropRef } = useDroppable({
+    id: getBoxDropId(box.id),
+    data: { type: "box", box },
+    disabled: isDragging,
   })
 
   const style = {
@@ -79,7 +82,7 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
       {...attributes}
       {...listeners}
     >
-      <Card>
+      <Card className="min-h-[152px]">
       <CardHeader>
         <div className="flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center space-x-2 layout-shrink-visible">

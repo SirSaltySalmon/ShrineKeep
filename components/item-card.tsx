@@ -46,8 +46,16 @@ export default function ItemCard({
   onMarkAcquired,
   readOnly = false,
 }: ItemCardProps) {
+  const itemMinHeightClass =
+    variant === "collection"
+      ? "min-h-[424px]"
+      : "min-h-[450px]"
+  const isCollection = variant === "collection"
+  const secondaryPrice = isCollection ? item.acquisition_price : item.expected_price
+  const secondaryLabel = isCollection ? "Acquired for" : "Expected"
+
   const card = (
-      <Card>
+      <Card className={itemMinHeightClass}>
       <div className="relative w-full h-48 bg-muted rounded-t-lg overflow-hidden">
         {item.thumbnail_url ? (
           <ThumbnailImage
@@ -64,64 +72,54 @@ export default function ItemCard({
       <CardHeader>
         <CardTitle className="text-fluid-lg">{item.name}</CardTitle>
         {item.description && (
-          <CardDescription className={variant === "collection" ? "line-clamp-2" : ""}>
+          <CardDescription className="line-clamp-2">
             {item.description}
           </CardDescription>
         )}
       </CardHeader>
       <CardContent onClick={(e) => e.stopPropagation()}>
-        {variant === "collection" ? (
-          <div className="space-y-1 text-fluid-sm layout-shrink-visible">
-            {item.current_value !== null && item.current_value !== undefined && (
-              <div className="font-medium truncate" style={{ color: getValueColor() }}>
-                Value: {formatCurrency(item.current_value)}
-              </div>
-            )}
-            {item.acquisition_price !== null && item.acquisition_price !== undefined && (
-              <div className="truncate" style={{ color: getAcquisitionColor() }}>
-                Acquired: {formatCurrency(item.acquisition_price)}
-              </div>
-            )}
-            {item.acquisition_date && (
-              <div className="text-muted-foreground text-fluid-xs truncate">
-                {formatDate(item.acquisition_date)}
-              </div>
-            )}
-            {item.tags && item.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-1">
-                {item.tags.map((tag) => (
-                  <span
-                    key={tag.id}
-                    className="rounded-md px-1.5 py-0.5 text-fluid-xs font-medium text-white"
-                    style={getTagChipStyle(tag.color ?? "blue")}
-                  >
-                    {tag.name}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-2 text-fluid-sm layout-shrink-visible">
-            {item.expected_price !== null && item.expected_price !== undefined && (
-              <div className="font-medium truncate">
-                Expected: {formatCurrency(item.expected_price)}
-              </div>
-            )}
-            {onMarkAcquired && (
-              <Button
-                size="sm"
-                className="w-full"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onMarkAcquired(item)
-                }}
+        <div className="space-y-1 text-fluid-sm layout-shrink-visible">
+          {item.current_value !== null && item.current_value !== undefined && (
+            <div className="font-medium truncate" style={{ color: getValueColor() }}>
+              Value: {formatCurrency(item.current_value)}
+            </div>
+          )}
+          {secondaryPrice !== null && secondaryPrice !== undefined && (
+            <div className="truncate" style={{ color: getAcquisitionColor() }}>
+              {secondaryLabel}: {formatCurrency(secondaryPrice)}
+            </div>
+          )}
+          {isCollection && item.acquisition_date && (
+            <div className="text-muted-foreground text-fluid-xs truncate">
+              {formatDate(item.acquisition_date)}
+            </div>
+          )}
+        </div>
+        {item.tags && item.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {item.tags.map((tag) => (
+              <span
+                key={tag.id}
+                className="rounded-md px-1.5 py-0.5 text-fluid-xs font-medium text-white"
+                style={getTagChipStyle(tag.color ?? "blue")}
               >
-                <Check className="h-4 w-4 mr-2" />
-                Mark as Acquired
-              </Button>
-            )}
+                {tag.name}
+              </span>
+            ))}
           </div>
+        )}
+        {!isCollection && onMarkAcquired && (
+          <Button
+            size="sm"
+            className="w-full mt-3"
+            onClick={(e) => {
+              e.stopPropagation()
+              onMarkAcquired(item)
+            }}
+          >
+            <Check className="h-4 w-4 mr-2" />
+            Mark as Acquired
+          </Button>
         )}
       </CardContent>
     </Card>

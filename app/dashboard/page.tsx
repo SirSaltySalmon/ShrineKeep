@@ -16,7 +16,11 @@ export default async function DashboardPage() {
 
   const [{ data: user }, { data: settings }, subscription, itemCount] = await Promise.all([
     supabase.from("users").select("*").eq("id", authUser.id).single(),
-    supabase.from("user_settings").select("color_scheme, graph_overlay").eq("user_id", authUser.id).single(),
+    supabase
+      .from("user_settings")
+      .select("color_scheme, graph_overlay, dashboard_demo_prompt_dismissed")
+      .eq("user_id", authUser.id)
+      .maybeSingle(),
     getSubscriptionStatus(supabase, authUser.id),
     getItemCount(supabase, authUser.id),
   ])
@@ -27,12 +31,14 @@ export default async function DashboardPage() {
   const theme: Theme | null =
     colorScheme && typeof colorScheme === "object" ? { ...colorScheme } : null
   const graphOverlay = settings?.graph_overlay ?? true
+  const demoPromptDismissed = settings?.dashboard_demo_prompt_dismissed ?? false
 
   return (
     <DashboardClient
       user={user}
       initialTheme={theme}
       initialGraphOverlay={graphOverlay}
+      demoPromptDismissed={demoPromptDismissed}
       isPro={subscription.isPro}
       subscriptionStatus={subscription.status}
       pastDueGraceEndsAt={subscription.pastDueGraceEndsAt?.toISOString() ?? null}

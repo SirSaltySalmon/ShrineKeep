@@ -2,9 +2,11 @@
 
 import { useState } from "react"
 import { Box } from "@/lib/types"
+import { Skeleton } from "boneyard-js/react"
 import { Button } from "@/components/ui/button"
 import { Plus, Grid3x3 } from "lucide-react"
 import DroppableBoxCard from "./droppable-box-card"
+import { BOX_SKELETON_FIXTURES } from "@/components/boneyard-fixtures"
 import {
   Dialog,
   DialogContent,
@@ -15,10 +17,10 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Skeleton } from "boneyard-js/react"
 
 interface BoxGridProps {
   boxes: Box[]
+  loading?: boolean
   currentBoxId: string | null
   /** Called when a box is clicked (for navigation). Only called when not in selection mode and not shift-clicked. */
   onBoxClick: (box: Box | null) => void
@@ -36,12 +38,11 @@ interface BoxGridProps {
   onEnterSelectionMode?: () => void
   /** Register this card's root element for marquee intersection. */
   registerBoxCardRef?: (id: string, el: HTMLDivElement | null) => void
-  /** Show boneyard skeleton overlay while data is loading. */
-  loading?: boolean
 }
 
 export default function BoxGrid({
   boxes,
+  loading = false,
   currentBoxId,
   onBoxClick,
   onRename,
@@ -52,7 +53,6 @@ export default function BoxGrid({
   selectionMode = false,
   onEnterSelectionMode,
   registerBoxCardRef,
-  loading = false,
 }: BoxGridProps) {
   const [showNewBoxDialog, setShowNewBoxDialog] = useState(false)
   const [newBoxName, setNewBoxName] = useState("")
@@ -120,22 +120,57 @@ export default function BoxGrid({
   )
 
   return (
-    <Skeleton name="box-grid" loading={loading} transition={true}>
-      <div className="mb-8 layout-shrink-visible rounded-md border bg-light-muted p-4">
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
-          <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
-            <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
-            Boxes
-          </h2>
-          {addButton}
+    <div className="mb-8 layout-shrink-visible rounded-md border bg-light-muted p-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
+        <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
+          <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
+          Boxes
+        </h2>
+        {addButton}
+      </div>
+      {!loading && boxes.length === 0 ? (
+        <div className="min-h-[152px] text-center py-8 text-muted-foreground">
+          Try adding a new box!
         </div>
-        {!currentBoxId && boxes.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            Try adding a new box!
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {boxes.map((box) => (
+      ) : (
+        <div className="min-h-[152px] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {(loading ? BOX_SKELETON_FIXTURES : boxes).map((box) => {
+            if (loading) {
+              return (
+                <Skeleton
+                  key={box.id}
+                  name="box-grid-card"
+                  loading
+                  animate="shimmer"
+                  color="hsl(var(--muted))"
+                  darkColor="hsl(var(--muted))"
+                  fallback={
+                    <div className="rounded-lg border bg-card p-4 space-y-3 animate-pulse">
+                      <div className="h-5 w-1/2 rounded-md bg-muted" />
+                      <div className="h-4 w-3/4 rounded-md bg-muted" />
+                      <div className="h-4 w-2/3 rounded-md bg-muted" />
+                    </div>
+                  }
+                  fixture={
+                    <DroppableBoxCard
+                      box={box}
+                      onBoxClick={() => {}}
+                      onRename={() => {}}
+                      onShowStats={() => {}}
+                    />
+                  }
+                >
+                  <DroppableBoxCard
+                    box={box}
+                    onBoxClick={() => {}}
+                    onRename={() => {}}
+                    onShowStats={() => {}}
+                  />
+                </Skeleton>
+              )
+            }
+
+            return (
               <DroppableBoxCard
                 key={box.id}
                 box={box}
@@ -146,10 +181,10 @@ export default function BoxGrid({
                 selectionMode={selectionMode}
                 registerBoxCardRef={registerBoxCardRef}
               />
-            ))}
-          </div>
-        )}
-      </div>
-    </Skeleton>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }

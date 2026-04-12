@@ -1,152 +1,98 @@
-"use client"
-
-import { useState } from "react"
-import { DndContext, TouchSensor, useSensor, useSensors } from "@dnd-kit/core"
-import { NonTouchPointerSensor } from "@/lib/non-touch-pointer-sensor"
-import { Button } from "@/components/ui/button"
-import BoxGrid from "@/components/box-grid"
-import ItemGrid from "@/components/item-grid"
-import { Sparkle } from "lucide-react"
-import { proUpgradeCtaLabel } from "@/lib/subscription"
+import type { Box, Item, Tag } from "@/lib/types"
 import {
-  MOCK_BOXES,
-  MOCK_DASHBOARD_ITEMS,
-  MOCK_WISHLIST_ITEMS,
-} from "@/lib/boneyard-mock-data"
+  DEMO_COLLECTION_ITEM_SPECS,
+  DEMO_SKELETON_TAG_UUIDS,
+  DEMO_SKELETON_USER_ID,
+  DEMO_TAG_SPECS,
+  DEMO_BOX_ROWS,
+  DEMO_PLACEHOLDER_PRIMARY,
+  DEMO_WISHLIST_ITEM_SPECS,
+} from "@/lib/demo/demo-seed-data"
 
-const noop = () => {}
-const noopAsync = async () => {}
+const nowIso = "2026-01-12T10:00:00.000Z"
 
-function useFixtureSensors() {
-  return useSensors(
-    useSensor(NonTouchPointerSensor, {
-      activationConstraint: { distance: 8 },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 250, tolerance: 5 },
-    })
-  )
-}
+/**
+ * Skeleton `Tag` rows for boneyard — IDs are preview-only.
+ * DB seeding uses `DEMO_TAG_SPECS` and creates real tags per user at runtime.
+ */
+export const demoTags: Tag[] = DEMO_TAG_SPECS.map((spec, i) => ({
+  id: DEMO_SKELETON_TAG_UUIDS[i]!,
+  user_id: DEMO_SKELETON_USER_ID,
+  name: spec.name,
+  color: spec.color,
+  created_at: nowIso,
+  updated_at: nowIso,
+}))
 
-export function BoxStatsPanelFixture() {
-  return (
-    <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
-      <div className="p-4 layout-shrink-visible">
-        <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
-            <div className="min-w-0">
-              <p className="text-fluid-xs text-muted-foreground">Current value</p>
-              <p className="text-fluid-lg font-semibold tabular-nums">$1,248</p>
-            </div>
-            <div className="min-w-0">
-              <p className="text-fluid-xs text-muted-foreground">Acquisition cost</p>
-              <p className="text-fluid-lg font-semibold tabular-nums">$920</p>
-            </div>
-            <div className="min-w-0">
-              <p className="text-fluid-xs text-muted-foreground">Profit / loss</p>
-              <p className="text-fluid-lg font-semibold tabular-nums text-emerald-600">+$328</p>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" className="shrink-0" type="button" onClick={noop}>
-            Expand
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
+const tagByName = new Map(demoTags.map((t) => [t.name, t]))
 
-export function BoxGridFixture() {
-  return (
-    <BoxGrid
-      boxes={MOCK_BOXES}
-      currentBoxId={MOCK_BOXES[0]?.id ?? null}
-      onBoxClick={noop}
-      onRename={() => noop()}
-      onShowStats={() => noop()}
-      onCreateBox={noopAsync}
-      isBoxSelected={() => false}
-      toggleBoxSelection={noop}
-      selectionMode={false}
-      onEnterSelectionMode={noop}
-      registerBoxCardRef={noop}
-      loading={false}
-    />
-  )
-}
+/** Stable preview UUIDs — must stay in sync with app/boneyard-preview and bones. */
+const COLLECTION_ITEM_IDS = [
+  "33333333-3333-3333-3333-333333333301",
+  "33333333-3333-3333-3333-333333333302",
+  "33333333-3333-3333-3333-333333333303",
+  "33333333-3333-3333-3333-333333333304",
+] as const
 
-export function ItemGridCollectionFixture() {
-  const sensors = useFixtureSensors()
-  return (
-    <DndContext sensors={sensors} onDragEnd={noop}>
-      <ItemGrid
-        items={MOCK_DASHBOARD_ITEMS}
-        currentBoxId={MOCK_BOXES[0]?.id ?? null}
-        onItemUpdate={noop}
-        sectionTitle="Items"
-        selectionMode={false}
-        onEnterSelectionMode={noop}
-        totalItemCount={12}
-        itemCap={50}
-        isPro={false}
-        loading={false}
-      />
-    </DndContext>
-  )
-}
+const WISHLIST_ITEM_IDS = [
+  "44444444-4444-4444-4444-444444444401",
+  "44444444-4444-4444-4444-444444444402",
+  "44444444-4444-4444-4444-444444444403",
+] as const
 
-export function ItemGridWishlistFixture() {
-  const [selectedIds, setSelectedIds] = useState(() => new Set<string>())
-  return (
-    <ItemGrid
-      items={MOCK_WISHLIST_ITEMS}
-      currentBoxId={null}
-      onItemUpdate={noop}
-      sectionTitle="Wishlist"
-      sectionIcon={Sparkle}
-      addButtonLabel="Add to Wishlist"
-      variant="wishlist"
-      emptyText="Your wishlist is empty."
-      onMarkAcquired={noop}
-      wishlistDialogLocked
-      selectionMode={false}
-      selectionProps={{
-        selectedIds,
-        setSelectedIds,
-        registerCardRef: noop,
-      }}
-      loading={false}
-    />
-  )
-}
+export const BOX_SKELETON_FIXTURES: Box[] = DEMO_BOX_ROWS.map((row) => ({
+  id: row.skeletonId,
+  user_id: DEMO_SKELETON_USER_ID,
+  parent_box_id: undefined,
+  name: row.name,
+  description: row.description,
+  is_public: false,
+  position: row.position,
+  created_at: nowIso,
+  updated_at: nowIso,
+}))
 
-export function BillingSettingsFixture() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-fluid-xl font-semibold mb-1">Billing</h2>
-        <p className="text-fluid-sm text-muted-foreground">Manage your ShrineKeep subscription.</p>
-      </div>
+export const COLLECTION_ITEM_SKELETON_FIXTURES: Item[] = DEMO_COLLECTION_ITEM_SPECS.map(
+  (spec, i) => ({
+    id: COLLECTION_ITEM_IDS[i]!,
+    box_id: spec.skeletonBoxId,
+    wishlist_target_box_id: null,
+    user_id: DEMO_SKELETON_USER_ID,
+    name: spec.name,
+    description: spec.description,
+    thumbnail_url: DEMO_PLACEHOLDER_PRIMARY,
+    current_value: spec.current_value,
+    acquisition_date: spec.acquisition_date,
+    acquisition_price: spec.acquisition_price,
+    is_wishlist: false,
+    position: spec.position,
+    created_at: nowIso,
+    updated_at: nowIso,
+    tags: spec.tagNames
+      .map((n) => tagByName.get(n))
+      .filter((t): t is Tag => t != null),
+  })
+)
 
-      <div className="rounded-lg border p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-fluid-sm font-medium">Free plan</p>
-            <p className="text-fluid-xs text-muted-foreground mt-0.5">12 of 50 items used</p>
-          </div>
-          <Button type="button" onClick={noop}>
-            {proUpgradeCtaLabel()}
-          </Button>
-        </div>
-      </div>
-
-      <div className="text-fluid-sm text-muted-foreground space-y-1">
-        <p>Pro includes:</p>
-        <ul className="list-disc list-inside space-y-0.5 ml-1">
-          <li>Unlimited items</li>
-          <li>eBay price lookup (coming soon)</li>
-        </ul>
-      </div>
-    </div>
-  )
-}
+export const WISHLIST_ITEM_SKELETON_FIXTURES: Item[] = DEMO_WISHLIST_ITEM_SPECS.map(
+  (spec, i) => ({
+    id: WISHLIST_ITEM_IDS[i]!,
+    box_id: null,
+    wishlist_target_box_id: spec.skeletonTargetBoxId,
+    user_id: DEMO_SKELETON_USER_ID,
+    name: spec.name,
+    description: spec.description,
+    thumbnail_url: DEMO_PLACEHOLDER_PRIMARY,
+    current_value: undefined,
+    acquisition_date: undefined,
+    acquisition_price: undefined,
+    is_wishlist: true,
+    expected_price: spec.expected_price,
+    position: spec.position,
+    created_at: nowIso,
+    updated_at: nowIso,
+    tags: spec.tagNames
+      .map((n) => tagByName.get(n))
+      .filter((t): t is Tag => t != null),
+  })
+)

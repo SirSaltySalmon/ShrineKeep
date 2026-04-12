@@ -1,18 +1,124 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
+import { useDroppable } from "@dnd-kit/core"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Box } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { ChevronRight, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { getBoxDragId } from "@/components/droppable-box-card"
+
+export const BREADCRUMB_ROOT_DROP_ID = "breadcrumb-root"
+
+const BREADCRUMB_BOX_PREFIX = "breadcrumb-box-"
+
+export function getBreadcrumbBoxDropId(boxId: string) {
+  return BREADCRUMB_BOX_PREFIX + boxId
+}
 
 interface BreadcrumbsProps {
   currentBoxId: string | null
   onBoxClick: (box: Box | null) => void
+  /** When true, crumbs are drop targets (must be inside DndContext). */
+  enableDropTargets?: boolean
+  /** Active draggable id from DndContext (for disabling invalid crumbs). */
+  activeDragId?: string | null
+  /** Selected box ids when dragging boxes (avoid dropping onto a box being moved). */
+  selectedBoxIds?: ReadonlySet<string>
 }
 
-export default function Breadcrumbs({ currentBoxId, onBoxClick }: BreadcrumbsProps) {
+function DroppableHomeCrumb({
+  onNavigate,
+  dropDisabled,
+}: {
+  onNavigate: () => void
+  /** When already at root, home is not a move target. */
+  dropDisabled: boolean
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: BREADCRUMB_ROOT_DROP_ID,
+    data: { type: "breadcrumb", targetBoxId: null as string | null },
+    disabled: dropDisabled,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex min-h-9 min-w-9 items-center justify-center rounded-md p-1 -m-1 transition-colors shrink-0 touch-manipulation",
+        isOver && "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
+      )}
+    >
+      <Button
+        variant="ghost"
+        size="sm"
+        type="button"
+        onClick={onNavigate}
+        className={cn("h-8 shrink-0", isOver && "text-primary")}
+      >
+        <Home className="h-4 w-4" />
+      </Button>
+    </div>
+  )
+}
+
+function DroppableBoxCrumb({
+  box,
+  onNavigate,
+  activeDragId,
+  selectedBoxIds,
+}: {
+  box: Box
+  onNavigate: () => void
+  activeDragId: string | null
+  selectedBoxIds: ReadonlySet<string>
+}) {
+  const dropId = getBreadcrumbBoxDropId(box.id)
+  const isDraggingThisBox = activeDragId === getBoxDragId(box.id)
+  const isBoxDrag = Boolean(activeDragId?.startsWith("box-drag-"))
+  const isSelectedMoveTarget = isBoxDrag && selectedBoxIds.has(box.id)
+
+  const { isOver, setNodeRef } = useDroppable({
+    id: dropId,
+    data: { type: "breadcrumb", targetBoxId: box.id },
+    disabled: isDraggingThisBox || isSelectedMoveTarget,
+  })
+
+  return (
+    <div className="flex items-center layout-shrink-visible min-w-0">
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "flex min-h-9 min-w-0 max-w-full items-center rounded-md px-1 py-1 -mx-1 -my-1 transition-colors touch-manipulation",
+          isOver && "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
+        )}
+      >
+        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          onClick={onNavigate}
+          className={cn(
+            "h-8 min-w-0 max-w-full overflow-hidden",
+            isOver && "text-primary"
+          )}
+        >
+          <span className="block min-w-0 truncate-line text-left">{box.name}</span>
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export default function Breadcrumbs({
+  currentBoxId,
+  onBoxClick,
+  enableDropTargets = false,
+  activeDragId = null,
+  selectedBoxIds = new Set(),
+}: BreadcrumbsProps) {
   const [path, setPath] = useState<Box[]>([])
   const supabase = createSupabaseClient()
 
@@ -30,11 +136,11 @@ export default function Breadcrumbs({ currentBoxId, onBoxClick }: BreadcrumbsPro
     let currentId: string | null = currentBoxId
 
     while (currentId) {
-      const { data } = await supabase
+      const { data } = (await supabase
         .from("boxes")
         .select("*")
         .eq("id", currentId)
-        .single() as { data: Box | null }
+        .single()) as { data: Box | null }
 
       if (data) {
         boxes.unshift(data)
@@ -49,35 +155,81 @@ export default function Breadcrumbs({ currentBoxId, onBoxClick }: BreadcrumbsPro
 
   return (
     <nav className="flex items-center space-x-2 text-fluid-sm layout-shrink-visible">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => onBoxClick(null)}
-        className="h-8 shrink-0"
-      >
-        <Home className="h-4 w-4" />
-      </Button>
-      {path.map((box, index) => (
-        <div
-          key={box.id}
-          className={cn(
-            "flex items-center layout-shrink-visible",
-            index === path.length - 1 && "min-w-0 flex-1"
-          )}
+      {enableDropTargets ? (
+        <DroppableHomeCrumb
+          onNavigate={() => onBoxClick(null)}
+          dropDisabled={!currentBoxId}
+        />
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          onClick={() => onBoxClick(null)}
+          className="h-8 shrink-0"
         >
-          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => onBoxClick(box)}
-            className="h-8 min-w-0 max-w-full overflow-hidden"
+          <Home className="h-4 w-4" />
+        </Button>
+      )}
+      {path.map((box, index) => {
+        const isLast = index === path.length - 1
+        if (enableDropTargets && isLast) {
+          return (
+            <div
+              key={box.id}
+              className={cn(
+                "flex items-center layout-shrink-visible min-w-0 flex-1"
+              )}
+            >
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={() => onBoxClick(box)}
+                className="h-8 min-w-0 max-w-full overflow-hidden"
+              >
+                <span className="block min-w-0 truncate-line text-left">
+                  {box.name}
+                </span>
+              </Button>
+            </div>
+          )
+        }
+        if (enableDropTargets) {
+          return (
+            <DroppableBoxCrumb
+              key={box.id}
+              box={box}
+              onNavigate={() => onBoxClick(box)}
+              activeDragId={activeDragId}
+              selectedBoxIds={selectedBoxIds}
+            />
+          )
+        }
+        return (
+          <div
+            key={box.id}
+            className={cn(
+              "flex items-center layout-shrink-visible",
+              isLast && "min-w-0 flex-1"
+            )}
           >
-            <span className="block min-w-0 truncate-line text-left">
-              {box.name}
-            </span>
-          </Button>
-        </div>
-      ))}
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={() => onBoxClick(box)}
+              className="h-8 min-w-0 max-w-full overflow-hidden"
+            >
+              <span className="block min-w-0 truncate-line text-left">
+                {box.name}
+              </span>
+            </Button>
+          </div>
+        )
+      })}
     </nav>
   )
 }

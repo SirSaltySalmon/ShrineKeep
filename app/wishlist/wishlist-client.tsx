@@ -123,27 +123,28 @@ export default function WishlistClient({
         className="container mx-auto px-4 py-8 min-w-0 overflow-hidden layout-shrink-visible"
         onMouseDown={handleGridMouseDown}
       >
-          <h1 className="sr-only">Wishlist</h1>
-          <ItemGrid
-            items={items}
-            currentBoxId={null}
-            loading={loading}
-            onItemUpdate={loadWishlistItems}
-            sectionTitle="Wishlist"
-            sectionIcon={Sparkle}
-            addButtonLabel="Add to Wishlist"
-            variant="wishlist"
-            emptyText="Your wishlist is empty. Add items you want to acquire!"
-            onMarkAcquired={openMarkAsAcquired}
-            wishlistDialogLocked={true}
-            selectionMode={selectionMode}
-            selectionProps={{
-              selectedIds: selectedItemIds,
-              setSelectedIds: setSelectedItemIds,
-              registerCardRef: registerItemCardRef,
-            }}
-          />
+        <h1 className="sr-only">Wishlist</h1>
+        <ItemGrid
+          loading={loading}
+          items={items}
+          currentBoxId={null}
+          onItemUpdate={loadWishlistItems}
+          sectionTitle="Wishlist"
+          sectionIcon={Sparkle}
+          addButtonLabel="Add to Wishlist"
+          variant="wishlist"
+          emptyText="Your wishlist is empty. Add items you want to acquire!"
+          onMarkAcquired={openMarkAsAcquired}
+          wishlistDialogLocked={true}
+          selectionMode={selectionMode}
+          selectionProps={{
+            selectedIds: selectedItemIds,
+            setSelectedIds: setSelectedItemIds,
+            registerCardRef: registerItemCardRef,
+          }}
+        />
 
+        {!loading && (
           <div className="mt-8 w-full flex justify-center">
             <WishlistSharingPanel
               layout="card"
@@ -155,41 +156,42 @@ export default function WishlistClient({
               onShareTokenChange={setWishlistShareToken}
             />
           </div>
+        )}
 
-          {wishlistActionBarVisible && (
-            <SelectionActionBar
-              selectedItems={selectedItems}
-              pasteTarget={{ boxId: null, isWishlist: true }}
-              onDeleteDone={loadWishlistItems}
-              onPasteDone={loadWishlistItems}
-              onClearSelection={() => setSelectedItemIds(new Set())}
-              onExitSelectionMode={() => setSelectionMode(false)}
-            />
-          )}
-
-          <SelectionModeToggle
-            selectionMode={selectionMode}
-            onEnterSelectionMode={() => setSelectionMode(true)}
+        {!loading && wishlistActionBarVisible && (
+          <SelectionActionBar
+            selectedItems={selectedItems}
+            pasteTarget={{ boxId: null, isWishlist: true }}
+            onDeleteDone={loadWishlistItems}
+            onPasteDone={loadWishlistItems}
+            onClearSelection={() => setSelectedItemIds(new Set())}
             onExitSelectionMode={() => setSelectionMode(false)}
-            actionBarVisible={wishlistActionBarVisible}
-            onSelectAllItems={() => {
-              setSelectedItemIds((prev) => {
-                const next = new Set(prev)
-                for (const i of items) next.add(i.id)
-                return next
-              })
-            }}
-            itemCount={items.length}
           />
+        )}
 
-          <MarkAcquiredDialog
-            item={itemToMark}
-            open={!!itemToMark}
-            loading={marking}
-            onOpenChange={(open) => !open && setItemToMark(null)}
-            onConfirm={handleMarkAsAcquiredConfirm}
-          />
-          <MarqueeOverlay />
+        {!loading && <SelectionModeToggle
+          selectionMode={selectionMode}
+          onEnterSelectionMode={() => setSelectionMode(true)}
+          onExitSelectionMode={() => setSelectionMode(false)}
+          actionBarVisible={wishlistActionBarVisible}
+          onSelectAllItems={() => {
+            setSelectedItemIds((prev) => {
+              const next = new Set(prev)
+              for (const i of items) next.add(i.id)
+              return next
+            })
+          }}
+          itemCount={items.length}
+        />}
+
+        {!loading && <MarkAcquiredDialog
+          item={itemToMark}
+          open={!!itemToMark}
+          loading={marking}
+          onOpenChange={(open) => !open && setItemToMark(null)}
+          onConfirm={handleMarkAsAcquiredConfirm}
+        />}
+        {!loading && <MarqueeOverlay />}
       </main>
     </div>
   )

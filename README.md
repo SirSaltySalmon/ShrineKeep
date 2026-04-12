@@ -30,6 +30,11 @@ A versatile utility webapp to track completion, values, and spending for any col
 - **Drag & Drop**: @dnd-kit
 - **Theme Management**: next-themes for dynamic theme switching
 - **Color Picker**: react-colorful for color customization
+- **Skeleton screens**: [boneyard-js](https://boneyard.vercel.app/overview) — DOM-captured bones for loading states (dashboard grids, stats panel, search cards, value graph)
+
+### Skeleton loading (boneyard-js)
+
+ShrineKeep uses [boneyard-js](https://boneyard.vercel.app/overview) so loading UIs follow real layout shapes. Official React + Next.js usage is documented at [boneyard features](https://boneyard.vercel.app/features). **ShrineKeep handles race conditions correctly to correctly load all bones first.**
 
 ## Getting Started
 
@@ -104,8 +109,15 @@ Detailed instructions available in SETUP.md
    ```bash
    npm run dev
    ```
+11. **Regenerating bones for loading screens (Optional**)
+   With the dev server running:
+   
+   ```bash
+   npx boneyard-js build http://localhost:3000/boneyard-preview --force
+   ```
+   The **`/boneyard-preview`** route mounts the skeleton variants used for capture. Use `--force` after layout changes so the incremental cache does not skip updates.
 
-11. **Open your browser**
+12. **Open your browser**
    - Navigate to [http://localhost:3000](http://localhost:3000)
 
 ## Deployment

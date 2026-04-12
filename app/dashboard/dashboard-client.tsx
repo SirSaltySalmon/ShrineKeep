@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase/client"
@@ -18,22 +18,22 @@ import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Search, Trash2, Sword, Filter, Sparkle } from "lucide-react"
 import { DndContext, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { dashboardDndCollisionDetection } from "@/lib/dashboard-dnd-collision"
 import { NonTouchPointerSensor } from "@/lib/non-touch-pointer-sensor"
 import { getItemDragId } from "@/components/draggable-item-card"
-import { getBoxDropId } from "@/components/droppable-box-card"
 import { MOVE_TO_PARENT_ZONE_ID } from "@/components/move-to-parent-zone"
 import BoxGrid from "@/components/box-grid"
 import BoxStatsDialog from "@/components/box-stats-dialog"
 import BoxStatsPanel from "@/components/box-stats-panel"
 import ItemGrid from "@/components/item-grid"
 import MoveToParentZone from "@/components/move-to-parent-zone"
-import Breadcrumbs from "@/components/breadcrumbs"
+import Breadcrumbs, { BREADCRUMB_ROOT_DROP_ID } from "@/components/breadcrumbs"
 import { useDashboardSelection } from "@/lib/hooks/use-dashboard-selection"
 import { SelectionModeToggle } from "@/components/selection-mode-toggle"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import UpsellModal from "@/components/upsell-modal"
-import { PAST_DUE_GRACE_DAYS } from "@/lib/subscription"
+import { FREE_TIER_CAP, PAST_DUE_GRACE_DAYS } from "@/lib/subscription"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
 
@@ -51,6 +51,8 @@ interface DashboardClientProps {
   /** null when Pro (unlimited) */
   itemCap?: number | null
   freeTierCap?: number
+  /** From user_settings — when true, never show the one-time demo offer. */
+  demoPromptDismissed?: boolean
 }
 
 export default function DashboardClient({
@@ -62,7 +64,8 @@ export default function DashboardClient({
   pastDueGraceEndsAt: pastDueGraceEndsAtProp = null,
   itemCount = 0,
   itemCap = null,
-  freeTierCap = 50,
+  freeTierCap = FREE_TIER_CAP,
+  demoPromptDismissed = false,
 }: DashboardClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -104,6 +107,17 @@ export default function DashboardClient({
   const [liveSubscriptionStatus, setLiveSubscriptionStatus] = useState(subscriptionStatus)
   const [pastDueGraceEndsAt, setPastDueGraceEndsAt] = useState<string | null>(pastDueGraceEndsAtProp)
   const [pastDueGraceDays, setPastDueGraceDays] = useState(PAST_DUE_GRACE_DAYS)
+  /** True while child boxes + items are loading for the current folder (box swap or search). */
+  const [folderLoading, setFolderLoading] = useState(false)
+  /** True while a drag-move (item or box) is committing and lists are refetching. */
+  const [dndMoveLoading, setDndMoveLoading] = useState(false)
+  const folderLoadGenRef = useRef(0)
+  const contentSkeletonLoading = folderLoading || dndMoveLoading
+  /** Active draggable id while dragging (breadcrumb drop targets + highlights). */
+  const [dndActiveId, setDndActiveId] = useState<string | null>(null)
+  const [showDemoOfferDialog, setShowDemoOfferDialog] = useState(false)
+  const [demoSeedLoading, setDemoSeedLoading] = useState(false)
+  const [demoSeedError, setDemoSeedError] = useState<string | null>(null)
 
   useEffect(() => {
     setLiveItemCount(itemCount)
@@ -180,18 +194,6 @@ export default function DashboardClient({
     !!copiedBoxRefs?.rootBoxIds?.length
 
   useEffect(() => {
-    loadBoxes()
-  }, [currentBoxId])
-
-  useEffect(() => {
-    if (currentBoxId) {
-      loadItems(currentBoxId)
-    } else {
-      loadItems(null)
-    }
-  }, [currentBoxId])
-
-  useEffect(() => {
     if (unacquiredItems.length === 0) {
       setActiveItemsTab("items")
     }
@@ -206,9 +208,27 @@ export default function DashboardClient({
       .then(({ data }) => setUserTags(sortTagsByColorThenName(data ?? [])))
   }, [user?.id, supabase])
 
-  const loadBoxes = async () => {
+  useEffect(() => {
+    if (demoPromptDismissed) {
+      setShowDemoOfferDialog(false)
+      return
+    }
+    if (loading || contentSkeletonLoading) return
+    if (currentBoxId != null || boxes.length > 0) {
+      setShowDemoOfferDialog(false)
+      return
+    }
+    setShowDemoOfferDialog(true)
+  }, [
+    demoPromptDismissed,
+    loading,
+    contentSkeletonLoading,
+    currentBoxId,
+    boxes.length,
+  ])
+
+  const loadBoxes = async (gen?: number) => {
     if (!user?.id) {
-      setLoading(false)
       return
     }
     try {
@@ -227,8 +247,10 @@ export default function DashboardClient({
       const { data, error } = await query.order("position", { ascending: true })
 
       if (error) throw error
+      if (gen !== undefined && gen !== folderLoadGenRef.current) return
       setBoxes(data || [])
     } catch (error) {
+      if (gen !== undefined && gen !== folderLoadGenRef.current) return
       setBoxes([])
       const message =
         error instanceof Error
@@ -237,12 +259,39 @@ export default function DashboardClient({
             ? String((error as { message: unknown }).message)
             : String(error)
       console.error("Error loading boxes:", message, error)
-    } finally {
-      setLoading(false)
     }
   }
 
-  const loadItems = async (boxId: string | null) => {
+  const loadUnacquiredForBox = async (boxId: string, gen?: number) => {
+    try {
+      const { data, error } = await supabase
+        .from("items")
+        .select(`
+          *,
+          photos (*),
+          item_tags (
+            tag:tags (*)
+          )
+        `)
+        .eq("user_id", user.id)
+        .eq("is_wishlist", true)
+        .eq("wishlist_target_box_id", boxId)
+        .order("created_at", { ascending: false })
+
+      if (error) throw error
+      if (gen !== undefined && gen !== folderLoadGenRef.current) return
+      setUnacquiredItems((data || []).map(normalizeItem))
+    } catch (error) {
+      if (gen !== undefined && gen !== folderLoadGenRef.current) return
+      console.error("Error loading unacquired items:", error)
+      setUnacquiredItems([])
+    }
+  }
+
+  const loadItems = async (boxId: string | null, gen?: number) => {
+    if (!user?.id) {
+      return
+    }
     try {
       let query = supabase
         .from("items")
@@ -269,41 +318,40 @@ export default function DashboardClient({
       const { data, error } = await query.order("position", { ascending: true })
 
       if (error) throw error
+      if (gen !== undefined && gen !== folderLoadGenRef.current) return
       setItems((data || []).map(normalizeItem))
       if (boxId) {
-        await loadUnacquiredForBox(boxId)
+        await loadUnacquiredForBox(boxId, gen)
       } else {
+        if (gen !== undefined && gen !== folderLoadGenRef.current) return
         setUnacquiredItems([])
       }
     } catch (error) {
+      if (gen !== undefined && gen !== folderLoadGenRef.current) return
       console.error("Error loading items:", error)
       setUnacquiredItems([])
     }
   }
 
-  const loadUnacquiredForBox = async (boxId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("items")
-        .select(`
-          *,
-          photos (*),
-          item_tags (
-            tag:tags (*)
-          )
-        `)
-        .eq("user_id", user.id)
-        .eq("is_wishlist", true)
-        .eq("wishlist_target_box_id", boxId)
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-      setUnacquiredItems((data || []).map(normalizeItem))
-    } catch (error) {
-      console.error("Error loading unacquired items:", error)
-      setUnacquiredItems([])
+  useEffect(() => {
+    if (!user?.id) {
+      setLoading(false)
+      setFolderLoading(false)
+      return
     }
-  }
+    const gen = ++folderLoadGenRef.current
+    setFolderLoading(true)
+    void (async () => {
+      try {
+        await Promise.all([loadBoxes(gen), loadItems(currentBoxId, gen)])
+      } finally {
+        if (gen === folderLoadGenRef.current) {
+          setFolderLoading(false)
+          setLoading(false)
+        }
+      }
+    })()
+  }, [currentBoxId, searchQuery, user?.id])
 
   const createBox = async (name: string, description: string) => {
     if (!name.trim()) return
@@ -332,6 +380,55 @@ export default function DashboardClient({
     loadBoxes()
     setStatsRefreshKey((k) => k + 1)
     void refreshSubscriptionCounts()
+  }
+
+  const handleDismissDemoOffer = async () => {
+    setDemoSeedError(null)
+    try {
+      const res = await fetch("/api/demo/prompt/dismiss", { method: "POST" })
+      const j = (await res.json()) as { error?: string }
+      if (!res.ok) {
+        throw new Error(j.error ?? "Failed to save preference")
+      }
+      setShowDemoOfferDialog(false)
+      router.refresh()
+    } catch (e) {
+      setDemoSeedError(e instanceof Error ? e.message : "Something went wrong")
+    }
+  }
+
+  const handleSeedDemo = async () => {
+    if (!user?.id) return
+    setDemoSeedError(null)
+    setDemoSeedLoading(true)
+    try {
+      const res = await fetch("/api/demo/seed", { method: "POST" })
+      const j = (await res.json()) as { error?: string }
+      if (!res.ok) {
+        if (res.status === 403 && j.error === "item_limit_reached") {
+          setShowItemCapUpsell(true)
+          throw new Error("Your plan’s item limit is reached.")
+        }
+        throw new Error(typeof j.error === "string" ? j.error : "Failed to generate demo")
+      }
+      setShowDemoOfferDialog(false)
+      await Promise.all([
+        supabase
+          .from("tags")
+          .select("*")
+          .eq("user_id", user.id)
+          .then(({ data }) => setUserTags(sortTagsByColorThenName(data ?? []))),
+        loadBoxes(),
+        loadItems(currentBoxId),
+        refreshSubscriptionCounts(),
+      ])
+      router.refresh()
+      setStatsRefreshKey((k) => k + 1)
+    } catch (e) {
+      setDemoSeedError(e instanceof Error ? e.message : "Something went wrong")
+    } finally {
+      setDemoSeedLoading(false)
+    }
   }
 
   const handleMarkAsAcquiredConfirm = async (payload: {
@@ -467,6 +564,10 @@ export default function DashboardClient({
     let targetParentBoxId: string | null = null
     if (overId === MOVE_TO_PARENT_ZONE_ID) {
       targetParentBoxId = currentBox?.parent_box_id ?? null
+    } else if (overId === BREADCRUMB_ROOT_DROP_ID) {
+      targetParentBoxId = null
+    } else if (overId.startsWith("breadcrumb-box-")) {
+      targetParentBoxId = overId.slice("breadcrumb-box-".length)
     } else if (overId.startsWith("box-")) {
       targetParentBoxId = overId.slice("box-".length)
     } else {
@@ -490,6 +591,7 @@ export default function DashboardClient({
 
       if (moveItemIds.length === 0) return
 
+      setDndMoveLoading(true)
       try {
         const res = await fetch("/api/items/move", {
           method: "POST",
@@ -500,11 +602,12 @@ export default function DashboardClient({
           const err = await res.json()
           throw new Error(err.error ?? "Failed to move item")
         }
-        loadItems(currentBoxId)
-        loadBoxes()
+        await Promise.all([loadItems(currentBoxId), loadBoxes()])
         setStatsRefreshKey((k) => k + 1)
       } catch (e) {
         console.error("Error moving item:", e)
+      } finally {
+        setDndMoveLoading(false)
       }
       return
     }
@@ -533,6 +636,7 @@ export default function DashboardClient({
       const moveBoxIds = moveBoxIdsBase.filter((id) => id !== targetParentBoxId)
       if (moveBoxIds.length === 0) return
 
+      setDndMoveLoading(true)
       try {
         const res = await fetch("/api/boxes/move", {
           method: "POST",
@@ -543,25 +647,71 @@ export default function DashboardClient({
           const err = await res.json()
           throw new Error(err.error ?? "Failed to move box")
         }
-        loadBoxes()
-        loadItems(currentBoxId)
+        await Promise.all([loadBoxes(), loadItems(currentBoxId)])
         setStatsRefreshKey((k) => k + 1)
       } catch (e) {
         console.error("Error moving box:", e)
+      } finally {
+        setDndMoveLoading(false)
       }
     }
   }
 
 
-  useEffect(() => {
-    loadItems(currentBoxId)
-  }, [searchQuery])
-
-  const nearCap = !liveIsPro && itemCap !== null && liveItemCount >= itemCap - 5
-  const remainingItems = itemCap !== null ? itemCap - liveItemCount : null
+  const ActiveItemsIcon = activeItemsTab === "unacquired" ? Sparkle : Sword
+  const tabbedItemsHeader = (
+    <div className="flex items-center gap-2 min-w-0">
+      <ActiveItemsIcon className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
+      <TabsList>
+        <TabsTrigger value="items">Items</TabsTrigger>
+        <TabsTrigger value="unacquired">
+          Wishlist ({unacquiredItems.length} remaining)
+        </TabsTrigger>
+      </TabsList>
+    </div>
+  )
 
   return (
     <>
+      <Dialog
+        open={showDemoOfferDialog}
+        onOpenChange={() => {
+          /* Close only via explicit actions (buttons). */
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-md min-w-0 [&>button]:hidden"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <DialogHeader className="min-w-0">
+            <DialogTitle>Try a sample collection?</DialogTitle>
+            <DialogDescription>
+              We can add demo boxes, items, tags, photos, and value history so you can explore how
+              ShrineKeep works. You can edit or delete everything later.
+            </DialogDescription>
+          </DialogHeader>
+          {demoSeedError ? (
+            <p className="text-fluid-sm text-destructive layout-shrink-visible" role="alert">
+              {demoSeedError}
+            </p>
+          ) : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleDismissDemoOffer}
+              disabled={demoSeedLoading}
+            >
+              No, don&apos;t show again
+            </Button>
+            <Button type="button" onClick={handleSeedDemo} disabled={demoSeedLoading}>
+              {demoSeedLoading ? "Generating…" : "Yes, generate demo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Post-payment confirmation banner */}
       {showUpgradedBanner && (
         <div className="bg-green-50 border-b border-green-200 px-4 py-3 flex items-center justify-between text-fluid-sm text-green-800">
@@ -639,9 +789,25 @@ export default function DashboardClient({
       )}
 
       <main className="container mx-auto px-4 py-8 layout-shrink-visible" onMouseDown={handleMouseDown}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={dashboardDndCollisionDetection}
+          onDragStart={({ active }) => setDndActiveId(String(active.id))}
+          onDragEnd={(e) => {
+            setDndActiveId(null)
+            void handleDragEnd(e)
+          }}
+          onDragCancel={() => setDndActiveId(null)}
+        >
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 min-w-0">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <Breadcrumbs currentBoxId={currentBoxId} onBoxClick={handleBoxClick} />
+            <Breadcrumbs
+              currentBoxId={currentBoxId}
+              onBoxClick={handleBoxClick}
+              enableDropTargets={!loading && !contentSkeletonLoading}
+              activeDragId={dndActiveId}
+              selectedBoxIds={selectedBoxIds}
+            />
           </div>
           <div className="flex flex-col gap-2 min-w-0 w-full">
             <div className="flex items-center gap-2 min-w-0">
@@ -841,32 +1007,62 @@ export default function DashboardClient({
           </div>
         </div>
 
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        {loading ? (
+          <>
             <BoxStatsPanel
               boxId={currentBoxId ?? "root"}
               boxName={currentBox?.name ?? "Root"}
               refreshKey={statsRefreshKey}
               graphOverlay={initialGraphOverlay}
+              forceLoading
+            />
+            <BoxGrid
+              loading
+              boxes={[]}
+              currentBoxId={currentBoxId}
+              onBoxClick={handleBoxClick}
+              onRename={openEditBox}
+              onShowStats={() => {}}
+              onCreateBox={createBox}
+              isBoxSelected={isBoxSelected}
+              toggleBoxSelection={toggleBoxSelection}
+              selectionMode={selectionMode}
+              onEnterSelectionMode={() => setSelectionMode(true)}
+              registerBoxCardRef={registerBoxCardRef}
+            />
+            <ItemGrid
+              loading
+              items={[]}
+              currentBoxId={currentBoxId}
+              onItemUpdate={refreshCurrentBoxData}
+              sectionTitle="Items"
+              selectionMode={selectionMode}
+              onEnterSelectionMode={() => setSelectionMode(true)}
+              selectionProps={{
+                selectedIds: selectedItemIds,
+                setSelectedIds: setSelectedItemIds,
+                registerCardRef: registerItemCardRef,
+              }}
+              totalItemCount={liveItemCount}
+              itemCap={itemCap}
+              isPro={liveIsPro}
+              onCapReached={() => setShowItemCapUpsell(true)}
+            />
+          </>
+        ) : (
+          <>
+            <BoxStatsPanel
+              boxId={currentBoxId ?? "root"}
+              boxName={currentBox?.name ?? "Root"}
+              refreshKey={statsRefreshKey}
+              graphOverlay={initialGraphOverlay}
+              forceLoading={contentSkeletonLoading}
             />
 
-            {/* Item cap counter (free tier only) */}
-            {!liveIsPro && itemCap !== null && (
-              <div className="mb-4 text-fluid-xs text-muted-foreground" role="status">
-                {liveItemCount} of {itemCap} items used
-                {nearCap && remainingItems !== null && remainingItems > 0 && (
-                  <span className="ml-2">
-                    — {remainingItems} item{remainingItems === 1 ? "" : "s"} left on free tier.{" "}
-                    <Link href="/settings?tab=billing" className="text-primary underline underline-offset-2 hover:no-underline">
-                      Upgrade
-                    </Link>
-                  </span>
-                )}
-              </div>
-            )}
             <BoxGrid
               boxes={boxes}
+              loading={contentSkeletonLoading}
               currentBoxId={currentBoxId}
-              loading={loading}
               onBoxClick={handleBoxClick}
               onRename={openEditBox}
               onShowStats={(box) => {
@@ -889,7 +1085,7 @@ export default function DashboardClient({
               </div>
             )}
             <div>
-              {searchQuery.trim() && items.length === 0 ? (
+              {searchQuery.trim() && items.length === 0 && !contentSkeletonLoading ? (
                 <div className="text-center py-12 space-y-3 layout-shrink-visible">
                   <h2 className="text-fluid-xl font-semibold flex items-center mb-4 min-w-0 truncate">
                     <Sword className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
@@ -914,19 +1110,13 @@ export default function DashboardClient({
                     value={activeItemsTab}
                     onValueChange={(v) => setActiveItemsTab(v as "items" | "unacquired")}
                   >
-                    <TabsList className="mb-4">
-                      <TabsTrigger value="items">Items</TabsTrigger>
-                      <TabsTrigger value="unacquired">
-                        Wishlist ({unacquiredItems.length} remaining)
-                      </TabsTrigger>
-                    </TabsList>
                     <TabsContent value="items">
                       <ItemGrid
                         items={items}
+                        loading={contentSkeletonLoading}
                         currentBoxId={currentBoxId}
-                        loading={loading}
                         onItemUpdate={refreshCurrentBoxData}
-                        sectionTitle="Items"
+                        headerContent={tabbedItemsHeader}
                         selectionMode={selectionMode}
                         onEnterSelectionMode={() => setSelectionMode(true)}
                         selectionProps={{
@@ -943,11 +1133,10 @@ export default function DashboardClient({
                     <TabsContent value="unacquired">
                       <ItemGrid
                         items={unacquiredItems}
+                        loading={contentSkeletonLoading}
                         currentBoxId={currentBoxId}
-                        loading={loading}
                         onItemUpdate={refreshCurrentBoxData}
-                        sectionTitle="Wishlist"
-                        sectionIcon={Sparkle}
+                        headerContent={tabbedItemsHeader}
                         variant="wishlist"
                         addButtonLabel="New Wishlist Item"
                         defaultNewItemMode="wishlist"
@@ -970,8 +1159,8 @@ export default function DashboardClient({
                 ) : (
                   <ItemGrid
                     items={items}
+                    loading={contentSkeletonLoading}
                     currentBoxId={currentBoxId}
-                    loading={loading}
                     onItemUpdate={refreshCurrentBoxData}
                     sectionTitle="Items"
                     selectionMode={selectionMode}
@@ -989,7 +1178,8 @@ export default function DashboardClient({
                 )
               )}
             </div>
-          </DndContext>
+          </>
+        )}
 
         <BoxStatsDialog
           boxId={statsBoxId}
@@ -1048,6 +1238,7 @@ export default function DashboardClient({
           onOpenChange={setShowItemCapUpsell}
           reason="cap_hit"
         />
+        </DndContext>
       </main>
     </>
   )

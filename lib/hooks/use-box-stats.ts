@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useLayoutEffect, useRef } from "react"
 
 export interface ValuePoint {
   date: string
@@ -61,9 +61,12 @@ export function useBoxStats(
   const hasCompletedFetchRef = useRef(false)
   const fetchGenRef = useRef(0)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     hasCompletedFetchRef.current = false
-  }, [boxId])
+    if (enabled && boxId) {
+      setLoading(true)
+    }
+  }, [boxId, enabled])
 
   useEffect(() => {
     if (!enabled || !boxId) {
