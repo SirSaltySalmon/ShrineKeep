@@ -26,7 +26,7 @@ export function DateRangeFilter({
   return (
     <div className={className}>
       <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 layout-shrink-visible">
           <Label htmlFor="date-range-from" className="text-fluid-xs text-muted-foreground">
             From
           </Label>
@@ -38,7 +38,7 @@ export function DateRangeFilter({
             className="h-9 bg-background text-foreground border-border min-w-[140px]"
           />
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 layout-shrink-visible">
           <Label htmlFor="date-range-to" className="text-fluid-xs text-muted-foreground">
             To
           </Label>

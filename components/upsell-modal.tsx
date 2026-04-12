@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { proUpgradeCtaLabel } from "@/lib/subscription"
 
 export type UpsellReason = "cap_hit" | "ebay_feature_gate"
 
@@ -61,7 +62,7 @@ export default function UpsellModal({ open, onOpenChange, reason }: UpsellModalP
         {/* Avoid DialogFooter here: its default sm:space-x-2 offsets stacked full-width buttons. */}
         <div className="flex flex-col gap-2 pt-2">
           <Button onClick={handleUpgrade} disabled={loading} className="w-full">
-            {loading ? "Redirecting..." : "Upgrade to Pro — $9/month"}
+            {loading ? "Redirecting..." : proUpgradeCtaLabel()}
           </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)} className="w-full">
             Maybe later

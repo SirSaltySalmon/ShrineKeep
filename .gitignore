@@ -37,7 +37,9 @@ next-env.d.ts
 
 # local AI / agent tooling (not committed)
 .agents/
+.cursor/
 .claude/skills/
+graphify-out
 skills-lock.json
 
 # local Stripe CLI binary (do not commit)

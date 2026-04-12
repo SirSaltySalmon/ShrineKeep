@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Search, Trash2, Sword, Filter, Sparkle } from "lucide-react"
-import { DndContext, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { DndContext, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { NonTouchPointerSensor } from "@/lib/non-touch-pointer-sensor"
 import { getItemDragId } from "@/components/draggable-item-card"
 import { getBoxDropId } from "@/components/droppable-box-card"
 import { MOVE_TO_PARENT_ZONE_ID } from "@/components/move-to-parent-zone"
@@ -445,8 +446,10 @@ export default function DashboardClient({
     }
   }
 
+  // Raw PointerSensor also handles touch, bypassing TouchSensor. NonTouchPointerSensor keeps
+  // mouse + stylus (pen) on pointer events with distance; fingers use TouchSensor (long hold).
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(NonTouchPointerSensor, {
       activationConstraint: { distance: 8 },
     }),
     useSensor(TouchSensor, {

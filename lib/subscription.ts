@@ -2,7 +2,30 @@ import type { createSupabaseServerClient } from "@/lib/supabase/server"
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>
 
-export const FREE_TIER_CAP = 50
+export const FREE_TIER_CAP = 100
+
+/**
+ * Monthly Pro price in USD for UI copy only. Checkout uses `STRIPE_PRICE_ID`; change
+ * this and your Stripe Price together so the app and billing stay aligned.
+ */
+export const PRO_MONTHLY_PRICE_USD = 4.99
+
+const proMonthlyUsdFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
+/** e.g. "$4.99" — from {@link PRO_MONTHLY_PRICE_USD} */
+export function formatProMonthlyUsd(): string {
+  return proMonthlyUsdFormatter.format(PRO_MONTHLY_PRICE_USD)
+}
+
+/** Upgrade button / CTA line shown in billing and upsell flows. */
+export function proUpgradeCtaLabel(): string {
+  return `Upgrade to Pro — ${formatProMonthlyUsd()}/month`
+}
 
 /**
  * After the billing period ends, `past_due` subscribers keep Pro access for this many

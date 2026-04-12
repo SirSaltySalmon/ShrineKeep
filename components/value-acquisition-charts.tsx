@@ -58,11 +58,11 @@ function tooltipLabelFormatter(
 
 const chartConfig: ChartConfig = {
   value: {
-    label: "Total value",
+    label: "Value",
     color: "hsl(var(--graph-value-color))",
   },
   cumulativeAcquisition: {
-    label: "Acquisition cost",
+    label: "Cost",
     color: "hsl(var(--graph-acquisition-color))",
   },
 }
@@ -259,7 +259,7 @@ export function ValueAcquisitionCharts({
                 dataKey="value"
                 stroke="var(--color-value)"
                 strokeWidth={2}
-                name="Total value"
+                name="Value"
               />
             )}
             {hasAcquisition && (
@@ -268,7 +268,7 @@ export function ValueAcquisitionCharts({
                 dataKey="cumulativeAcquisition"
                 stroke="var(--color-cumulativeAcquisition)"
                 strokeWidth={2}
-                name="Acquisition cost"
+                name="Cost"
               />
             )}
           </LineChart>

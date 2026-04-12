@@ -57,7 +57,7 @@ interface ItemDialogProps {
   onSave: () => void
   /** True on the dedicated wishlist page: no collection/wishlist toggle for new items. */
   isWishlist?: boolean
-  /** When creating from a box (not wishlist page), initial mode for the type toggle. */
+  /** When creating from the dashboard (root or a box; not wishlist page), initial mode for the Item Type toggle. */
   defaultNewItemMode?: "collection" | "wishlist"
   /** Called when the server returns 403 (item cap reached). Dialog closes before this fires. */
   onCapReached?: () => void
@@ -75,7 +75,8 @@ export default function ItemDialog({
   onCapReached,
 }: ItemDialogProps) {
   const supabase = createSupabaseClient()
-  const canSwitchNewItemMode = isNew && boxId !== null && !isWishlist
+  /** Collection vs wishlist when creating an item (root or inside a box); wishlist page locks to wishlist. */
+  const canSwitchNewItemMode = isNew && !isWishlist
   const [newItemMode, setNewItemMode] = useState<"collection" | "wishlist">(() => defaultNewItemMode)
   const editingWishlistItem = !isNew && !!item?.is_wishlist
   const effectiveIsWishlist =

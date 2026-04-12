@@ -44,7 +44,7 @@ interface ItemGridProps {
   showAddButton?: boolean
   /** Label for the add button (default "New Item"). */
   addButtonLabel?: string
-  /** Initial type when opening the new-item dialog from a box (dashboard only; wishlist page ignores). */
+  /** Initial Item Type when opening the new-item dialog from the dashboard (root or a box; wishlist page ignores). */
   defaultNewItemMode?: "collection" | "wishlist"
   /** Empty-state text override. */
   emptyText?: string

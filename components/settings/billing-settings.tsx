@@ -12,7 +12,11 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { END_SUBSCRIPTION_NOW_CONFIRMATION_PHRASE, FREE_TIER_CAP } from "@/lib/subscription"
+import {
+  END_SUBSCRIPTION_NOW_CONFIRMATION_PHRASE,
+  FREE_TIER_CAP,
+  proUpgradeCtaLabel,
+} from "@/lib/subscription"
 
 interface SubscriptionData {
   isPro: boolean
@@ -183,7 +187,7 @@ export default function BillingSettings() {
             </div>
           ) : (
             <Button onClick={handleUpgrade} disabled={checkoutLoading}>
-              {checkoutLoading ? "Redirecting..." : "Upgrade to Pro — $9/month"}
+              {checkoutLoading ? "Redirecting..." : proUpgradeCtaLabel()}
             </Button>
           )}
         </div>
