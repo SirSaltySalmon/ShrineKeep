@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { Loader2 } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,7 @@ export default function BoxStatsDialog({
     valueChartData,
     acquisitionChartData,
     loading,
+    isRefreshing,
   } = useBoxStats(boxId, {
     enabled: open,
     fromDate: fromDate || undefined,
@@ -68,13 +70,24 @@ export default function BoxStatsDialog({
             <DateRangeFilter
               fromDate={fromDate}
               toDate={toDate}
-              onFromDateChange={setFromDate}
-              onToDateChange={setToDate}
+              onApplyRange={(from, to) => {
+                setFromDate(from)
+                setToDate(to)
+              }}
               onReset={() => {
                 setFromDate("")
                 setToDate("")
               }}
             />
+            {isRefreshing && (
+              <p
+                className="flex items-center gap-2 text-fluid-xs text-muted-foreground min-h-[1.25rem]"
+                aria-live="polite"
+              >
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+                Updating…
+              </p>
+            )}
             <BoxStatsCharts
               valueChartData={valueChartData}
               acquisitionChartData={acquisitionChartData}

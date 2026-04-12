@@ -22,6 +22,7 @@ import { GeistMono } from "geist/font/mono"
 import { cn } from "@/lib/utils"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
+import "@/bones/registry"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const geistSans = GeistSans

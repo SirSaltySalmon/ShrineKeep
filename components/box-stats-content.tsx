@@ -44,20 +44,20 @@ export function BoxStatsSummary({
         <div className="grid grid-cols-2 gap-4 min-w-0 overflow-x-auto overflow-y-hidden">
           <div className="rounded-lg border p-4 text-center layout-shrink-visible">
             <div className="text-[clamp(0.65rem,2vw,0.875rem)] font-medium text-muted-foreground mb-1">Current value</div>
-            <div className="text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight layout-shrink-visible" style={{ color: valueColor }}>
+            <div className="text-nowrap text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight layout-shrink-visible" style={{ color: valueColor }}>
               {formatCurrency(currentValue)}
             </div>
           </div>
           <div className="rounded-lg border p-4 text-center layout-shrink-visible">
             <div className="text-[clamp(0.65rem,2vw,0.875rem)] font-medium text-muted-foreground mb-1">Acquisition cost</div>
-            <div className="text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight layout-shrink-visible" style={{ color: acquisitionColor }}>
+            <div className="text-nowrap text-[clamp(0.75rem,4vw,1.5rem)] font-bold leading-tight layout-shrink-visible" style={{ color: acquisitionColor }}>
               {formatCurrency(totalAcquisition)}
             </div>
           </div>
         </div>
         <div className="rounded-lg border border-muted bg-light-muted p-3 text-center layout-shrink-visible">
           <div className="text-[clamp(0.6rem,1.5vw,0.75rem)] font-medium text-muted-foreground mb-0.5">Profit</div>
-          <div className="text-[clamp(0.7rem,3vw,1.125rem)] font-semibold text-foreground leading-tight layout-shrink-visible">
+          <div className="text-nowraptext-[clamp(0.7rem,3vw,1.125rem)] font-semibold text-foreground leading-tight layout-shrink-visible">
             {formatCurrency(profit)}
           </div>
         </div>

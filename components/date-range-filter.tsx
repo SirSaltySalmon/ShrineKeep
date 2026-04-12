@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -7,22 +8,30 @@ import { Button } from "@/components/ui/button"
 export interface DateRangeFilterProps {
   fromDate: string
   toDate: string
-  onFromDateChange: (value: string) => void
-  onToDateChange: (value: string) => void
+  /** Called when the user clicks "Update range" with the current draft values. */
+  onApplyRange: (from: string, to: string) => void
   onReset?: () => void
-  /** Optional class for the wrapper. */
   className?: string
 }
 
-/** Two date inputs (From / To) for graph date range. Uses theme Background and Foreground. */
+/** Two date inputs (From / To) for graph date range; apply with "Update range". */
 export function DateRangeFilter({
   fromDate,
   toDate,
-  onFromDateChange,
-  onToDateChange,
+  onApplyRange,
   onReset,
   className,
 }: DateRangeFilterProps) {
+  const [draftFrom, setDraftFrom] = useState(fromDate)
+  const [draftTo, setDraftTo] = useState(toDate)
+
+  useEffect(() => {
+    setDraftFrom(fromDate)
+    setDraftTo(toDate)
+  }, [fromDate, toDate])
+
+  const matchesCommitted = draftFrom === fromDate && draftTo === toDate
+
   return (
     <div className={className}>
       <div className="flex flex-wrap items-end gap-3">
@@ -33,8 +42,8 @@ export function DateRangeFilter({
           <Input
             id="date-range-from"
             type="date"
-            value={fromDate}
-            onChange={(e) => onFromDateChange(e.target.value)}
+            value={draftFrom}
+            onChange={(e) => setDraftFrom(e.target.value)}
             className="h-9 bg-background text-foreground border-border min-w-[140px]"
           />
         </div>
@@ -45,13 +54,22 @@ export function DateRangeFilter({
           <Input
             id="date-range-to"
             type="date"
-            value={toDate}
-            onChange={(e) => onToDateChange(e.target.value)}
+            value={draftTo}
+            onChange={(e) => setDraftTo(e.target.value)}
             className="h-9 bg-background text-foreground border-border min-w-[140px]"
           />
         </div>
+        <Button
+          type="button"
+          size="sm"
+          className="shrink-0"
+          disabled={matchesCommitted}
+          onClick={() => onApplyRange(draftFrom, draftTo)}
+        >
+          Update range
+        </Button>
         {onReset && (
-          <Button type="button" variant="ghost" size="sm" onClick={onReset} className="shrink-0">
+          <Button type="button" size="sm" onClick={onReset} className="shrink-0">
             Reset range
           </Button>
         )}

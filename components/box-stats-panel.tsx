@@ -2,10 +2,11 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronUp } from "lucide-react"
+import { ChevronDown, ChevronUp, Loader2 } from "lucide-react"
 import { useBoxStats } from "@/lib/hooks/use-box-stats"
 import { BoxStatsSummary, BoxStatsCharts } from "@/components/box-stats-content"
 import { DateRangeFilter } from "@/components/date-range-filter"
+import { Skeleton } from "boneyard-js/react"
 
 interface BoxStatsPanelProps {
   boxId: string
@@ -25,6 +26,7 @@ export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0, graphOve
     valueChartData,
     acquisitionChartData,
     loading,
+    isRefreshing,
   } = useBoxStats(boxId, {
     enabled: true,
     refreshKey,
@@ -32,68 +34,73 @@ export default function BoxStatsPanel({ boxId, boxName, refreshKey = 0, graphOve
     toDate: toDate || undefined,
   })
 
-  if (loading) {
-    return (
-      <div className="rounded-lg border bg-light-muted p-4 mb-6 layout-shrink-visible">
-        <div className="text-fluid-sm text-muted-foreground">Loading stats...</div>
-      </div>
-    )
-  }
-
   return (
-    <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
-      <div className="p-4 layout-shrink-visible">
-        <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
-            <BoxStatsSummary
-              currentValue={currentValue}
-              totalAcquisition={totalAcquisition}
-              profit={profit}
-              variant="inline"
+    <Skeleton name="box-stats-panel" loading={loading} transition={true}>
+      <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
+        <div className="p-4 layout-shrink-visible">
+          <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
+              <BoxStatsSummary
+                currentValue={currentValue}
+                totalAcquisition={totalAcquisition}
+                profit={profit}
+                variant="inline"
+              />
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setExpanded((e) => !e)}
+              className="shrink-0"
+            >
+              {expanded ? (
+                <>
+                  <ChevronUp className="h-4 w-4 mr-1" />
+                  Collapse
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4 mr-1" />
+                  Expand
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {expanded && (
+          <div className="border-t bg-light-muted px-4 py-4 space-y-4">
+            <DateRangeFilter
+              fromDate={fromDate}
+              toDate={toDate}
+              onApplyRange={(from, to) => {
+                setFromDate(from)
+                setToDate(to)
+              }}
+              onReset={() => {
+                setFromDate("")
+                setToDate("")
+              }}
+            />
+            {isRefreshing && (
+              <p
+                className="flex items-center gap-2 text-fluid-xs text-muted-foreground min-h-[1.25rem]"
+                aria-live="polite"
+              >
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+                Updating…
+              </p>
+            )}
+            <BoxStatsCharts
+              valueChartData={valueChartData}
+              acquisitionChartData={acquisitionChartData}
+              graphOverlay={graphOverlay}
+              fromDate={fromDate || undefined}
+              toDate={toDate || undefined}
             />
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setExpanded((e) => !e)}
-            className="shrink-0"
-          >
-            {expanded ? (
-              <>
-                <ChevronUp className="h-4 w-4 mr-1" />
-                Collapse
-              </>
-            ) : (
-              <>
-                <ChevronDown className="h-4 w-4 mr-1" />
-                Expand
-              </>
-            )}
-          </Button>
-        </div>
+        )}
       </div>
-
-      {expanded && (
-        <div className="border-t bg-light-muted px-4 py-4 space-y-4">
-          <DateRangeFilter
-            fromDate={fromDate}
-            toDate={toDate}
-            onFromDateChange={setFromDate}
-            onToDateChange={setToDate}
-            onReset={() => {
-              setFromDate("")
-              setToDate("")
-            }}
-          />
-          <BoxStatsCharts
-            valueChartData={valueChartData}
-            acquisitionChartData={acquisitionChartData}
-            graphOverlay={graphOverlay}
-            fromDate={fromDate || undefined}
-            toDate={toDate || undefined}
-          />
-        </div>
-      )}
-    </div>
+    </Skeleton>
   )
 }

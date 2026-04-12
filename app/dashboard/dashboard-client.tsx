@@ -841,10 +841,7 @@ export default function DashboardClient({
           </div>
         </div>
 
-        {loading ? (
-          <div className="text-center py-12 text-fluid-base text-muted-foreground">Loading...</div>
-        ) : (
-          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
             <BoxStatsPanel
               boxId={currentBoxId ?? "root"}
               boxName={currentBox?.name ?? "Root"}
@@ -869,6 +866,7 @@ export default function DashboardClient({
             <BoxGrid
               boxes={boxes}
               currentBoxId={currentBoxId}
+              loading={loading}
               onBoxClick={handleBoxClick}
               onRename={openEditBox}
               onShowStats={(box) => {
@@ -926,6 +924,7 @@ export default function DashboardClient({
                       <ItemGrid
                         items={items}
                         currentBoxId={currentBoxId}
+                        loading={loading}
                         onItemUpdate={refreshCurrentBoxData}
                         sectionTitle="Items"
                         selectionMode={selectionMode}
@@ -945,6 +944,7 @@ export default function DashboardClient({
                       <ItemGrid
                         items={unacquiredItems}
                         currentBoxId={currentBoxId}
+                        loading={loading}
                         onItemUpdate={refreshCurrentBoxData}
                         sectionTitle="Wishlist"
                         sectionIcon={Sparkle}
@@ -971,6 +971,7 @@ export default function DashboardClient({
                   <ItemGrid
                     items={items}
                     currentBoxId={currentBoxId}
+                    loading={loading}
                     onItemUpdate={refreshCurrentBoxData}
                     sectionTitle="Items"
                     selectionMode={selectionMode}
@@ -989,7 +990,6 @@ export default function DashboardClient({
               )}
             </div>
           </DndContext>
-        )}
 
         <BoxStatsDialog
           boxId={statsBoxId}

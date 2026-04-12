@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 
 export interface ValuePoint {
   date: string
@@ -42,6 +42,8 @@ export interface UseBoxStatsResult {
   totalAcquisition: number
   profit: number
   loading: boolean
+  /** True while refetching after the first successful load (e.g. date range change). */
+  isRefreshing: boolean
 }
 
 export function useBoxStats(
@@ -55,10 +57,24 @@ export function useBoxStats(
   const [currentValue, setCurrentValue] = useState(0)
   const [totalAcquisition, setTotalAcquisition] = useState(0)
   const [loading, setLoading] = useState(enabled)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const hasCompletedFetchRef = useRef(false)
+  const fetchGenRef = useRef(0)
 
   useEffect(() => {
-    if (!enabled || !boxId) return
-    setLoading(true)
+    hasCompletedFetchRef.current = false
+  }, [boxId])
+
+  useEffect(() => {
+    if (!enabled || !boxId) {
+      setIsRefreshing(false)
+      return
+    }
+    const showBlockingLoading = !hasCompletedFetchRef.current
+    const isSubsequentFetch = hasCompletedFetchRef.current
+    if (showBlockingLoading) setLoading(true)
+    if (isSubsequentFetch) setIsRefreshing(true)
+    const gen = ++fetchGenRef.current
     const params = new URLSearchParams()
     if (fromDate) params.set("fromDate", fromDate)
     if (toDate) params.set("toDate", toDate)
@@ -80,7 +96,12 @@ export function useBoxStats(
         setCurrentValue(0)
         setTotalAcquisition(0)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (gen !== fetchGenRef.current) return
+        setLoading(false)
+        setIsRefreshing(false)
+        hasCompletedFetchRef.current = true
+      })
   }, [enabled, boxId, refreshKey, fromDate, toDate])
 
   const profit = currentValue - totalAcquisition
@@ -118,5 +139,6 @@ export function useBoxStats(
     totalAcquisition,
     profit,
     loading,
+    isRefreshing,
   }
 }

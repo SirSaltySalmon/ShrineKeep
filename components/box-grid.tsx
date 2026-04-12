@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "boneyard-js/react"
 
 interface BoxGridProps {
   boxes: Box[]
@@ -35,6 +36,8 @@ interface BoxGridProps {
   onEnterSelectionMode?: () => void
   /** Register this card's root element for marquee intersection. */
   registerBoxCardRef?: (id: string, el: HTMLDivElement | null) => void
+  /** Show boneyard skeleton overlay while data is loading. */
+  loading?: boolean
 }
 
 export default function BoxGrid({
@@ -49,6 +52,7 @@ export default function BoxGrid({
   selectionMode = false,
   onEnterSelectionMode,
   registerBoxCardRef,
+  loading = false,
 }: BoxGridProps) {
   const [showNewBoxDialog, setShowNewBoxDialog] = useState(false)
   const [newBoxName, setNewBoxName] = useState("")
@@ -116,34 +120,36 @@ export default function BoxGrid({
   )
 
   return (
-    <div className="mb-8 layout-shrink-visible rounded-md border bg-light-muted p-4">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
-        <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
-          <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
-          Boxes
-        </h2>
-        {addButton}
+    <Skeleton name="box-grid" loading={loading} transition={true}>
+      <div className="mb-8 layout-shrink-visible rounded-md border bg-light-muted p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
+          <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
+            <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
+            Boxes
+          </h2>
+          {addButton}
+        </div>
+        {!currentBoxId && boxes.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Try adding a new box!
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {boxes.map((box) => (
+              <DroppableBoxCard
+                key={box.id}
+                box={box}
+                onBoxClick={handleBoxCardClick}
+                onRename={onRename}
+                onShowStats={onShowStats}
+                selected={isBoxSelected?.(box.id) ?? false}
+                selectionMode={selectionMode}
+                registerBoxCardRef={registerBoxCardRef}
+              />
+            ))}
+          </div>
+        )}
       </div>
-      {!currentBoxId && boxes.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          Try adding a new box!
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {boxes.map((box) => (
-            <DroppableBoxCard
-              key={box.id}
-              box={box}
-              onBoxClick={handleBoxCardClick}
-              onRename={onRename}
-              onShowStats={onShowStats}
-              selected={isBoxSelected?.(box.id) ?? false}
-              selectionMode={selectionMode}
-              registerBoxCardRef={registerBoxCardRef}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    </Skeleton>
   )
 }

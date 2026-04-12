@@ -10,6 +10,7 @@ import ItemDialog from "./item-dialog"
 import { SelectionActionBar } from "./selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
+import { Skeleton } from "boneyard-js/react"
 
 /** When provided (e.g. by dashboard), selection is controlled by parent; otherwise ItemGrid uses internal marquee selection. */
 export interface ItemGridSelectionProps {
@@ -54,6 +55,8 @@ interface ItemGridProps {
   wishlistDialogLocked?: boolean
   /** Public shared view: no add, dialog, selection/marquee, or paste bar. */
   readOnly?: boolean
+  /** Show boneyard skeleton overlay while data is loading. */
+  loading?: boolean
 }
 
 export default function ItemGrid({
@@ -77,6 +80,7 @@ export default function ItemGrid({
   onMarkAcquired,
   wishlistDialogLocked = false,
   readOnly = false,
+  loading = false,
 }: ItemGridProps) {
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const internalMarquee = useMarqueeSelection()
@@ -145,59 +149,62 @@ export default function ItemGrid({
   )
 
   const showAdd = showAddButton && !readOnly
+  const skeletonName = variant === "wishlist" ? "item-grid-wishlist" : "item-grid-collection"
 
   return (
     <>
-      <div className="rounded-md border bg-light-muted p-4">
-        <div className={sectionTitle ? "flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0" : "mb-4 min-w-0"}>
-          {sectionTitle ? (
-            <>
-              <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
-                <SectionIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
-                {sectionTitle}
-              </h2>
-              {showAdd ? addButton : null}
-            </>
-          ) : (
-            showAdd ? addButton : null
+      <Skeleton name={skeletonName} loading={loading} transition={true}>
+        <div className="rounded-md border bg-light-muted p-4">
+          <div className={sectionTitle ? "flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0" : "mb-4 min-w-0"}>
+            {sectionTitle ? (
+              <>
+                <h2 className="text-fluid-xl font-semibold flex items-center min-w-0 truncate">
+                  <SectionIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
+                  {sectionTitle}
+                </h2>
+                {showAdd ? addButton : null}
+              </>
+            ) : (
+              showAdd ? addButton : null
+            )}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
+          {items.map((item) => (
+            variant === "collection" ? (
+              <DraggableItemCard
+                key={item.id}
+                item={item}
+                selected={selectedIds.has(item.id)}
+                selectionMode={selectionMode ?? false}
+                onClick={handleItemClick}
+                registerCardRef={registerCardRef}
+              />
+            ) : (
+              <div
+                key={item.id}
+                ref={readOnly ? undefined : (el) => registerCardRef(item.id, el)}
+                data-item-id={item.id}
+              >
+                <ItemCard
+                  item={item}
+                  variant="wishlist"
+                  selected={readOnly ? false : selectedIds.has(item.id)}
+                  selectionMode={readOnly ? false : (selectionMode ?? false)}
+                  onClick={handleItemClick}
+                  onMarkAcquired={readOnly ? undefined : onMarkAcquired}
+                  readOnly={readOnly}
+                />
+              </div>
+            )
+          ))}
+          </div>
+          {items.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              {emptyText}
+            </div>
           )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
-        {items.map((item) => (
-          variant === "collection" ? (
-            <DraggableItemCard
-              key={item.id}
-              item={item}
-              selected={selectedIds.has(item.id)}
-              selectionMode={selectionMode ?? false}
-              onClick={handleItemClick}
-              registerCardRef={registerCardRef}
-            />
-          ) : (
-            <div
-              key={item.id}
-              ref={readOnly ? undefined : (el) => registerCardRef(item.id, el)}
-              data-item-id={item.id}
-            >
-              <ItemCard
-                item={item}
-                variant="wishlist"
-                selected={readOnly ? false : selectedIds.has(item.id)}
-                selectionMode={readOnly ? false : (selectionMode ?? false)}
-                onClick={handleItemClick}
-                onMarkAcquired={readOnly ? undefined : onMarkAcquired}
-                readOnly={readOnly}
-              />
-            </div>
-          )
-        ))}
-        </div>
-        {items.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
-            {emptyText}
-          </div>
-        )}
-      </div>
+      </Skeleton>
       {!selectionProps && !readOnly && <MarqueeOverlay />}
       {variant === "collection" &&
         !selectionProps &&
