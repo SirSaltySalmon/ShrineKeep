@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase/client"
@@ -10,32 +10,36 @@ import {
   hasAnySearchFilter,
   type SearchFiltersState,
 } from "@/lib/types"
-import { normalizeItem, buildSearchUrl, sortTagsByColorThenName } from "@/lib/utils"
+import { buildSearchUrl, sortTagsByColorThenName } from "@/lib/utils"
 import AdvancedSearchFilters from "@/components/advanced-search-filters"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Search, Trash2, Sword, Filter, Sparkle } from "lucide-react"
-import { DndContext, TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { DndContext } from "@dnd-kit/core"
 import { dashboardDndCollisionDetection } from "@/lib/dashboard-dnd-collision"
-import { NonTouchPointerSensor } from "@/lib/non-touch-pointer-sensor"
 import { getItemDragId } from "@/components/draggable-item-card"
-import { MOVE_TO_PARENT_ZONE_ID } from "@/components/move-to-parent-zone"
 import BoxGrid from "@/components/box-grid"
 import BoxStatsDialog from "@/components/box-stats-dialog"
 import BoxStatsPanel from "@/components/box-stats-panel"
 import ItemGrid from "@/components/item-grid"
 import MoveToParentZone from "@/components/move-to-parent-zone"
-import Breadcrumbs, { BREADCRUMB_ROOT_DROP_ID } from "@/components/breadcrumbs"
+import Breadcrumbs from "@/components/breadcrumbs"
 import { useDashboardSelection } from "@/lib/hooks/use-dashboard-selection"
 import { SelectionModeToggle } from "@/components/selection-mode-toggle"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import UpsellModal from "@/components/upsell-modal"
-import { FREE_TIER_CAP, PAST_DUE_GRACE_DAYS } from "@/lib/subscription"
+import { FREE_TIER_CAP } from "@/lib/subscription"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
+import { useLiveSubscription } from "@/lib/hooks/use-live-subscription"
+import { useDashboardData } from "@/lib/hooks/use-dashboard-data"
+import { useDashboardDialogs } from "@/lib/hooks/use-dashboard-dialogs"
+import { useDashboardDnd } from "@/lib/hooks/use-dashboard-dnd"
+
+const DASHBOARD_DND_CONTEXT_ID = "dashboard-dnd-context"
 
 interface DashboardClientProps {
   user: any
@@ -53,6 +57,9 @@ interface DashboardClientProps {
   freeTierCap?: number
   /** From user_settings — when true, never show the one-time demo offer. */
   demoPromptDismissed?: boolean
+  initialBoxes?: Box[]
+  initialItems?: Item[]
+  initialUserTags?: Tag[]
 }
 
 export default function DashboardClient({
@@ -66,6 +73,9 @@ export default function DashboardClient({
   itemCap = null,
   freeTierCap = FREE_TIER_CAP,
   demoPromptDismissed = false,
+  initialBoxes = [],
+  initialItems = [],
+  initialUserTags = [],
 }: DashboardClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -77,90 +87,78 @@ export default function DashboardClient({
   )
   const [currentBoxId, setCurrentBoxId] = useState<string | null>(null)
   const [currentBox, setCurrentBox] = useState<Box | null>(null)
-  const [boxes, setBoxes] = useState<Box[]>([])
-  const [items, setItems] = useState<Item[]>([])
-  const [unacquiredItems, setUnacquiredItems] = useState<Item[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const {
+    boxes,
+    items,
+    unacquiredItems,
+    userTags,
+    loading,
+    folderLoading,
+    loadBoxes,
+    loadItems,
+    setUserTags,
+  } = useDashboardData({
+    userId: user?.id,
+    supabase,
+    currentBoxId,
+    searchQuery,
+    initialBoxes,
+    initialItems,
+    initialUserTags,
+  })
   const [activeItemsTab, setActiveItemsTab] = useState<"items" | "unacquired">("items")
-  const [loading, setLoading] = useState(true)
-  const [editBox, setEditBox] = useState<Box | null>(null)
-  const [editBoxName, setEditBoxName] = useState("")
-  const [editBoxDescription, setEditBoxDescription] = useState("")
-  const [showEditBoxDialog, setShowEditBoxDialog] = useState(false)
-  const [savingEditBox, setSavingEditBox] = useState(false)
-  const [deleteMode, setDeleteMode] = useState<"delete-all" | "move-to-root" | null>(null)
-  const [deleteConfirmName, setDeleteConfirmName] = useState("")
-  const [deletingBox, setDeletingBox] = useState(false)
+  const {
+    editBox,
+    setEditBox,
+    editBoxName,
+    setEditBoxName,
+    editBoxDescription,
+    setEditBoxDescription,
+    showEditBoxDialog,
+    setShowEditBoxDialog,
+    savingEditBox,
+    setSavingEditBox,
+    deleteMode,
+    setDeleteMode,
+    deleteConfirmName,
+    setDeleteConfirmName,
+    deletingBox,
+    setDeletingBox,
+    showDemoOfferDialog,
+    setShowDemoOfferDialog,
+    demoSeedLoading,
+    setDemoSeedLoading,
+    demoSeedError,
+    setDemoSeedError,
+    itemToMark,
+    setItemToMark,
+    markingAcquired,
+    setMarkingAcquired,
+    showItemCapUpsell,
+    setShowItemCapUpsell,
+    openEditBox,
+  } = useDashboardDialogs()
   const [statsBoxId, setStatsBoxId] = useState<string>("root")
   const [statsBoxName, setStatsBoxName] = useState<string>("Root")
   const [showStatsDialog, setShowStatsDialog] = useState(false)
   const [statsRefreshKey, setStatsRefreshKey] = useState(0)
-  const [searchQuery, setSearchQuery] = useState("")
   const [searchFilters, setSearchFilters] = useState<SearchFiltersState>(DEFAULT_SEARCH_FILTERS)
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
-  const [userTags, setUserTags] = useState<Tag[]>([])
   const [selectionMode, setSelectionMode] = useState(false)
-  const [liveItemCount, setLiveItemCount] = useState(itemCount)
-  const [showItemCapUpsell, setShowItemCapUpsell] = useState(false)
-  const [itemToMark, setItemToMark] = useState<Item | null>(null)
-  const [markingAcquired, setMarkingAcquired] = useState(false)
-  const [liveIsPro, setLiveIsPro] = useState(isPro)
-  const [liveSubscriptionStatus, setLiveSubscriptionStatus] = useState(subscriptionStatus)
-  const [pastDueGraceEndsAt, setPastDueGraceEndsAt] = useState<string | null>(pastDueGraceEndsAtProp)
-  const [pastDueGraceDays, setPastDueGraceDays] = useState(PAST_DUE_GRACE_DAYS)
-  /** True while child boxes + items are loading for the current folder (box swap or search). */
-  const [folderLoading, setFolderLoading] = useState(false)
-  /** True while a drag-move (item or box) is committing and lists are refetching. */
-  const [dndMoveLoading, setDndMoveLoading] = useState(false)
-  const folderLoadGenRef = useRef(0)
-  const contentSkeletonLoading = folderLoading || dndMoveLoading
-  /** Active draggable id while dragging (breadcrumb drop targets + highlights). */
-  const [dndActiveId, setDndActiveId] = useState<string | null>(null)
-  const [showDemoOfferDialog, setShowDemoOfferDialog] = useState(false)
-  const [demoSeedLoading, setDemoSeedLoading] = useState(false)
-  const [demoSeedError, setDemoSeedError] = useState<string | null>(null)
-
-  useEffect(() => {
-    setLiveItemCount(itemCount)
-  }, [itemCount])
-
-  useEffect(() => {
-    setLiveIsPro(isPro)
-    setLiveSubscriptionStatus(subscriptionStatus)
-    setPastDueGraceEndsAt(pastDueGraceEndsAtProp)
-    setPastDueGraceDays(PAST_DUE_GRACE_DAYS)
-  }, [isPro, subscriptionStatus, pastDueGraceEndsAtProp])
-
-  const refreshSubscriptionCounts = useCallback(async () => {
-    try {
-      const res = await fetch("/api/subscription")
-      if (!res.ok) return
-      const data = (await res.json()) as {
-        itemCount?: number
-        pastDueGraceEndsAt?: string | null
-        pastDueGraceDays?: number
-        isPro?: boolean
-        status?: "active" | "canceled" | "past_due" | null
-      }
-      if (typeof data.itemCount === "number") {
-        setLiveItemCount(data.itemCount)
-      }
-      if (data.pastDueGraceEndsAt !== undefined) {
-        setPastDueGraceEndsAt(data.pastDueGraceEndsAt)
-      }
-      if (typeof data.pastDueGraceDays === "number") {
-        setPastDueGraceDays(data.pastDueGraceDays)
-      }
-      if (typeof data.isPro === "boolean") {
-        setLiveIsPro(data.isPro)
-      }
-      if (data.status !== undefined) {
-        setLiveSubscriptionStatus(data.status)
-      }
-    } catch {
-      /* ignore transient fetch errors */
-    }
-  }, [])
-
+  const {
+    liveItemCount,
+    liveIsPro,
+    liveSubscriptionStatus,
+    livePastDueGraceEndsAt,
+    pastDueGraceDays,
+    refreshSubscriptionCounts,
+  } = useLiveSubscription({
+    itemCount,
+    isPro,
+    subscriptionStatus,
+    pastDueGraceEndsAt: pastDueGraceEndsAtProp,
+  })
   const {
     selectedItemIds,
     setSelectedItemIds,
@@ -178,6 +176,24 @@ export default function DashboardClient({
     isItemSelected,
     toggleItemSelection,
   } = useDashboardSelection(currentBoxId)
+  const {
+    dndMoveLoading,
+    dndActiveId,
+    setDndActiveId,
+    sensors,
+    handleDragEnd,
+  } = useDashboardDnd({
+    currentBoxId,
+    currentBox,
+    items,
+    boxes,
+    selectedItemIds,
+    selectedBoxIds,
+    loadItems,
+    loadBoxes,
+    bumpStatsRefreshKey: () => setStatsRefreshKey((k) => k + 1),
+  })
+  const contentSkeletonLoading = folderLoading || dndMoveLoading
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const selectedItems = useMemo(() => {
     const fromCollection = items.filter((i) => selectedItemIds.has(i.id))
@@ -200,15 +216,6 @@ export default function DashboardClient({
   }, [unacquiredItems.length])
 
   useEffect(() => {
-    if (!user?.id) return
-    supabase
-      .from("tags")
-      .select("*")
-      .eq("user_id", user.id)
-      .then(({ data }) => setUserTags(sortTagsByColorThenName(data ?? [])))
-  }, [user?.id, supabase])
-
-  useEffect(() => {
     if (demoPromptDismissed) {
       setShowDemoOfferDialog(false)
       return
@@ -220,132 +227,6 @@ export default function DashboardClient({
     loading,
     contentSkeletonLoading,
   ])
-
-  const loadBoxes = async (gen?: number) => {
-    if (!user?.id) {
-      return
-    }
-    try {
-      let query = supabase
-        .from("boxes")
-        .select("*")
-        .eq("user_id", user.id)
-
-      const parentId = currentBoxId && currentBoxId !== "null" ? currentBoxId : null
-      if (parentId) {
-        query = query.eq("parent_box_id", parentId)
-      } else {
-        query = query.is("parent_box_id", null)
-      }
-
-      const { data, error } = await query.order("position", { ascending: true })
-
-      if (error) throw error
-      if (gen !== undefined && gen !== folderLoadGenRef.current) return
-      setBoxes(data || [])
-    } catch (error) {
-      if (gen !== undefined && gen !== folderLoadGenRef.current) return
-      setBoxes([])
-      const message =
-        error instanceof Error
-          ? error.message
-          : typeof error === "object" && error !== null && "message" in error
-            ? String((error as { message: unknown }).message)
-            : String(error)
-      console.error("Error loading boxes:", message, error)
-    }
-  }
-
-  const loadUnacquiredForBox = async (boxId: string, gen?: number) => {
-    try {
-      const { data, error } = await supabase
-        .from("items")
-        .select(`
-          *,
-          photos (*),
-          item_tags (
-            tag:tags (*)
-          )
-        `)
-        .eq("user_id", user.id)
-        .eq("is_wishlist", true)
-        .eq("wishlist_target_box_id", boxId)
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-      if (gen !== undefined && gen !== folderLoadGenRef.current) return
-      setUnacquiredItems((data || []).map(normalizeItem))
-    } catch (error) {
-      if (gen !== undefined && gen !== folderLoadGenRef.current) return
-      console.error("Error loading unacquired items:", error)
-      setUnacquiredItems([])
-    }
-  }
-
-  const loadItems = async (boxId: string | null, gen?: number) => {
-    if (!user?.id) {
-      return
-    }
-    try {
-      let query = supabase
-        .from("items")
-        .select(`
-          *,
-          photos (*),
-          item_tags (
-            tag:tags (*)
-          )
-        `)
-        .eq("user_id", user.id)
-        .eq("is_wishlist", false)
-
-      if (boxId) {
-        query = query.eq("box_id", boxId)
-      } else {
-        query = query.is("box_id", null)
-      }
-
-      if (searchQuery) {
-        query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`)
-      }
-
-      const { data, error } = await query.order("position", { ascending: true })
-
-      if (error) throw error
-      if (gen !== undefined && gen !== folderLoadGenRef.current) return
-      setItems((data || []).map(normalizeItem))
-      if (boxId) {
-        await loadUnacquiredForBox(boxId, gen)
-      } else {
-        if (gen !== undefined && gen !== folderLoadGenRef.current) return
-        setUnacquiredItems([])
-      }
-    } catch (error) {
-      if (gen !== undefined && gen !== folderLoadGenRef.current) return
-      console.error("Error loading items:", error)
-      setUnacquiredItems([])
-    }
-  }
-
-  useEffect(() => {
-    if (!user?.id) {
-      setLoading(false)
-      setFolderLoading(false)
-      return
-    }
-    const gen = ++folderLoadGenRef.current
-    setFolderLoading(true)
-    void (async () => {
-      try {
-        await Promise.all([loadBoxes(gen), loadItems(currentBoxId, gen)])
-      } finally {
-        if (gen === folderLoadGenRef.current) {
-          setFolderLoading(false)
-          setLoading(false)
-        }
-      }
-    })()
-  }, [currentBoxId, searchQuery, user?.id])
 
   const createBox = async (name: string, description: string) => {
     if (!name.trim()) return
@@ -467,15 +348,6 @@ export default function DashboardClient({
     setCurrentBox(box)
   }
 
-  const openEditBox = (box: Box) => {
-    setEditBox(box)
-    setEditBoxName(box.name)
-    setEditBoxDescription(box.description ?? "")
-    setDeleteMode(null)
-    setDeleteConfirmName("")
-    setShowEditBoxDialog(true)
-  }
-
   const saveEditBox = async () => {
     if (!editBox || !editBoxName.trim()) return
     setSavingEditBox(true)
@@ -536,121 +408,6 @@ export default function DashboardClient({
       setDeletingBox(false)
     }
   }
-
-  // Raw PointerSensor also handles touch, bypassing TouchSensor. NonTouchPointerSensor keeps
-  // mouse + stylus (pen) on pointer events with distance; fingers use TouchSensor (long hold).
-  const sensors = useSensors(
-    useSensor(NonTouchPointerSensor, {
-      activationConstraint: { distance: 8 },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 250, tolerance: 5 },
-    })
-  )
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over) return
-
-    const activeId = String(active.id)
-    const overId = String(over.id)
-
-    let targetParentBoxId: string | null = null
-    if (overId === MOVE_TO_PARENT_ZONE_ID) {
-      targetParentBoxId = currentBox?.parent_box_id ?? null
-    } else if (overId === BREADCRUMB_ROOT_DROP_ID) {
-      targetParentBoxId = null
-    } else if (overId.startsWith("breadcrumb-box-")) {
-      targetParentBoxId = overId.slice("breadcrumb-box-".length)
-    } else if (overId.startsWith("box-")) {
-      targetParentBoxId = overId.slice("box-".length)
-    } else {
-      return
-    }
-
-    if (activeId.startsWith("item-")) {
-      const itemId = activeId.slice("item-".length)
-      const draggedItem = active.data.current?.item as Item | undefined
-      if (!draggedItem) return
-
-      const currentItemBoxId = draggedItem.box_id ?? null
-      if (currentItemBoxId === targetParentBoxId) return
-
-      const moveItemIds =
-        selectedItemIds.has(itemId) && selectedItemIds.size > 0
-          ? items
-              .filter((i) => selectedItemIds.has(i.id) && (i.box_id ?? null) === currentItemBoxId)
-              .map((i) => i.id)
-          : [itemId]
-
-      if (moveItemIds.length === 0) return
-
-      setDndMoveLoading(true)
-      try {
-        const res = await fetch("/api/items/move", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ itemIds: moveItemIds, targetBoxId: targetParentBoxId }),
-        })
-        if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.error ?? "Failed to move item")
-        }
-        await Promise.all([loadItems(currentBoxId), loadBoxes()])
-        setStatsRefreshKey((k) => k + 1)
-      } catch (e) {
-        console.error("Error moving item:", e)
-      } finally {
-        setDndMoveLoading(false)
-      }
-      return
-    }
-
-    if (activeId.startsWith("box-drag-")) {
-      const boxId = activeId.slice("box-drag-".length)
-      const draggedBox = active.data.current?.box as Box | undefined
-      if (!draggedBox) return
-
-      if (targetParentBoxId !== null && selectedBoxIds.has(targetParentBoxId)) {
-        return
-      }
-
-      const currentBoxParentId = draggedBox.parent_box_id ?? null
-      const moveBoxIdsBase =
-        selectedBoxIds.has(boxId) && selectedBoxIds.size > 0
-          ? boxes
-              .filter(
-                (b) =>
-                  selectedBoxIds.has(b.id) &&
-                  (b.parent_box_id ?? null) === currentBoxParentId
-              )
-              .map((b) => b.id)
-          : [boxId]
-
-      const moveBoxIds = moveBoxIdsBase.filter((id) => id !== targetParentBoxId)
-      if (moveBoxIds.length === 0) return
-
-      setDndMoveLoading(true)
-      try {
-        const res = await fetch("/api/boxes/move", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ boxIds: moveBoxIds, targetParentBoxId }),
-        })
-        if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.error ?? "Failed to move box")
-        }
-        await Promise.all([loadBoxes(), loadItems(currentBoxId)])
-        setStatsRefreshKey((k) => k + 1)
-      } catch (e) {
-        console.error("Error moving box:", e)
-      } finally {
-        setDndMoveLoading(false)
-      }
-    }
-  }
-
 
   const ActiveItemsIcon = activeItemsTab === "unacquired" ? Sparkle : Sword
   const tabbedItemsHeader = (
@@ -727,7 +484,7 @@ export default function DashboardClient({
       {/* past_due warning banner */}
       {liveSubscriptionStatus === "past_due" && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-fluid-sm text-amber-800">
-          {pastDueGraceEndsAt ? (
+          {livePastDueGraceEndsAt ? (
             liveIsPro ? (
               <>
                 Your payment failed. Pro access remains on for{" "}
@@ -736,7 +493,7 @@ export default function DashboardClient({
                 </strong>{" "}
                 after your billing period ended, through{" "}
                 <strong>
-                  {new Date(pastDueGraceEndsAt).toLocaleDateString(undefined, {
+                  {new Date(livePastDueGraceEndsAt).toLocaleDateString(undefined, {
                     weekday: "long",
                     year: "numeric",
                     month: "long",
@@ -753,7 +510,7 @@ export default function DashboardClient({
               <>
                 Your payment failed; your Pro grace period ended on{" "}
                 <strong>
-                  {new Date(pastDueGraceEndsAt).toLocaleDateString(undefined, {
+                  {new Date(livePastDueGraceEndsAt).toLocaleDateString(undefined, {
                     weekday: "long",
                     year: "numeric",
                     month: "long",
@@ -785,6 +542,7 @@ export default function DashboardClient({
 
       <main className="container mx-auto px-4 py-8 layout-shrink-visible" onMouseDown={handleMouseDown}>
         <DndContext
+          id={DASHBOARD_DND_CONTEXT_ID}
           sensors={sensors}
           collisionDetection={dashboardDndCollisionDetection}
           onDragStart={({ active }) => setDndActiveId(String(active.id))}

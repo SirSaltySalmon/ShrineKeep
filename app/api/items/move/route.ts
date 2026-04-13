@@ -1,7 +1,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { moveItems } from "@/lib/api/move-item"
+import { startRouteSpan } from "@/lib/monitoring/sentry"
+import { moveItemsForUser, type MoveItemsRequestBody } from "@/lib/services/items/move-items"
 
 /**
  * Move one or more items to a target box.
@@ -9,36 +10,35 @@ import { moveItems } from "@/lib/api/move-item"
  * Uses optimized batch movement for multiple items.
  */
 export async function POST(request: NextRequest) {
-  try {
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+  return startRouteSpan(
+    "items.move",
+    "http.server",
+    { "feature.area": "items", "feature.operation": "move" },
+    async () => {
+      try {
+        const supabase = await createSupabaseServerClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        if (!user) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        }
+
+        const body = (await request.json()) as MoveItemsRequestBody
+        const { movedCount } = await moveItemsForUser(supabase, user.id, body)
+        return NextResponse.json({ success: true, movedCount })
+      } catch (error: unknown) {
+        if (
+          error instanceof Error &&
+          error.message === "itemId or itemIds array is required"
+        ) {
+          return NextResponse.json({ error: error.message }, { status: 400 })
+        }
+        const message =
+          error instanceof Error ? error.message : "Failed to move item"
+        return NextResponse.json({ error: message }, { status: 500 })
+      }
     }
-
-    const body = (await request.json()) as {
-      itemId?: string
-      itemIds?: string[]
-      targetBoxId?: string | null
-    }
-    const targetBoxId = body.targetBoxId ?? null
-    const itemIds = body.itemIds ?? (body.itemId ? [body.itemId] : null)
-
-    if (!itemIds || itemIds.length === 0) {
-      return NextResponse.json(
-        { error: "itemId or itemIds array is required" },
-        { status: 400 }
-      )
-    }
-
-    const { movedCount } = await moveItems(supabase, user.id, itemIds, targetBoxId)
-    return NextResponse.json({ success: true, movedCount })
-  } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : "Failed to move item"
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
+  )
 }

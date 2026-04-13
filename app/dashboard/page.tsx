@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { Theme } from "@/lib/types"
 import DashboardClient from "./dashboard-client"
 import { getSubscriptionStatus, getItemCount, getEffectiveCap, FREE_TIER_CAP } from "@/lib/subscription"
+import { loadDashboardRootData } from "@/lib/services/dashboard/load-dashboard-root"
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient()
@@ -14,13 +15,14 @@ export default async function DashboardPage() {
     redirect("/auth/login")
   }
 
-  const [{ data: user }, { data: settings }, subscription, itemCount] = await Promise.all([
+  const [{ data: user }, { data: settings }, rootData, subscription, itemCount] = await Promise.all([
     supabase.from("users").select("*").eq("id", authUser.id).single(),
     supabase
       .from("user_settings")
       .select("color_scheme, graph_overlay, dashboard_demo_prompt_dismissed")
       .eq("user_id", authUser.id)
       .maybeSingle(),
+    loadDashboardRootData(supabase, authUser.id),
     getSubscriptionStatus(supabase, authUser.id),
     getItemCount(supabase, authUser.id),
   ])
@@ -45,6 +47,9 @@ export default async function DashboardPage() {
       itemCount={itemCount}
       itemCap={isFinite(cap) ? cap : null}
       freeTierCap={FREE_TIER_CAP}
+      initialBoxes={rootData.initialBoxes}
+      initialItems={rootData.initialItems}
+      initialUserTags={rootData.initialTags}
     />
   )
 }

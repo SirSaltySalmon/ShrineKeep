@@ -228,7 +228,7 @@ export function SelectionActionBar({
         }
       }
       if (pasteTarget && hasItemRefs) {
-        const res = await fetch("/api/items/batch", {
+        const res = await fetch("/api/items/paste", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

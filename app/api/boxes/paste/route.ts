@@ -9,6 +9,11 @@ import {
 } from "@/lib/api/copy-expand"
 import { getEffectiveCap, getSubscriptionStatus } from "@/lib/subscription"
 import { getOwnedBoxIdSet } from "@/lib/api/validate-box-ownership"
+import {
+  ensurePasteTreesPresent,
+  parsePasteBoxesRequest,
+  type PasteBoxesRequestBody,
+} from "@/lib/services/boxes/paste-boxes"
 
 /**
  * Paste one or more box trees under targetParentBoxId. Body: { trees: BoxCopyPayload[], targetParentBoxId: string | null }.
@@ -24,14 +29,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = (await request.json()) as {
-      trees?: BoxCopyPayload[]
-      sourceRootBoxIds?: string[]
-      targetParentBoxId?: string | null
-    }
-    const inputTrees = body.trees ?? []
-    const sourceRootBoxIds = body.sourceRootBoxIds ?? []
-    const targetParentBoxId = body.targetParentBoxId ?? null
+    const body = (await request.json()) as PasteBoxesRequestBody
+    const { inputTrees, sourceRootBoxIds, targetParentBoxId } =
+      parsePasteBoxesRequest(body)
 
     if (targetParentBoxId) {
       const ownedParents = await getOwnedBoxIdSet(supabase, user.id, [
@@ -50,12 +50,7 @@ export async function POST(request: NextRequest) {
       trees = await expandBoxRefsToTrees(supabase, user.id, sourceRootBoxIds)
     }
 
-    if (trees.length === 0) {
-      return NextResponse.json(
-        { error: "trees array or sourceRootBoxIds array is required" },
-        { status: 400 }
-      )
-    }
+    ensurePasteTreesPresent(trees, sourceRootBoxIds)
 
     const { isPro } = await getSubscriptionStatus(supabase, user.id)
     const cap = await getEffectiveCap(
@@ -97,6 +92,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, createdBoxIds })
   } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      error.message === "trees array or sourceRootBoxIds array is required"
+    ) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     if (error instanceof ItemCapExceededError) {
       return NextResponse.json(
         { error: "item_limit_reached", currentCount: error.currentCount, cap: error.cap },

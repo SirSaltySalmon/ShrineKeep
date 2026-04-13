@@ -10,7 +10,7 @@ import { cn, getSelectableRingClasses } from "@/lib/utils"
 export const CARD_HOVER_MOTION_CLASS =
   "rounded-lg shadow-none transition-[transform,box-shadow] duration-300 ease-out motion-reduce:hover:transform-none motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-lg"
 
-const SELECTABLE_BASE_CLASS = cn(CARD_HOVER_MOTION_CLASS, "cursor-pointer, touch-manipulation")
+const SELECTABLE_BASE_CLASS = cn(CARD_HOVER_MOTION_CLASS, "cursor-pointer touch-manipulation")
 
 export interface SelectableProps extends React.HTMLAttributes<HTMLDivElement> {
   /** When true, show full selection ring (selected or drop target). */

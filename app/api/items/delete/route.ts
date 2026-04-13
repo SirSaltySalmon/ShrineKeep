@@ -1,7 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { deleteItems } from "@/lib/api/delete-item"
+import { deleteItemsForUser, type DeleteItemsRequestBody } from "@/lib/services/items/delete-items"
 
 /**
  * Delete one or more items. Only deletes a photo file from storage when
@@ -20,23 +20,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body = (await request.json()) as { itemId?: string; itemIds?: string[] }
-    const itemIds = body.itemIds ?? (body.itemId ? [body.itemId] : null)
-
-    if (!itemIds || itemIds.length === 0) {
-      return NextResponse.json(
-        { error: "itemId or itemIds array is required" },
-        { status: 400 }
-      )
-    }
-
-    const { deletedPhotos, deletedCount } = await deleteItems(supabase, user.id, itemIds)
+    const body = (await request.json()) as DeleteItemsRequestBody
+    const { deletedPhotos, deletedCount } = await deleteItemsForUser(supabase, user.id, body)
     return NextResponse.json({
       success: true,
       deletedPhotos,
       deletedCount,
     })
   } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      error.message === "itemId or itemIds array is required"
+    ) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     const message =
       error instanceof Error
         ? error.message

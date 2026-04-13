@@ -8,20 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Image as ImageIcon, Check } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
 
-// Get colors from CSS variables
-function getValueColor(): string {
-  if (typeof window === "undefined") return "hsl(142 76% 36%)"
-  const root = document.documentElement
-  const value = getComputedStyle(root).getPropertyValue("--value-color").trim()
-  return value ? `hsl(${value})` : "hsl(142 76% 36%)"
-}
-
-function getAcquisitionColor(): string {
-  if (typeof window === "undefined") return "hsl(0 84% 60%)"
-  const root = document.documentElement
-  const value = getComputedStyle(root).getPropertyValue("--acquisition-color").trim()
-  return value ? `hsl(${value})` : "hsl(0 84% 60%)"
-}
+const VALUE_COLOR_STYLE = { color: "hsl(var(--value-color))" } as const
+const ACQUISITION_COLOR_STYLE = { color: "hsl(var(--acquisition-color))" } as const
 
 
 interface ItemCardProps {
@@ -80,12 +68,12 @@ export default function ItemCard({
       <CardContent onClick={(e) => e.stopPropagation()}>
         <div className="space-y-1 text-fluid-sm layout-shrink-visible">
           {item.current_value !== null && item.current_value !== undefined && (
-            <div className="font-medium truncate" style={{ color: getValueColor() }}>
+            <div className="font-medium truncate" style={VALUE_COLOR_STYLE}>
               Value: {formatCurrency(item.current_value)}
             </div>
           )}
           {secondaryPrice !== null && secondaryPrice !== undefined && (
-            <div className="truncate" style={{ color: getAcquisitionColor() }}>
+            <div className="truncate" style={ACQUISITION_COLOR_STYLE}>
               {secondaryLabel}: {formatCurrency(secondaryPrice)}
             </div>
           )}

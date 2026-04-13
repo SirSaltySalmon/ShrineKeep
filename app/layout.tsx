@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import BoneyardRegistryLoader from "@/components/boneyard-registry-loader"
+import QueryProvider from "@/components/query-provider"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const geistSans = GeistSans
@@ -81,8 +82,10 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          <BoneyardRegistryLoader />
-          <Suspense fallback={null}>{children}</Suspense>
+          <QueryProvider>
+            <BoneyardRegistryLoader />
+            <Suspense fallback={null}>{children}</Suspense>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

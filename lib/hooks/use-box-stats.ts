@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useLayoutEffect, useRef } from "react"
+import { useQuery } from "@tanstack/react-query"
 
 export interface ValuePoint {
   date: string
@@ -46,66 +46,47 @@ export interface UseBoxStatsResult {
   isRefreshing: boolean
 }
 
+interface BoxStatsResponse {
+  valueHistory: ValuePoint[]
+  acquisitionHistory: AcquisitionPoint[]
+  currentValue: number
+  totalAcquisition: number
+}
+
 export function useBoxStats(
   boxId: string,
   options: UseBoxStatsOptions = {}
 ): UseBoxStatsResult {
   const { enabled = true, refreshKey = 0, fromDate, toDate } = options
+  const queryEnabled = enabled && Boolean(boxId)
+  const query = useQuery({
+    queryKey: ["box-stats", boxId, fromDate ?? "", toDate ?? "", refreshKey],
+    enabled: queryEnabled,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    queryFn: async (): Promise<BoxStatsResponse> => {
+      const params = new URLSearchParams()
+      if (fromDate) params.set("fromDate", fromDate)
+      if (toDate) params.set("toDate", toDate)
+      const queryString = params.toString()
+      const res = await fetch(`/api/boxes/${boxId}/stats${queryString ? `?${queryString}` : ""}`)
+      if (!res.ok) {
+        throw new Error("Failed to load")
+      }
+      const data = (await res.json()) as Partial<BoxStatsResponse>
+      return {
+        valueHistory: data.valueHistory ?? [],
+        acquisitionHistory: data.acquisitionHistory ?? [],
+        currentValue: data.currentValue ?? 0,
+        totalAcquisition: data.totalAcquisition ?? 0,
+      }
+    },
+  })
 
-  const [valueHistory, setValueHistory] = useState<ValuePoint[]>([])
-  const [acquisitionHistory, setAcquisitionHistory] = useState<AcquisitionPoint[]>([])
-  const [currentValue, setCurrentValue] = useState(0)
-  const [totalAcquisition, setTotalAcquisition] = useState(0)
-  const [loading, setLoading] = useState(enabled)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const hasCompletedFetchRef = useRef(false)
-  const fetchGenRef = useRef(0)
-
-  useLayoutEffect(() => {
-    hasCompletedFetchRef.current = false
-    if (enabled && boxId) {
-      setLoading(true)
-    }
-  }, [boxId, enabled])
-
-  useEffect(() => {
-    if (!enabled || !boxId) {
-      setIsRefreshing(false)
-      return
-    }
-    const showBlockingLoading = !hasCompletedFetchRef.current
-    const isSubsequentFetch = hasCompletedFetchRef.current
-    if (showBlockingLoading) setLoading(true)
-    if (isSubsequentFetch) setIsRefreshing(true)
-    const gen = ++fetchGenRef.current
-    const params = new URLSearchParams()
-    if (fromDate) params.set("fromDate", fromDate)
-    if (toDate) params.set("toDate", toDate)
-    const query = params.toString()
-    fetch(`/api/boxes/${boxId}/stats${query ? `?${query}` : ""}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data) => {
-        setValueHistory(data.valueHistory ?? [])
-        setAcquisitionHistory(data.acquisitionHistory ?? [])
-        setCurrentValue(data.currentValue ?? 0)
-        setTotalAcquisition(data.totalAcquisition ?? 0)
-      })
-      .catch(() => {
-        setValueHistory([])
-        setAcquisitionHistory([])
-        setCurrentValue(0)
-        setTotalAcquisition(0)
-      })
-      .finally(() => {
-        if (gen !== fetchGenRef.current) return
-        setLoading(false)
-        setIsRefreshing(false)
-        hasCompletedFetchRef.current = true
-      })
-  }, [enabled, boxId, refreshKey, fromDate, toDate])
+  const valueHistory = query.data?.valueHistory ?? []
+  const acquisitionHistory = query.data?.acquisitionHistory ?? []
+  const currentValue = query.data?.currentValue ?? 0
+  const totalAcquisition = query.data?.totalAcquisition ?? 0
 
   const profit = currentValue - totalAcquisition
   const valueChartData: ValueChartPoint[] = valueHistory.map((p) => ({
@@ -141,7 +122,7 @@ export function useBoxStats(
     currentValue,
     totalAcquisition,
     profit,
-    loading,
-    isRefreshing,
+    loading: queryEnabled ? query.isLoading : false,
+    isRefreshing: queryEnabled ? query.isFetching && !query.isLoading : false,
   }
 }
