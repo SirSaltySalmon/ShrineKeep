@@ -18,6 +18,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
+const LOADING_ROW_VISIBILITY = ["", "hidden md:block", "hidden lg:block", "hidden xl:block"] as const
+
 interface BoxGridProps {
   boxes: Box[]
   loading?: boolean
@@ -118,6 +120,7 @@ export default function BoxGrid({
       </DialogContent>
     </Dialog>
   )
+  const displayedBoxes = loading ? BOX_SKELETON_FIXTURES.slice(0, 4) : boxes
 
   return (
     <div className="mb-8 layout-shrink-visible rounded-md border bg-light-muted p-4">
@@ -134,45 +137,20 @@ export default function BoxGrid({
         </div>
       ) : (
         <div className="min-h-[152px] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {(loading ? BOX_SKELETON_FIXTURES : boxes).map((box) => {
-            if (loading) {
-              return (
-                <Skeleton
-                  key={box.id}
-                  name="box-grid-card"
-                  loading
-                  animate="shimmer"
-                  color="hsl(var(--muted))"
-                  darkColor="hsl(var(--muted))"
-                  fallback={
-                    <div className="rounded-lg border bg-card p-4 space-y-3 animate-pulse">
-                      <div className="h-5 w-1/2 rounded-md bg-muted" />
-                      <div className="h-4 w-3/4 rounded-md bg-muted" />
-                      <div className="h-4 w-2/3 rounded-md bg-muted" />
-                    </div>
-                  }
-                  fixture={
-                    <DroppableBoxCard
-                      box={box}
-                      onBoxClick={() => {}}
-                      onRename={() => {}}
-                      onShowStats={() => {}}
-                    />
-                  }
-                >
-                  <DroppableBoxCard
-                    box={box}
-                    onBoxClick={() => {}}
-                    onRename={() => {}}
-                    onShowStats={() => {}}
-                  />
-                </Skeleton>
-              )
-            }
-
-            return (
+          {displayedBoxes.map((box, index) => {
+            const fixtureCard = (
               <DroppableBoxCard
-                key={box.id}
+                box={box}
+                onBoxClick={() => {}}
+                onRename={() => {}}
+                onShowStats={() => {}}
+              />
+            )
+
+            const cardContent = loading ? (
+              fixtureCard
+            ) : (
+              <DroppableBoxCard
                 box={box}
                 onBoxClick={handleBoxCardClick}
                 onRename={onRename}
@@ -182,6 +160,22 @@ export default function BoxGrid({
                 registerBoxCardRef={registerBoxCardRef}
               />
             )
+
+            const skeletonNode = (
+              <Skeleton name="box-grid-card" loading={loading} fixture={fixtureCard}>
+                {cardContent}
+              </Skeleton>
+            )
+
+            if (loading) {
+              return (
+                <div key={`${box.id}-${index}`} className={LOADING_ROW_VISIBILITY[index] ?? "hidden"}>
+                  {skeletonNode}
+                </div>
+              )
+            }
+
+            return <Skeleton key={box.id} name="box-grid-card" loading={loading} fixture={fixtureCard}>{cardContent}</Skeleton>
           })}
         </div>
       )}

@@ -7,6 +7,8 @@ import {
   DEMO_BOX_ROWS,
   DEMO_PLACEHOLDER_PRIMARY,
   DEMO_WISHLIST_ITEM_SPECS,
+  DEMO_COLLECTION_ITEM_IDS,
+  DEMO_WISHLIST_ITEM_IDS,
 } from "@/lib/demo/demo-seed-data"
 
 const nowIso = "2026-01-12T10:00:00.000Z"
@@ -26,20 +28,6 @@ export const demoTags: Tag[] = DEMO_TAG_SPECS.map((spec, i) => ({
 
 const tagByName = new Map(demoTags.map((t) => [t.name, t]))
 
-/** Stable preview UUIDs — must stay in sync with app/boneyard-preview and bones. */
-const COLLECTION_ITEM_IDS = [
-  "33333333-3333-3333-3333-333333333301",
-  "33333333-3333-3333-3333-333333333302",
-  "33333333-3333-3333-3333-333333333303",
-  "33333333-3333-3333-3333-333333333304",
-] as const
-
-const WISHLIST_ITEM_IDS = [
-  "44444444-4444-4444-4444-444444444401",
-  "44444444-4444-4444-4444-444444444402",
-  "44444444-4444-4444-4444-444444444403",
-] as const
-
 export const BOX_SKELETON_FIXTURES: Box[] = DEMO_BOX_ROWS.map((row) => ({
   id: row.skeletonId,
   user_id: DEMO_SKELETON_USER_ID,
@@ -54,7 +42,7 @@ export const BOX_SKELETON_FIXTURES: Box[] = DEMO_BOX_ROWS.map((row) => ({
 
 export const COLLECTION_ITEM_SKELETON_FIXTURES: Item[] = DEMO_COLLECTION_ITEM_SPECS.map(
   (spec, i) => ({
-    id: COLLECTION_ITEM_IDS[i]!,
+    id: DEMO_COLLECTION_ITEM_IDS[i]!,
     box_id: spec.skeletonBoxId,
     wishlist_target_box_id: null,
     user_id: DEMO_SKELETON_USER_ID,
@@ -76,7 +64,7 @@ export const COLLECTION_ITEM_SKELETON_FIXTURES: Item[] = DEMO_COLLECTION_ITEM_SP
 
 export const WISHLIST_ITEM_SKELETON_FIXTURES: Item[] = DEMO_WISHLIST_ITEM_SPECS.map(
   (spec, i) => ({
-    id: WISHLIST_ITEM_IDS[i]!,
+    id: DEMO_WISHLIST_ITEM_IDS[i]!,
     box_id: null,
     wishlist_target_box_id: spec.skeletonTargetBoxId,
     user_id: DEMO_SKELETON_USER_ID,

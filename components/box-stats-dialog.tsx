@@ -13,6 +13,7 @@ import {
 import { useBoxStats } from "@/lib/hooks/use-box-stats"
 import { BoxStatsSummary, BoxStatsCharts } from "@/components/box-stats-content"
 import { DateRangeFilter } from "@/components/date-range-filter"
+import type { BoneyardBoxStatsFixture } from "@/components/boneyard-stats-fixtures"
 
 interface BoxStatsDialogProps {
   boxId: string
@@ -20,6 +21,8 @@ interface BoxStatsDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   graphOverlay?: boolean
+  captureSkeleton?: boolean
+  previewData?: BoneyardBoxStatsFixture
 }
 
 export default function BoxStatsDialog({
@@ -28,6 +31,8 @@ export default function BoxStatsDialog({
   open,
   onOpenChange,
   graphOverlay = true,
+  captureSkeleton = false,
+  previewData,
 }: BoxStatsDialogProps) {
   const [fromDate, setFromDate] = useState("")
   const [toDate, setToDate] = useState("")
@@ -40,12 +45,57 @@ export default function BoxStatsDialog({
     loading,
     isRefreshing,
   } = useBoxStats(boxId, {
-    enabled: open,
+    enabled: open && previewData == null,
     fromDate: fromDate || undefined,
     toDate: toDate || undefined,
   })
 
   const scopeLabel = boxId === "root" ? "Root" : "Box"
+  const currentValueDisplay = previewData?.currentValue ?? currentValue
+  const totalAcquisitionDisplay = previewData?.totalAcquisition ?? totalAcquisition
+  const profitDisplay = currentValueDisplay - totalAcquisitionDisplay
+  const valueChartDataDisplay = previewData?.valueChartData ?? valueChartData
+  const acquisitionChartDataDisplay = previewData?.acquisitionChartData ?? acquisitionChartData
+  const isRefreshingDisplay = previewData ? false : isRefreshing
+  const dialogBody = (
+    <div className="space-y-6 py-4">
+      <BoxStatsSummary
+        currentValue={currentValueDisplay}
+        totalAcquisition={totalAcquisitionDisplay}
+        profit={profitDisplay}
+        variant="cards"
+      />
+      <DateRangeFilter
+        fromDate={fromDate}
+        toDate={toDate}
+        onApplyRange={(from, to) => {
+          setFromDate(from)
+          setToDate(to)
+        }}
+        onReset={() => {
+          setFromDate("")
+          setToDate("")
+        }}
+      />
+      {isRefreshingDisplay && (
+        <p
+          className="flex items-center gap-2 text-fluid-xs text-muted-foreground min-h-[1.25rem]"
+          aria-live="polite"
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+          Updating…
+        </p>
+      )}
+      <BoxStatsCharts
+        valueChartData={valueChartDataDisplay}
+        acquisitionChartData={acquisitionChartDataDisplay}
+        graphOverlay={graphOverlay}
+        tooltipInModal
+        fromDate={fromDate || undefined}
+        toDate={toDate || undefined}
+      />
+    </div>
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -58,85 +108,16 @@ export default function BoxStatsDialog({
             Total value and cumulative acquisition cost over time (includes all items in this scope and sub-boxes).
           </DialogDescription>
         </DialogHeader>
-        {loading ? (
-          <Skeleton
-            name="box-stats-dialog"
-            loading
-            animate="shimmer"
-            color="hsl(var(--muted))"
-            darkColor="hsl(var(--muted))"
-            fallback={
-              <div className="space-y-6 py-4 animate-pulse">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="h-20 rounded-md bg-muted" />
-                  <div className="h-20 rounded-md bg-muted" />
-                  <div className="h-20 rounded-md bg-muted" />
-                </div>
-                <div className="h-12 rounded-md bg-muted" />
-                <div className="h-[260px] rounded-md bg-muted" />
-              </div>
-            }
-            fixture={
-              <div className="space-y-6 py-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="h-20 rounded-md bg-muted" />
-                  <div className="h-20 rounded-md bg-muted" />
-                  <div className="h-20 rounded-md bg-muted" />
-                </div>
-                <div className="h-12 rounded-md bg-muted" />
-                <div className="h-[260px] rounded-md bg-muted" />
-              </div>
-            }
-          >
-            <div className="space-y-6 py-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="h-20 rounded-md bg-muted" />
-                <div className="h-20 rounded-md bg-muted" />
-                <div className="h-20 rounded-md bg-muted" />
-              </div>
-              <div className="h-12 rounded-md bg-muted" />
-              <div className="h-[260px] rounded-md bg-muted" />
-            </div>
-          </Skeleton>
-        ) : (
-          <div className="space-y-6 py-4">
-            <BoxStatsSummary
-              currentValue={currentValue}
-              totalAcquisition={totalAcquisition}
-              profit={profit}
-              variant="cards"
-            />
-            <DateRangeFilter
-              fromDate={fromDate}
-              toDate={toDate}
-              onApplyRange={(from, to) => {
-                setFromDate(from)
-                setToDate(to)
-              }}
-              onReset={() => {
-                setFromDate("")
-                setToDate("")
-              }}
-            />
-            {isRefreshing && (
-              <p
-                className="flex items-center gap-2 text-fluid-xs text-muted-foreground min-h-[1.25rem]"
-                aria-live="polite"
-              >
-                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
-                Updating…
-              </p>
-            )}
-            <BoxStatsCharts
-              valueChartData={valueChartData}
-              acquisitionChartData={acquisitionChartData}
-              graphOverlay={graphOverlay}
-              tooltipInModal
-              fromDate={fromDate || undefined}
-              toDate={toDate || undefined}
-            />
-          </div>
-        )}
+        <Skeleton
+          name="box-stats-dialog"
+          loading={loading || captureSkeleton}
+          animate="shimmer"
+          color="hsl(var(--muted))"
+          darkColor="hsl(var(--muted))"
+          fixture={dialogBody}
+        >
+          {dialogBody}
+        </Skeleton>
       </DialogContent>
     </Dialog>
   )

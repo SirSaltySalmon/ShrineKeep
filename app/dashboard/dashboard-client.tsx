@@ -214,17 +214,11 @@ export default function DashboardClient({
       return
     }
     if (loading || contentSkeletonLoading) return
-    if (currentBoxId != null || boxes.length > 0) {
-      setShowDemoOfferDialog(false)
-      return
-    }
     setShowDemoOfferDialog(true)
   }, [
     demoPromptDismissed,
     loading,
     contentSkeletonLoading,
-    currentBoxId,
-    boxes.length,
   ])
 
   const loadBoxes = async (gen?: number) => {
@@ -688,7 +682,8 @@ export default function DashboardClient({
             <DialogTitle>Try a sample collection?</DialogTitle>
             <DialogDescription>
               We can add demo boxes, items, tags, photos, and value history so you can explore how
-              ShrineKeep works. You can edit or delete everything later.
+              ShrineKeep works. This adds demo data to your existing library, and you can edit or
+              delete everything later.
             </DialogDescription>
           </DialogHeader>
           {demoSeedError ? (
@@ -1014,7 +1009,6 @@ export default function DashboardClient({
               boxName={currentBox?.name ?? "Root"}
               refreshKey={statsRefreshKey}
               graphOverlay={initialGraphOverlay}
-              forceLoading
             />
             <BoxGrid
               loading
@@ -1056,7 +1050,6 @@ export default function DashboardClient({
               boxName={currentBox?.name ?? "Root"}
               refreshKey={statsRefreshKey}
               graphOverlay={initialGraphOverlay}
-              forceLoading={contentSkeletonLoading}
             />
 
             <BoxGrid

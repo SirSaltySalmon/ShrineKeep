@@ -3,20 +3,31 @@
 import BoxGrid from "@/components/box-grid"
 import ItemGrid from "@/components/item-grid"
 import BoxStatsPanel from "@/components/box-stats-panel"
-import BoxStatsDialog from "@/components/box-stats-dialog"
 import ValueGraph from "@/components/value-graph"
 import ItemCard from "@/components/item-card"
 import { Skeleton } from "boneyard-js/react"
-import { COLLECTION_ITEM_SKELETON_FIXTURES } from "@/components/boneyard-fixtures"
+import {
+  BOX_SKELETON_FIXTURES,
+  COLLECTION_ITEM_SKELETON_FIXTURES,
+  WISHLIST_ITEM_SKELETON_FIXTURES,
+} from "@/components/boneyard-fixtures"
+import {
+  BONEYARD_BOX_STATS_FIXTURE,
+  BONEYARD_VALUE_GRAPH_HISTORY_FIXTURE,
+} from "@/components/boneyard-stats-fixtures"
+import Link from "next/link"
 
 export default function BoneyardPreviewPage() {
   return (
     <main className="container mx-auto px-4 py-8 space-y-8">
       <h1 className="text-2xl font-semibold">Boneyard Preview</h1>
-      <BoxStatsPanel boxId="root" boxName="Root" forceLoading />
+      <BoxStatsPanel
+        boxId="root"
+        boxName="Root"
+        previewData={BONEYARD_BOX_STATS_FIXTURE}
+      />
       <BoxGrid
-        loading
-        boxes={[]}
+        boxes={BOX_SKELETON_FIXTURES}
         currentBoxId={null}
         onBoxClick={() => {}}
         onRename={() => {}}
@@ -25,8 +36,7 @@ export default function BoneyardPreviewPage() {
         toggleBoxSelection={() => {}}
       />
       <ItemGrid
-        loading
-        items={[]}
+        items={COLLECTION_ITEM_SKELETON_FIXTURES}
         currentBoxId={null}
         onItemUpdate={() => {}}
         sectionTitle="Items"
@@ -35,8 +45,7 @@ export default function BoneyardPreviewPage() {
         isPro={false}
       />
       <ItemGrid
-        loading
-        items={[]}
+        items={WISHLIST_ITEM_SKELETON_FIXTURES}
         currentBoxId={null}
         onItemUpdate={() => {}}
         sectionTitle="Wishlist"
@@ -64,7 +73,11 @@ export default function BoneyardPreviewPage() {
           ))}
         </div>
       </section>
-      <ValueGraph itemId="33333333-3333-3333-3333-333333333301" forceLoading />
+      <ValueGraph
+        itemId="33333333-3333-3333-3333-333333333301"
+        previewHistory={BONEYARD_VALUE_GRAPH_HISTORY_FIXTURE}
+      />
+      <Link href="./2">Next Preview</Link>
     </main>
   )
 }

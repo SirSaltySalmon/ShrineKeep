@@ -9,6 +9,7 @@ import _item_grid_collection_card from './item-grid-collection-card.bones.json'
 import _item_grid_wishlist_card from './item-grid-wishlist-card.bones.json'
 import _search_results_card from './search-results-card.bones.json'
 import _value_graph from './value-graph.bones.json'
+import _box_stats_dialog from './box-stats-dialog.bones.json'
 
 configureBoneyard({"color":"hsl(var(--muted))","darkColor":"hsl(var(--muted))","animate":"shimmer","shimmerColor":"hsl(var(--accent))","darkShimmerColor":"hsl(var(--accent))","speed":"1.9s","shimmerAngle":105})
 
@@ -19,4 +20,5 @@ registerBones({
   "item-grid-wishlist-card": _item_grid_wishlist_card,
   "search-results-card": _search_results_card,
   "value-graph": _value_graph,
+  "box-stats-dialog": _box_stats_dialog,
 })

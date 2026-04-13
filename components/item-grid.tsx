@@ -17,6 +17,8 @@ import {
   WISHLIST_ITEM_SKELETON_FIXTURES,
 } from "@/components/boneyard-fixtures"
 
+const LOADING_ROW_VISIBILITY = ["", "hidden md:block", "hidden lg:block", "hidden xl:block"] as const
+
 /** When provided (e.g. by dashboard), selection is controlled by parent; otherwise ItemGrid uses internal marquee selection. */
 export interface ItemGridSelectionProps {
   selectedIds: Set<string>
@@ -160,6 +162,7 @@ export default function ItemGrid({
     variant === "wishlist"
       ? WISHLIST_ITEM_SKELETON_FIXTURES
       : COLLECTION_ITEM_SKELETON_FIXTURES
+  const displayedItems = loading ? skeletonItems.slice(0, 4) : items
   const showUsageStatus =
     variant === "collection" &&
     !isPro &&
@@ -191,68 +194,78 @@ export default function ItemGrid({
           )}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
-        {(loading ? skeletonItems : items).map((item) => (
-          loading ? (
-            <Skeleton
-              key={item.id}
-              name={variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card"}
-              loading
-              animate="shimmer"
-              color="hsl(var(--muted))"
-              darkColor="hsl(var(--muted))"
-              fallback={
-                <div className="rounded-lg border bg-card overflow-hidden animate-pulse">
-                  <div className="h-48 bg-muted" />
-                  <div className="p-4 space-y-3">
-                    <div className="h-5 w-2/3 rounded-md bg-muted" />
-                    <div className="h-4 w-5/6 rounded-md bg-muted" />
-                    <div className="h-4 w-1/2 rounded-md bg-muted" />
-                  </div>
-                </div>
-              }
-              fixture={
-                <ItemCard
-                  item={item}
-                  variant={variant}
-                  onClick={() => {}}
-                  onMarkAcquired={variant === "wishlist" ? () => {} : undefined}
-                />
-              }
-            >
+          {displayedItems.map((item, index) => {
+            const fixtureCard = (
               <ItemCard
                 item={item}
                 variant={variant}
                 onClick={() => {}}
                 onMarkAcquired={variant === "wishlist" ? () => {} : undefined}
               />
-            </Skeleton>
-          ) : variant === "collection" ? (
-            <DraggableItemCard
-              key={item.id}
-              item={item}
-              selected={selectedIds.has(item.id)}
-              selectionMode={selectionMode ?? false}
-              onClick={handleItemClick}
-              registerCardRef={registerCardRef}
-            />
-          ) : (
-            <div
-              key={item.id}
-              ref={readOnly ? undefined : (el) => registerCardRef(item.id, el)}
-              data-item-id={item.id}
-            >
-              <ItemCard
+            )
+
+            const cardContent = loading ? (
+              fixtureCard
+            ) : variant === "collection" ? (
+              <DraggableItemCard
                 item={item}
-                variant="wishlist"
-                selected={readOnly ? false : selectedIds.has(item.id)}
-                selectionMode={readOnly ? false : (selectionMode ?? false)}
+                selected={selectedIds.has(item.id)}
+                selectionMode={selectionMode ?? false}
                 onClick={handleItemClick}
-                onMarkAcquired={readOnly ? undefined : onMarkAcquired}
-                readOnly={readOnly}
+                registerCardRef={registerCardRef}
               />
-            </div>
-          )
-        ))}
+            ) : (
+              <div
+                ref={readOnly ? undefined : (el) => registerCardRef(item.id, el)}
+                data-item-id={item.id}
+              >
+                <ItemCard
+                  item={item}
+                  variant="wishlist"
+                  selected={readOnly ? false : selectedIds.has(item.id)}
+                  selectionMode={readOnly ? false : (selectionMode ?? false)}
+                  onClick={handleItemClick}
+                  onMarkAcquired={readOnly ? undefined : onMarkAcquired}
+                  readOnly={readOnly}
+                />
+              </div>
+            )
+
+            const skeletonNode = (
+              <Skeleton
+                name={variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card"}
+                loading={loading}
+                animate="shimmer"
+                color="hsl(var(--muted))"
+                darkColor="hsl(var(--muted))"
+                fixture={fixtureCard}
+              >
+                {cardContent}
+              </Skeleton>
+            )
+
+            if (loading) {
+              return (
+                <div key={`${item.id}-${index}`} className={LOADING_ROW_VISIBILITY[index] ?? "hidden"}>
+                  {skeletonNode}
+                </div>
+              )
+            }
+
+            return (
+              <Skeleton
+                key={item.id}
+                name={variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card"}
+                loading={loading}
+                animate="shimmer"
+                color="hsl(var(--muted))"
+                darkColor="hsl(var(--muted))"
+                fixture={fixtureCard}
+              >
+                {cardContent}
+              </Skeleton>
+            )
+          })}
         </div>
         {!loading && items.length === 0 && (
           <div className="min-h-[424px] text-center py-12 text-muted-foreground">

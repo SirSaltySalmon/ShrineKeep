@@ -31,24 +31,33 @@ interface ValueGraphProps {
   itemId: string
   acquisitionDate?: string | null
   currentValue?: string
-  forceLoading?: boolean
+  captureSkeleton?: boolean
+  previewHistory?: ValueHistory[]
 }
 
 export default function ValueGraph({
   itemId,
   acquisitionDate,
   currentValue,
-  forceLoading = false,
+  captureSkeleton = false,
+  previewHistory,
 }: ValueGraphProps) {
+  const hasPreviewHistory = previewHistory !== undefined
   const supabase = createSupabaseClient()
-  const [history, setHistory] = useState<ValueHistory[]>([])
-  const [loading, setLoading] = useState(true)
+  const [history, setHistory] = useState<ValueHistory[]>(previewHistory ?? [])
+  const [loading, setLoading] = useState(!hasPreviewHistory)
 
   useEffect(() => {
+    if (hasPreviewHistory) {
+      setHistory(previewHistory ?? [])
+      setLoading(false)
+      return
+    }
     loadHistory()
-  }, [itemId])
+  }, [itemId, hasPreviewHistory, previewHistory])
 
   const loadHistory = async () => {
+    if (hasPreviewHistory) return
     try {
       const { data, error } = await supabase
         .from("value_history")
@@ -66,6 +75,7 @@ export default function ValueGraph({
   }
 
   const deleteRecord = async (recordId: string) => {
+    if (hasPreviewHistory) return
     try {
       const { error } = await supabase
         .from("value_history")
@@ -86,6 +96,7 @@ export default function ValueGraph({
   }
 
   const updateRecordDate = async (recordId: string, newRecordedAt: string) => {
+    if (hasPreviewHistory) return
     try {
       const iso = new Date(newRecordedAt).toISOString()
       const { error } = await supabase
@@ -108,6 +119,7 @@ export default function ValueGraph({
   }
 
   const addRecordNow = async () => {
+    if (hasPreviewHistory) return
     const raw = (currentValue ?? "").trim()
     const num = raw === "" ? null : parseFloat(raw)
     const value = num === null || Number.isNaN(num) ? 0 : num
@@ -123,49 +135,9 @@ export default function ValueGraph({
     }
   }
 
-  if (loading || forceLoading) {
-    return (
-      <Skeleton
-        name="value-graph"
-        loading
-        animate="shimmer"
-        color="hsl(var(--muted))"
-        darkColor="hsl(var(--muted))"
-        fallback={
-          <div className="space-y-4 animate-pulse">
-            <div className="h-8 w-40 rounded-md bg-muted" />
-            <div className="h-[300px] rounded-md bg-muted" />
-            <div className="space-y-2">
-              <div className="h-16 rounded-md bg-muted" />
-              <div className="h-16 rounded-md bg-muted" />
-            </div>
-          </div>
-        }
-        fixture={
-          <div className="space-y-4">
-            <div className="h-8 w-40 rounded-md bg-muted" />
-            <div className="h-[300px] rounded-md bg-muted" />
-            <div className="space-y-2">
-              <div className="h-16 rounded-md bg-muted" />
-              <div className="h-16 rounded-md bg-muted" />
-            </div>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <div className="h-8 w-40 rounded-md bg-muted" />
-          <div className="h-[300px] rounded-md bg-muted" />
-          <div className="space-y-2">
-            <div className="h-16 rounded-md bg-muted" />
-            <div className="h-16 rounded-md bg-muted" />
-          </div>
-        </div>
-      </Skeleton>
-    )
-  }
-
-  if (history.length === 0) {
-    return (
+  const historyData = hasPreviewHistory ? previewHistory : history
+  const graphContent =
+    historyData.length === 0 ? (
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-fluid-lg font-semibold min-w-0">Value History</h3>
@@ -184,102 +156,110 @@ export default function ValueGraph({
           No value history yet. Enter a value above and click &quot;Record current value&quot; or save the item to add a record.
         </p>
       </div>
+    ) : (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h3 className="text-fluid-lg font-semibold min-w-0">Value History</h3>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addRecordNow}
+            className="shrink-0"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Record current value
+          </Button>
+        </div>
+        <ChartContainer config={valueChartConfig} className="w-full" style={{ height: 300 }}>
+          <LineChart data={historyData.map((record) => ({
+            date: format(new Date(record.recorded_at), "MMM dd"),
+            value: parseFloat(record.value.toString()),
+            fullDate: record.recorded_at,
+            id: record.id,
+          }))}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" />
+            <YAxis tickFormatter={(v) => formatCurrency(Number(v))} />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  formatter={(value) => formatCurrency(Number(value))}
+                />
+              }
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="var(--color-value)"
+              strokeWidth={2}
+              name="Value"
+            />
+          </LineChart>
+        </ChartContainer>
+        <div className="space-y-2">
+          {historyData.map((record) => (
+            <div
+              key={record.id}
+              className="flex flex-wrap items-center gap-2 p-2 border rounded"
+            >
+              <div className="shrink-0">
+                <div className="font-medium">{formatCurrency(parseFloat(record.value.toString()))}</div>
+                <Label className="text-fluid-xs text-muted-foreground block mt-1">Date & time</Label>
+                <div className="mt-0.5 flex items-center gap-1">
+                  <Input
+                    key={`${record.id}-${record.recorded_at}`}
+                    type="datetime-local"
+                    className="text-fluid-sm w-[300px] min-w-0 max-w-[calc(100vw-12rem)]"
+                    defaultValue={formatRecordedAtForInput(record.recorded_at)}
+                    onBlur={(e) => {
+                      const v = e.target.value
+                      if (v && v !== formatRecordedAtForInput(record.recorded_at)) {
+                        updateRecordDate(record.id, v)
+                      }
+                    }}
+                  />
+                  {acquisitionDate && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setRecordToAcquisitionDate(record.id)}
+                      className="shrink-0 h-9 w-9"
+                      title="Set date & time to acquisition date"
+                      aria-label="Set date & time to acquisition date"
+                    >
+                      <Calendar className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1 min-w-2" aria-hidden />
+              <Button
+                type="button"
+                variant="link"
+                className="text-destructive hover:underline text-fluid-sm shrink-0 p-0 h-auto"
+                onClick={() => deleteRecord(record.id)}
+              >
+                Delete
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
     )
-  }
-
-  const chartData = history.map((record) => ({
-    date: format(new Date(record.recorded_at), "MMM dd"),
-    value: parseFloat(record.value.toString()),
-    fullDate: record.recorded_at,
-    id: record.id,
-  }))
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h3 className="text-fluid-lg font-semibold min-w-0">Value History</h3>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addRecordNow}
-          className="shrink-0"
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          Record current value
-        </Button>
-      </div>
-      <ChartContainer config={valueChartConfig} className="w-full" style={{ height: 300 }}>
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" />
-          <YAxis tickFormatter={(v) => formatCurrency(Number(v))} />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                formatter={(value) => formatCurrency(Number(value))}
-              />
-            }
-          />
-          <ChartLegend content={<ChartLegendContent />} />
-          <Line
-            type="monotone"
-            dataKey="value"
-            stroke="var(--color-value)"
-            strokeWidth={2}
-            name="Value"
-          />
-        </LineChart>
-      </ChartContainer>
-      <div className="space-y-2">
-        {history.map((record) => (
-          <div
-            key={record.id}
-            className="flex flex-wrap items-center gap-2 p-2 border rounded"
-          >
-            <div className="shrink-0">
-              <div className="font-medium">{formatCurrency(parseFloat(record.value.toString()))}</div>
-              <Label className="text-fluid-xs text-muted-foreground block mt-1">Date & time</Label>
-              <div className="mt-0.5 flex items-center gap-1">
-                <Input
-                  key={`${record.id}-${record.recorded_at}`}
-                  type="datetime-local"
-                  className="text-fluid-sm w-[300px] min-w-0 max-w-[calc(100vw-12rem)]"
-                  defaultValue={formatRecordedAtForInput(record.recorded_at)}
-                  onBlur={(e) => {
-                    const v = e.target.value
-                    if (v && v !== formatRecordedAtForInput(record.recorded_at)) {
-                      updateRecordDate(record.id, v)
-                    }
-                  }}
-                />
-                {acquisitionDate && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setRecordToAcquisitionDate(record.id)}
-                    className="shrink-0 h-9 w-9"
-                    title="Set date & time to acquisition date"
-                    aria-label="Set date & time to acquisition date"
-                  >
-                    <Calendar className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="flex-1 min-w-2" aria-hidden />
-            <Button
-              type="button"
-              variant="link"
-              className="text-destructive hover:underline text-fluid-sm shrink-0 p-0 h-auto"
-              onClick={() => deleteRecord(record.id)}
-            >
-              Delete
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
+    <Skeleton
+      name="value-graph"
+      loading={loading || captureSkeleton}
+      animate="shimmer"
+      color="hsl(var(--muted))"
+      darkColor="hsl(var(--muted))"
+      fixture={graphContent}
+    >
+      {graphContent}
+    </Skeleton>
   )
 }

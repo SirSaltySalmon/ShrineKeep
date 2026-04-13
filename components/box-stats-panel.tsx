@@ -8,13 +8,15 @@ import { ChevronDown, ChevronUp, Loader2 } from "lucide-react"
 import { useBoxStats } from "@/lib/hooks/use-box-stats"
 import { BoxStatsSummary, BoxStatsCharts } from "@/components/box-stats-content"
 import { DateRangeFilter } from "@/components/date-range-filter"
+import type { BoneyardBoxStatsFixture } from "@/components/boneyard-stats-fixtures"
 
 interface BoxStatsPanelProps {
   boxId: string
   boxName: string
   refreshKey?: number
   graphOverlay?: boolean
-  forceLoading?: boolean
+  captureSkeleton?: boolean
+  previewData?: BoneyardBoxStatsFixture
 }
 
 export default function BoxStatsPanel({
@@ -22,7 +24,8 @@ export default function BoxStatsPanel({
   boxName,
   refreshKey = 0,
   graphOverlay = true,
-  forceLoading = false,
+  captureSkeleton = false,
+  previewData,
 }: BoxStatsPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const [fromDate, setFromDate] = useState("")
@@ -36,84 +39,28 @@ export default function BoxStatsPanel({
     loading,
     isRefreshing,
   } = useBoxStats(boxId, {
-    enabled: true,
+    enabled: previewData == null,
     refreshKey,
     fromDate: fromDate || undefined,
     toDate: toDate || undefined,
   })
 
-  if (loading || forceLoading) {
-    return (
-      <Skeleton
-        name="box-stats-panel"
-        initialBones={panelBones as any}
-        loading={loading || forceLoading}
-        animate="shimmer"
-        color="hsl(var(--muted))"
-        darkColor="hsl(var(--muted))"
-        fallback={
-          <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
-            <div className="p-4 layout-shrink-visible animate-pulse">
-              <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
-                <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
-                  <div className="h-6 w-28 rounded-md bg-muted" />
-                  <div className="h-6 w-28 rounded-md bg-muted" />
-                  <div className="h-6 w-24 rounded-md bg-muted" />
-                </div>
-                <Button variant="ghost" size="sm" className="shrink-0">
-                  <ChevronDown className="h-4 w-4 mr-1" />
-                  Expand
-                </Button>
-              </div>
-            </div>
-          </div>
-        }
-        fixture={
-          <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
-            <div className="p-4 layout-shrink-visible">
-              <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
-                <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
-                  <div className="h-6 w-28 rounded-md bg-muted" />
-                  <div className="h-6 w-28 rounded-md bg-muted" />
-                  <div className="h-6 w-24 rounded-md bg-muted" />
-                </div>
-                <Button variant="ghost" size="sm" className="shrink-0">
-                  <ChevronDown className="h-4 w-4 mr-1" />
-                  Expand
-                </Button>
-              </div>
-            </div>
-          </div>
-        }
-      >
-        <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
-          <div className="p-4 layout-shrink-visible">
-            <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
-              <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
-                <div className="h-6 w-28 rounded-md bg-muted" />
-                <div className="h-6 w-28 rounded-md bg-muted" />
-                <div className="h-6 w-24 rounded-md bg-muted" />
-              </div>
-              <Button variant="ghost" size="sm" className="shrink-0">
-                <ChevronDown className="h-4 w-4 mr-1" />
-                Expand
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Skeleton>
-    )
-  }
+  const currentValueDisplay = previewData?.currentValue ?? currentValue
+  const totalAcquisitionDisplay = previewData?.totalAcquisition ?? totalAcquisition
+  const profitDisplay = currentValueDisplay - totalAcquisitionDisplay
+  const valueChartDataDisplay = previewData?.valueChartData ?? valueChartData
+  const acquisitionChartDataDisplay = previewData?.acquisitionChartData ?? acquisitionChartData
+  const isRefreshingDisplay = previewData ? false : isRefreshing
 
-  return (
+  const panelContent = (
     <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
       <div className="p-4 layout-shrink-visible">
         <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
           <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
             <BoxStatsSummary
-              currentValue={currentValue}
-              totalAcquisition={totalAcquisition}
-              profit={profit}
+              currentValue={currentValueDisplay}
+              totalAcquisition={totalAcquisitionDisplay}
+              profit={profitDisplay}
               variant="inline"
             />
           </div>
@@ -152,7 +99,7 @@ export default function BoxStatsPanel({
               setToDate("")
             }}
           />
-          {isRefreshing && (
+          {isRefreshingDisplay && (
             <p
               className="flex items-center gap-2 text-fluid-xs text-muted-foreground min-h-[1.25rem]"
               aria-live="polite"
@@ -162,8 +109,8 @@ export default function BoxStatsPanel({
             </p>
           )}
           <BoxStatsCharts
-            valueChartData={valueChartData}
-            acquisitionChartData={acquisitionChartData}
+            valueChartData={valueChartDataDisplay}
+            acquisitionChartData={acquisitionChartDataDisplay}
             graphOverlay={graphOverlay}
             fromDate={fromDate || undefined}
             toDate={toDate || undefined}
@@ -171,5 +118,19 @@ export default function BoxStatsPanel({
         </div>
       )}
     </div>
+  )
+
+  return (
+    <Skeleton
+      name="box-stats-panel"
+      initialBones={panelBones as any}
+      loading={loading || captureSkeleton}
+      animate="shimmer"
+      color="hsl(var(--muted))"
+      darkColor="hsl(var(--muted))"
+      fixture={panelContent}
+    >
+      {panelContent}
+    </Skeleton>
   )
 }

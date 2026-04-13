@@ -39,6 +39,7 @@ next-env.d.ts
 .agents/
 .cursor/
 .claude/skills/
+.claude-flow/
 graphify-out
 skills-lock.json
 

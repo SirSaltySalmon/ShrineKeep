@@ -18,32 +18,6 @@ export async function POST(_request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { count: rootBoxCount, error: rootErr } = await supabase
-      .from("boxes")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .is("parent_box_id", null)
-    if (rootErr) throw rootErr
-    if ((rootBoxCount ?? 0) > 0) {
-      return NextResponse.json(
-        { error: "Demo is only available for an empty dashboard (no top-level boxes)." },
-        { status: 409 }
-      )
-    }
-
-    const { count: collCount, error: collErr } = await supabase
-      .from("items")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .eq("is_wishlist", false)
-    if (collErr) throw collErr
-    if ((collCount ?? 0) > 0) {
-      return NextResponse.json(
-        { error: "Demo is only available when you have no collection items yet." },
-        { status: 409 }
-      )
-    }
-
     const tagIdsByName = await ensureDemoTagIds(supabase, user.id)
     const trees = buildDemoBoxCopyPayloads(tagIdsByName)
     const { nodes, items, wishlistItems } = flattenBoxCopyTreesForAtomicPaste(trees)
