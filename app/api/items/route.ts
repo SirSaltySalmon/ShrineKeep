@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server"
 import { createItems } from "@/lib/api/create-item"
 import { ItemCapExceededError } from "@/lib/api/item-cap-error"
 import { getOwnedBoxIdSet } from "@/lib/api/validate-box-ownership"
+import { captureRouteException } from "@/lib/monitoring/sentry"
 
 interface PhotoData {
   url: string
@@ -29,11 +30,13 @@ interface ItemSaveRequest {
 }
 
 export async function POST(request: NextRequest) {
+  let userId: string | null = null
   try {
     const supabase = await createSupabaseServerClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    userId = user?.id ?? null
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -124,6 +127,14 @@ export async function POST(request: NextRequest) {
           : "Failed to save item"
 
     console.error("Error saving item:", message, error)
+    captureRouteException(error, {
+      area: "items",
+      route: "/api/items",
+      userId,
+      tags: {
+        operation: "save_item",
+      },
+    })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

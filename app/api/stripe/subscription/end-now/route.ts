@@ -5,6 +5,10 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { stripe } from "@/lib/stripe/server"
 import { stripeSubscriptionHasScheduledCancellation } from "@/lib/stripe/subscription-state"
+import {
+  captureRouteException,
+  startRouteSpan,
+} from "@/lib/monitoring/sentry"
 
 export const runtime = "nodejs"
 
@@ -14,6 +18,7 @@ export const runtime = "nodejs"
  * Body: { confirmation: string } — must match END_SUBSCRIPTION_NOW_CONFIRMATION_PHRASE exactly.
  */
 export async function POST(request: NextRequest) {
+  let userId: string | null = null
   try {
     const body = (await request.json()) as { confirmation?: unknown }
     const confirmation = typeof body.confirmation === "string" ? body.confirmation : ""
@@ -29,6 +34,7 @@ export async function POST(request: NextRequest) {
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    userId = user?.id ?? null
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -45,7 +51,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No subscription found" }, { status: 404 })
     }
 
-    const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+    const stripeSub = await startRouteSpan(
+      "stripe.subscription.retrieve_for_end_now",
+      "http.server",
+      {
+        "feature.area": "stripe",
+        "feature.operation": "subscription_end_now",
+      },
+      () => stripe.subscriptions.retrieve(stripeSubscriptionId)
+    )
 
     const canEndNow =
       stripeSubscriptionHasScheduledCancellation(stripeSub) &&
@@ -63,7 +77,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await stripe.subscriptions.cancel(stripeSubscriptionId)
+    await startRouteSpan(
+      "stripe.subscription.cancel_now",
+      "http.server",
+      {
+        "feature.area": "stripe",
+        "feature.operation": "subscription_end_now",
+      },
+      () => stripe.subscriptions.cancel(stripeSubscriptionId)
+    )
 
     const service = createSupabaseServiceClient()
     const { error: dbError } = await service
@@ -73,6 +95,14 @@ export async function POST(request: NextRequest) {
 
     if (dbError) {
       console.error("[stripe/subscription/end-now] DB update error:", dbError)
+      captureRouteException(dbError, {
+        area: "stripe",
+        route: "/api/stripe/subscription/end-now",
+        userId: user.id,
+        tags: {
+          operation: "subscription_end_now",
+        },
+      })
       return NextResponse.json(
         { error: "Subscription ended in Stripe but failed to update billing status. Please refresh or contact support." },
         { status: 500 }
@@ -83,6 +113,14 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to end subscription"
     console.error("[stripe/subscription/end-now] Error:", message, error)
+    captureRouteException(error, {
+      area: "stripe",
+      route: "/api/stripe/subscription/end-now",
+      userId,
+      tags: {
+        operation: "subscription_end_now",
+      },
+    })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

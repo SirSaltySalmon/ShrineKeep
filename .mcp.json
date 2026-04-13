@@ -1,14 +1,13 @@
 {
   "mcpServers": {
     "claude-flow": {
-      "command": "cmd",
+      "command": "pwsh",
       "args": [
-        "/c",
-        "npx",
-        "-y",
-        "@claude-flow/cli@latest",
-        "mcp",
-        "start"
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        "npx -y @claude-flow/cli@latest mcp start"
       ],
       "env": {
         "npm_config_update_notifier": "false",

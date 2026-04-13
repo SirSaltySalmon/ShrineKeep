@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import * as Sentry from "@sentry/nextjs"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Item, Photo, Tag, TAG_COLORS, type TagColor } from "@/lib/types"
 import { sortTagsByColorThenName, getTagChipStyle } from "@/lib/utils"
@@ -149,6 +150,12 @@ export default function ItemDialog({
       }
     } catch (error) {
       console.error("Error calling cleanup API:", error)
+      Sentry.captureException(error, {
+        tags: {
+          area: "items",
+          operation: "cleanup_unsaved_uploads",
+        },
+      })
     }
   }, [])
 
@@ -348,6 +355,12 @@ export default function ItemDialog({
         }
       } catch (error) {
         console.error("Failed to delete photo:", error)
+        Sentry.captureException(error, {
+          tags: {
+            area: "items",
+            operation: "delete_photo",
+          },
+        })
         if (photoToRemove.id) {
           // For saved photos, show error and don't remove from UI
           alert("Failed to delete photo. Please try again.")
@@ -400,6 +413,12 @@ export default function ItemDialog({
       const { error } = await supabase.storage.from("item-photos").upload(filePath, file)
       if (error) {
         console.error("Upload error:", error)
+        Sentry.captureException(error, {
+          tags: {
+            area: "items",
+            operation: "upload_photo",
+          },
+        })
         alert(`Failed to upload "${file.name}": ${error.message}`)
         continue
       }
@@ -518,6 +537,12 @@ export default function ItemDialog({
             ? String((error as { message: unknown }).message)
             : String(error)
       console.error("Error saving item:", message, error)
+      Sentry.captureException(error, {
+        tags: {
+          area: "items",
+          operation: "save_item",
+        },
+      })
       alert(`Failed to save item: ${message}`)
     } finally {
       setSaving(false)
@@ -564,6 +589,12 @@ export default function ItemDialog({
             ? String((error as { message: unknown }).message)
             : String(error)
       console.error("Error deleting item:", message, error)
+      Sentry.captureException(error, {
+        tags: {
+          area: "items",
+          operation: "delete_item",
+        },
+      })
       alert(`Failed to delete item: ${message}`)
     } finally {
       setDeleting(false)

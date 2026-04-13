@@ -3,6 +3,11 @@ import type { NextRequest } from "next/server"
 import Stripe from "stripe"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { getStripeWebhookSecret, stripe } from "@/lib/stripe/server"
+import {
+  captureRouteException,
+  captureRouteMessage,
+  startRouteSpan,
+} from "@/lib/monitoring/sentry"
 
 export const runtime = "nodejs"
 
@@ -112,6 +117,19 @@ async function updateSubscriptionByStripeRefs(
       subscriptionId,
       patchKeys: Object.keys(patch),
     })
+    captureRouteMessage("Stripe webhook update had no matching subscription row", {
+      area: "stripe",
+      route: "/api/stripe/webhook",
+      tags: {
+        operation: "webhook_update",
+        has_customer_id: Boolean(customerId),
+      },
+      extra: {
+        stripe_customer_id: customerId,
+        stripe_subscription_id: subscriptionId,
+        patch_keys: Object.keys(patch),
+      },
+    })
   }
   return { error: null }
 }
@@ -139,26 +157,41 @@ async function syncSubscriptionRowFromStripe(
 // Raw body is required for Stripe signature verification.
 // Next.js App Router gives us the raw body via request.text().
 export async function POST(request: NextRequest) {
-  const body = await request.text()
-  const sig = request.headers.get("stripe-signature")
+  return startRouteSpan(
+    "stripe.webhook.handle",
+    "http.server",
+    {
+      "feature.area": "stripe",
+      "feature.operation": "webhook",
+    },
+    async () => {
+      const body = await request.text()
+      const sig = request.headers.get("stripe-signature")
 
-  if (!sig) {
-    return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 })
-  }
+      if (!sig) {
+        return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 })
+      }
 
-  let event: Stripe.Event
-  try {
-    event = stripe.webhooks.constructEvent(body, sig, getStripeWebhookSecret())
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Webhook signature verification failed"
-    console.error("[stripe/webhook] Signature error:", message)
-    return NextResponse.json({ error: message }, { status: 400 })
-  }
+      let event: Stripe.Event
+      try {
+        event = stripe.webhooks.constructEvent(body, sig, getStripeWebhookSecret())
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Webhook signature verification failed"
+        console.error("[stripe/webhook] Signature error:", message)
+        captureRouteException(err, {
+          area: "stripe",
+          route: "/api/stripe/webhook",
+          tags: {
+            operation: "webhook_signature_verification",
+          },
+        })
+        return NextResponse.json({ error: message }, { status: 400 })
+      }
 
-  const supabase = createSupabaseServiceClient()
+      const supabase = createSupabaseServiceClient()
 
-  try {
-    switch (event.type) {
+      try {
+        switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session
         if (session.mode !== "subscription") break
@@ -167,6 +200,14 @@ export async function POST(request: NextRequest) {
         const subscriptionId = typeof session.subscription === "string" ? session.subscription : null
         if (!customerId || !subscriptionId) {
           console.error("[stripe/webhook] checkout.session.completed missing customer/subscription id")
+          captureRouteMessage("checkout.session.completed missing customer/subscription id", {
+            area: "stripe",
+            route: "/api/stripe/webhook",
+            tags: {
+              operation: "webhook_checkout_session_completed",
+              event_type: event.type,
+            },
+          })
           break
         }
 
@@ -176,6 +217,18 @@ export async function POST(request: NextRequest) {
 
         if (!userId) {
           console.error("[stripe/webhook] Missing supabase_user_id in subscription metadata")
+          captureRouteMessage("Stripe subscription metadata missing supabase_user_id", {
+            area: "stripe",
+            route: "/api/stripe/webhook",
+            tags: {
+              operation: "webhook_checkout_session_completed",
+              event_type: event.type,
+            },
+            extra: {
+              stripe_subscription_id: subscriptionId,
+              stripe_customer_id: customerId,
+            },
+          })
           break
         }
 
@@ -196,6 +249,19 @@ export async function POST(request: NextRequest) {
 
         if (error) {
           console.error("[stripe/webhook] checkout.session.completed upsert error:", error)
+          captureRouteException(error, {
+            area: "stripe",
+            route: "/api/stripe/webhook",
+            userId,
+            tags: {
+              operation: "webhook_checkout_session_completed",
+              event_type: event.type,
+            },
+            extra: {
+              stripe_subscription_id: subscriptionId,
+              stripe_customer_id: customerId,
+            },
+          })
           return NextResponse.json({ error: "DB upsert failed" }, { status: 500 })
         }
 
@@ -223,6 +289,18 @@ export async function POST(request: NextRequest) {
 
         if (error) {
           console.error("[stripe/webhook] customer.subscription.updated error:", error)
+          captureRouteException(error, {
+            area: "stripe",
+            route: "/api/stripe/webhook",
+            tags: {
+              operation: "webhook_subscription_updated",
+              event_type: event.type,
+            },
+            extra: {
+              stripe_subscription_id: sub.id,
+              stripe_customer_id: customerId,
+            },
+          })
           return NextResponse.json({ error: "DB update failed" }, { status: 500 })
         }
         break
@@ -240,6 +318,18 @@ export async function POST(request: NextRequest) {
 
         if (error) {
           console.error("[stripe/webhook] customer.subscription.deleted error:", error)
+          captureRouteException(error, {
+            area: "stripe",
+            route: "/api/stripe/webhook",
+            tags: {
+              operation: "webhook_subscription_deleted",
+              event_type: event.type,
+            },
+            extra: {
+              stripe_subscription_id: sub.id,
+              stripe_customer_id: customerId,
+            },
+          })
           return NextResponse.json({ error: "DB update failed" }, { status: 500 })
         }
         break
@@ -250,6 +340,14 @@ export async function POST(request: NextRequest) {
         const subId = invoiceSubscriptionId(invoice)
         if (!subId) {
           console.error("[stripe/webhook] invoice.payment_failed missing subscription id")
+          captureRouteMessage("invoice.payment_failed missing subscription id", {
+            area: "stripe",
+            route: "/api/stripe/webhook",
+            tags: {
+              operation: "webhook_invoice_payment_failed",
+              event_type: event.type,
+            },
+          })
           break
         }
 
@@ -258,10 +356,32 @@ export async function POST(request: NextRequest) {
           const { error } = await syncSubscriptionRowFromStripe(supabase, stripeSub)
           if (error) {
             console.error("[stripe/webhook] invoice.payment_failed sync error:", error)
+            captureRouteException(error, {
+              area: "stripe",
+              route: "/api/stripe/webhook",
+              tags: {
+                operation: "webhook_invoice_payment_failed",
+                event_type: event.type,
+              },
+              extra: {
+                stripe_subscription_id: subId,
+              },
+            })
             return NextResponse.json({ error: "DB update failed" }, { status: 500 })
           }
         } catch (err) {
           console.error("[stripe/webhook] invoice.payment_failed retrieve error:", err)
+          captureRouteException(err, {
+            area: "stripe",
+            route: "/api/stripe/webhook",
+            tags: {
+              operation: "webhook_invoice_payment_failed_retrieve",
+              event_type: event.type,
+            },
+            extra: {
+              stripe_subscription_id: subId,
+            },
+          })
         }
         break
       }
@@ -276,10 +396,32 @@ export async function POST(request: NextRequest) {
           const { error } = await syncSubscriptionRowFromStripe(supabase, stripeSub)
           if (error) {
             console.error("[stripe/webhook] invoice.paid sync error:", error)
+            captureRouteException(error, {
+              area: "stripe",
+              route: "/api/stripe/webhook",
+              tags: {
+                operation: "webhook_invoice_paid",
+                event_type: event.type,
+              },
+              extra: {
+                stripe_subscription_id: subId,
+              },
+            })
             return NextResponse.json({ error: "DB update failed" }, { status: 500 })
           }
         } catch (err) {
           console.error("[stripe/webhook] invoice.paid retrieve error:", err)
+          captureRouteException(err, {
+            area: "stripe",
+            route: "/api/stripe/webhook",
+            tags: {
+              operation: "webhook_invoice_paid_retrieve",
+              event_type: event.type,
+            },
+            extra: {
+              stripe_subscription_id: subId,
+            },
+          })
         }
         break
       }
@@ -287,12 +429,22 @@ export async function POST(request: NextRequest) {
       default:
         // Unhandled event type — ignore
         break
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Webhook handler error"
-    console.error("[stripe/webhook] Handler error:", message, err)
-    return NextResponse.json({ error: message }, { status: 500 })
-  }
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Webhook handler error"
+        console.error("[stripe/webhook] Handler error:", message, err)
+        captureRouteException(err, {
+          area: "stripe",
+          route: "/api/stripe/webhook",
+          tags: {
+            operation: "webhook_handler",
+            event_type: event.type,
+          },
+        })
+        return NextResponse.json({ error: message }, { status: 500 })
+      }
 
-  return NextResponse.json({ received: true })
+      return NextResponse.json({ received: true })
+    }
+  )
 }

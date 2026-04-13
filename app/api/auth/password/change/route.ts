@@ -5,8 +5,10 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_LENGTH_MESSAGE,
 } from "@/lib/validation"
+import { captureRouteException } from "@/lib/monitoring/sentry"
 
 export async function POST(request: Request) {
+  let userId: string | null = null
   try {
     const body = await request.json().catch(() => ({}))
     const currentPassword = typeof body?.currentPassword === "string" ? body.currentPassword : null
@@ -41,6 +43,7 @@ export async function POST(request: Request) {
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    userId = user?.id ?? null
 
     if (!user?.email) {
       return NextResponse.json(
@@ -77,6 +80,14 @@ export async function POST(request: Request) {
   } catch (e) {
     const message =
       e instanceof Error ? e.message : "Something went wrong. Please try again."
+    captureRouteException(e, {
+      area: "auth",
+      route: "/api/auth/password/change",
+      userId,
+      tags: {
+        operation: "change_password",
+      },
+    })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

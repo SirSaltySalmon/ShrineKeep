@@ -7,6 +7,7 @@ import {
   moderationOptionsResponse,
 } from "@/lib/moderation/request-auth"
 import { sendBanEmail } from "@/lib/moderation/send-ban-email"
+import { captureRouteException } from "@/lib/monitoring/sentry"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 
 export const runtime = "nodejs"
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createSupabaseServiceClient()
+  const moderatorId = mod.user.id
 
   const { data: authData, error: authLookupError } = await supabase.auth.admin.getUserById(userId)
 
@@ -73,6 +75,18 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Stripe cancellation failed"
     console.error("[moderation/ban-user] Stripe step failed:", message, err)
+    captureRouteException(err, {
+      area: "moderation",
+      route: "/api/moderation/ban-user",
+      userId: moderatorId,
+      tags: {
+        operation: "ban_user",
+        step: "stripe_cancel",
+      },
+      extra: {
+        target_user_id: userId,
+      },
+    })
     return moderationJsonResponse(request, { error: message }, 502)
   }
 
@@ -84,6 +98,18 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to send ban email"
     console.error("[moderation/ban-user] Email step failed:", message, err)
+    captureRouteException(err, {
+      area: "moderation",
+      route: "/api/moderation/ban-user",
+      userId: moderatorId,
+      tags: {
+        operation: "ban_user",
+        step: "send_email",
+      },
+      extra: {
+        target_user_id: userId,
+      },
+    })
     return moderationJsonResponse(request, { error: message }, 502)
   }
 
@@ -96,6 +122,18 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Storage purge failed"
     console.error("[moderation/ban-user] Storage step failed:", message, err)
+    captureRouteException(err, {
+      area: "moderation",
+      route: "/api/moderation/ban-user",
+      userId: moderatorId,
+      tags: {
+        operation: "ban_user",
+        step: "purge_storage",
+      },
+      extra: {
+        target_user_id: userId,
+      },
+    })
     return moderationJsonResponse(
       request,
       {
@@ -114,6 +152,18 @@ export async function POST(request: NextRequest) {
   if (deleteError) {
     const message = deleteError.message || "Failed to delete user"
     console.error("[moderation/ban-user] deleteUser failed:", message, deleteError)
+    captureRouteException(deleteError, {
+      area: "moderation",
+      route: "/api/moderation/ban-user",
+      userId: moderatorId,
+      tags: {
+        operation: "ban_user",
+        step: "delete_auth_user",
+      },
+      extra: {
+        target_user_id: userId,
+      },
+    })
     return moderationJsonResponse(
       request,
       {

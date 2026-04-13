@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { type AuthEmailResponse, isRateLimitError } from "@/lib/auth-utils"
+import { captureRouteException } from "@/lib/monitoring/sentry"
 
 export async function POST(request: Request): Promise<NextResponse<AuthEmailResponse>> {
   try {
@@ -51,6 +52,13 @@ export async function POST(request: Request): Promise<NextResponse<AuthEmailResp
     return NextResponse.json({ ok: true })
   } catch (e) {
     const message = e instanceof Error ? e.message : "Something went wrong. Please try again."
+    captureRouteException(e, {
+      area: "auth",
+      route: "/api/auth/password/forgot",
+      tags: {
+        operation: "forgot_password",
+      },
+    })
     return NextResponse.json(
       { ok: false, code: "failed", message },
       { status: 500 }

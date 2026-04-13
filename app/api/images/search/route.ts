@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import {
+  captureRouteException,
+  captureRouteMessage,
+  startRouteSpan,
+} from "@/lib/monitoring/sentry"
 
 /**
  * SerpAPI image search proxy (google_images_light engine).
@@ -7,10 +12,12 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
  * Keeps SERPAPI_API_KEY server-side; requires authentication.
  */
 export async function GET(request: NextRequest) {
+  let userId: string | null = null
   const supabase = await createSupabaseServerClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
+  userId = user?.id ?? null
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -18,6 +25,18 @@ export async function GET(request: NextRequest) {
 
   const apiKey = process.env.SERPAPI_API_KEY
   if (!apiKey) {
+    captureRouteMessage(
+      "Missing SERPAPI_API_KEY configuration",
+      {
+        area: "images",
+        route: "/api/images/search",
+        userId,
+        tags: {
+          operation: "search_images",
+        },
+      },
+      "error"
+    )
     return NextResponse.json(
       { error: "SerpAPI is not configured. Add SERPAPI_API_KEY to .env.local." },
       { status: 503 }
@@ -40,12 +59,33 @@ export async function GET(request: NextRequest) {
       api_key: apiKey,
       num: "20",
     })
-    const res = await fetch(`https://serpapi.com/search?${params.toString()}`, {
-      next: { revalidate: 0 },
-    })
+    const res = await startRouteSpan(
+      "images.search.serpapi_request",
+      "http.client",
+      {
+        "feature.area": "images",
+        "feature.operation": "search_images",
+      },
+      () =>
+        fetch(`https://serpapi.com/search?${params.toString()}`, {
+          next: { revalidate: 0 },
+        })
+    )
 
     if (!res.ok) {
       const text = await res.text()
+      captureRouteMessage("SerpAPI returned non-OK response", {
+        area: "images",
+        route: "/api/images/search",
+        userId,
+        tags: {
+          operation: "search_images",
+          http_status: res.status,
+        },
+        extra: {
+          details_preview: text.slice(0, 200),
+        },
+      })
       return NextResponse.json(
         { error: `SerpAPI error: ${res.status}`, details: text.slice(0, 200) },
         { status: 502 }
@@ -59,6 +99,17 @@ export async function GET(request: NextRequest) {
     }
 
     if (data.error) {
+      captureRouteMessage("SerpAPI payload contains error", {
+        area: "images",
+        route: "/api/images/search",
+        userId,
+        tags: {
+          operation: "search_images",
+        },
+        extra: {
+          provider_error: data.error,
+        },
+      })
       return NextResponse.json(
         { error: data.error },
         { status: 502 }
@@ -89,6 +140,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ images: urls })
   } catch (err) {
     console.error("SerpAPI image search error:", err)
+    captureRouteException(err, {
+      area: "images",
+      route: "/api/images/search",
+      userId,
+      tags: {
+        operation: "search_images",
+      },
+    })
     return NextResponse.json(
       { error: "Image search failed. Please try again." },
       { status: 500 }

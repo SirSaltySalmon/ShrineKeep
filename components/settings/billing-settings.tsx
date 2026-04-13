@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import * as Sentry from "@sentry/nextjs"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -58,6 +59,12 @@ export default function BillingSettings() {
       if (d.url) window.location.href = d.url
     } catch (err) {
       console.error("[billing] portal error:", err)
+      Sentry.captureException(err, {
+        tags: {
+          area: "billing",
+          operation: "open_portal",
+        },
+      })
     } finally {
       setPortalLoading(false)
     }
@@ -71,6 +78,12 @@ export default function BillingSettings() {
       if (d.url) window.location.href = d.url
     } catch (err) {
       console.error("[billing] checkout error:", err)
+      Sentry.captureException(err, {
+        tags: {
+          area: "billing",
+          operation: "start_checkout",
+        },
+      })
     } finally {
       setCheckoutLoading(false)
     }
@@ -107,6 +120,12 @@ export default function BillingSettings() {
       setLoading(false)
     } catch (err) {
       console.error("[billing] end now error:", err)
+      Sentry.captureException(err, {
+        tags: {
+          area: "billing",
+          operation: "end_subscription_now",
+        },
+      })
       setEndNowError("Network error. Try again.")
     } finally {
       setEndNowLoading(false)
