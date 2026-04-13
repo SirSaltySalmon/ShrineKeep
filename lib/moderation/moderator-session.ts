@@ -5,7 +5,7 @@ import { isAllowedModeratorEmail, moderatorsConfigured } from "@/lib/moderation/
 import { moderationJsonResponse } from "@/lib/moderation/request-auth"
 
 export type ModeratorAuthResult =
-  | { ok: true; email: string }
+  | { ok: true; email: string; user: { id: string } }
   | { ok: false; response: NextResponse }
 
 /**
@@ -45,5 +45,5 @@ export async function requireModerator(request: NextRequest): Promise<ModeratorA
     }
   }
 
-  return { ok: true, email: email! }
+  return { ok: true, email: email!, user: { id: user.id } }
 }

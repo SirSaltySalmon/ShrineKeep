@@ -17,7 +17,10 @@ If the allowlist is empty or unset, moderation APIs return `503` and the page ex
 
 1. Ensure **`MODERATOR_EMAILS`** includes your moderator account email(s) in the deployment’s environment.
 2. Open **`/moderation`**. If you are not signed in or your email is not on the list, you see **Unauthorized** and a **Sign in** link (`/auth/login?next=/moderation`).
-3. After signing in as a moderator, look up a user by **Auth UUID**, verify details, confirm, then **Ban user permanently**.
+3. After signing in as a moderator, look up a user by **Auth UUID or exact email**, verify details, confirm, then choose one of:
+   - **Cancel subscription only**
+   - **Delete storage only**
+   - **Ban user permanently** (full pipeline)
 
 Lookup and ban requests use **`fetch` with `credentials: "include"`** so your session cookie is sent to the **same origin** as the app. Open the moderation UI on the environment you are acting on (e.g. production site for production bans).
 
@@ -28,8 +31,20 @@ Both require a **valid moderator session** (same rules as above).
 ### Lookup
 
 - **URL**: `POST /api/moderation/lookup-user`
-- **Body**: `{ "user_id": "<uuid>" }`
+- **Body**: `{ "lookup": "<uuid-or-email>" }` (legacy `{ "user_id": "<uuid>" }` still supported)
 - **Response**: Auth email, profile fields, and whether a Pro subscription row exists.
+
+### Cancel subscription (without ban)
+
+- **URL**: `POST /api/moderation/cancel-subscription`
+- **Body**: `{ "user_id": "<uuid>" }`
+- **Response**: Whether a Stripe subscription id existed, and whether a cancellation was performed.
+
+### Delete storage (without ban)
+
+- **URL**: `POST /api/moderation/delete-storage`
+- **Body**: `{ "user_id": "<uuid>" }`
+- **Response**: Count of deleted objects in `item-photos` and `avatars`.
 
 ### Ban
 

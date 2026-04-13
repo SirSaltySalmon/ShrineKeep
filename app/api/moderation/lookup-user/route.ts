@@ -10,9 +10,42 @@ export const runtime = "nodejs"
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const USER_PAGE_SIZE = 200
+const USER_MAX_PAGES = 250
 
 export async function OPTIONS(request: NextRequest) {
   return moderationOptionsResponse(request)
+}
+
+async function findAuthUserByEmail(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  email: string
+) {
+  const normalized = email.trim().toLowerCase()
+
+  for (let page = 1; page <= USER_MAX_PAGES; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: USER_PAGE_SIZE,
+    })
+
+    if (error) {
+      throw new Error(`auth users lookup failed: ${error.message}`)
+    }
+
+    const users = data?.users ?? []
+    const match = users.find((candidate) => candidate.email?.trim().toLowerCase() === normalized)
+    if (match) {
+      return match
+    }
+
+    if (users.length < USER_PAGE_SIZE) {
+      return null
+    }
+  }
+
+  throw new Error("auth users lookup exceeded scan limit")
 }
 
 /**
@@ -32,24 +65,47 @@ export async function POST(request: NextRequest) {
     return moderationJsonResponse(request, { error: "Invalid JSON body" }, 400)
   }
 
-  const userId =
-    body && typeof body === "object" && "user_id" in body
-      ? (body as { user_id: unknown }).user_id
-      : undefined
+  const lookupInput =
+    body && typeof body === "object" && "lookup" in body
+      ? (body as { lookup: unknown }).lookup
+      : body && typeof body === "object" && "user_id" in body
+        ? (body as { user_id: unknown }).user_id
+        : undefined
 
-  if (typeof userId !== "string" || !UUID_RE.test(userId)) {
-    return moderationJsonResponse(request, { error: "user_id must be a valid UUID" }, 400)
+  if (typeof lookupInput !== "string" || !lookupInput.trim()) {
+    return moderationJsonResponse(request, { error: "lookup must be a non-empty string" }, 400)
   }
 
+  const lookup = lookupInput.trim()
   const supabase = createSupabaseServiceClient()
+  let authUser = null
 
-  const { data: authData, error: authLookupError } = await supabase.auth.admin.getUserById(userId)
+  try {
+    if (UUID_RE.test(lookup)) {
+      const { data, error } = await supabase.auth.admin.getUserById(lookup)
+      if (error) {
+        return moderationJsonResponse(request, { error: "User not found" }, 404)
+      }
+      authUser = data?.user ?? null
+    } else if (EMAIL_RE.test(lookup)) {
+      authUser = await findAuthUserByEmail(supabase, lookup)
+    } else {
+      return moderationJsonResponse(
+        request,
+        { error: "lookup must be a valid user UUID or email" },
+        400
+      )
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Lookup failed"
+    return moderationJsonResponse(request, { error: message }, 500)
+  }
 
-  if (authLookupError || !authData?.user) {
+  if (!authUser) {
     return moderationJsonResponse(request, { error: "User not found" }, 404)
   }
 
-  const authUser = authData.user
+  const userId = authUser.id
 
   const { data: profile } = await supabase
     .from("users")

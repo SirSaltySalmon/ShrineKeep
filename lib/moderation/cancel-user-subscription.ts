@@ -19,7 +19,7 @@ const CANCELLABLE_STATUSES: Stripe.Subscription.Status[] = [
 export async function cancelUserProSubscription(
   supabase: SupabaseClient,
   userId: string
-): Promise<{ includeSubscriptionCancelledNotice: boolean }> {
+): Promise<{ includeSubscriptionCancelledNotice: boolean; subscriptionCancelled: boolean }> {
   const { data: row, error } = await supabase
     .from("subscriptions")
     .select("stripe_subscription_id")
@@ -32,14 +32,16 @@ export async function cancelUserProSubscription(
 
   const stripeSubscriptionId = row?.stripe_subscription_id
   if (!stripeSubscriptionId) {
-    return { includeSubscriptionCancelledNotice: false }
+    return { includeSubscriptionCancelledNotice: false, subscriptionCancelled: false }
   }
 
   const stripeSub = await stripe.subscriptions.retrieve(stripeSubscriptionId)
+  let subscriptionCancelled = false
 
   if (CANCELLABLE_STATUSES.includes(stripeSub.status)) {
     await stripe.subscriptions.cancel(stripeSubscriptionId)
+    subscriptionCancelled = true
   }
 
-  return { includeSubscriptionCancelledNotice: true }
+  return { includeSubscriptionCancelledNotice: true, subscriptionCancelled }
 }

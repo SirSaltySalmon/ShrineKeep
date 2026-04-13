@@ -33,14 +33,14 @@ const fetchOpts: RequestInit = {
 }
 
 export function ModerationClient() {
-  const [userId, setUserId] = useState("")
+  const [lookupInput, setLookupInput] = useState("")
   const [user, setUser] = useState<LookupUser | null>(null)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
   const [verified, setVerified] = useState(false)
-  const [banLoading, setBanLoading] = useState(false)
-  const [banMessage, setBanMessage] = useState<string | null>(null)
-  const [banError, setBanError] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState<null | "ban" | "cancel" | "storage">(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [clientOrigin, setClientOrigin] = useState<string | null>(null)
 
   useEffect(() => {
@@ -49,14 +49,14 @@ export function ModerationClient() {
 
   const runLookup = async () => {
     setLookupError(null)
-    setBanMessage(null)
-    setBanError(null)
+    setActionMessage(null)
+    setActionError(null)
     setUser(null)
     setVerified(false)
 
-    const trimmed = userId.trim()
+    const trimmed = lookupInput.trim()
     if (!trimmed) {
-      setLookupError("Enter a user UUID.")
+      setLookupError("Enter a user UUID or email.")
       return
     }
 
@@ -65,7 +65,7 @@ export function ModerationClient() {
       const res = await fetch("/api/moderation/lookup-user", {
         ...fetchOpts,
         method: "POST",
-        body: JSON.stringify({ user_id: trimmed }),
+        body: JSON.stringify({ lookup: trimmed }),
       })
       const data = (await res.json()) as { error?: string; user?: LookupUser }
 
@@ -95,19 +95,26 @@ export function ModerationClient() {
     }
   }
 
-  const runBan = async () => {
+  const runAction = async (action: "ban" | "cancel" | "storage") => {
     if (!user) return
-    setBanError(null)
-    setBanMessage(null)
+    setActionError(null)
+    setActionMessage(null)
 
     if (!verified) {
-      setBanError("Confirm that you have verified this is the correct user.")
+      setActionError("Confirm that you have verified this is the correct user.")
       return
     }
 
-    setBanLoading(true)
+    const endpoint =
+      action === "ban"
+        ? "/api/moderation/ban-user"
+        : action === "cancel"
+          ? "/api/moderation/cancel-subscription"
+          : "/api/moderation/delete-storage"
+
+    setActionLoading(action)
     try {
-      const res = await fetch("/api/moderation/ban-user", {
+      const res = await fetch(endpoint, {
         ...fetchOpts,
         method: "POST",
         body: JSON.stringify({ user_id: user.id }),
@@ -117,37 +124,57 @@ export function ModerationClient() {
         ok?: boolean
         deleted_storage?: { item_photos: number; avatars: number }
         include_subscription_cancelled_notice?: boolean
+        subscription_cancelled?: boolean
         partial?: unknown
       }
 
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
-          setBanError(data.error ?? "Session expired or not a moderator. Refresh and sign in again.")
+          setActionError(data.error ?? "Session expired or not a moderator. Refresh and sign in again.")
         } else {
-          setBanError(data.error ?? `Ban failed (${res.status})`)
+          const label = action === "ban" ? "Ban" : action === "cancel" ? "Cancellation" : "Storage wipe"
+          setActionError(data.error ?? `${label} failed (${res.status})`)
         }
         return
       }
 
-      setBanMessage(
-        `User banned. Storage removed: ${data.deleted_storage?.item_photos ?? 0} item photo(s), ${data.deleted_storage?.avatars ?? 0} avatar file(s).` +
-          (data.include_subscription_cancelled_notice
-            ? " Pro subscription was cancelled (if applicable)."
-            : "")
+      if (action === "ban") {
+        setActionMessage(
+          `User banned. Storage removed: ${data.deleted_storage?.item_photos ?? 0} item photo(s), ${data.deleted_storage?.avatars ?? 0} avatar file(s).` +
+            (data.include_subscription_cancelled_notice
+              ? " Pro subscription was cancelled (if applicable)."
+              : "")
+        )
+        setUser(null)
+        setLookupInput("")
+        setVerified(false)
+        return
+      }
+
+      if (action === "cancel") {
+        if (!data.include_subscription_cancelled_notice) {
+          setActionMessage("No Stripe subscription id found for this user.")
+        } else if (data.subscription_cancelled) {
+          setActionMessage("Subscription cancelled in Stripe.")
+        } else {
+          setActionMessage("Subscription exists but was already in a non-cancellable state.")
+        }
+        return
+      }
+
+      setActionMessage(
+        `Storage removed: ${data.deleted_storage?.item_photos ?? 0} item photo(s), ${data.deleted_storage?.avatars ?? 0} avatar file(s).`
       )
-      setUser(null)
-      setUserId("")
-      setVerified(false)
     } catch (e) {
       const msg =
         e instanceof TypeError && e.message === "Failed to fetch"
           ? "Network error."
           : e instanceof Error
             ? e.message
-            : "Ban failed."
-      setBanError(msg)
+            : "Moderation action failed."
+      setActionError(msg)
     } finally {
-      setBanLoading(false)
+      setActionLoading(null)
     }
   }
 
@@ -160,8 +187,9 @@ export function ModerationClient() {
           <span className="text-foreground font-mono text-xs">
             {clientOrigin ?? "—"}
           </span>
-          . Look up a user by Supabase Auth user id (UUID), verify their details, then ban. Requests
-          use your session cookie; the server checks your email against{" "}
+          . Look up a user by Supabase Auth user id (UUID) or email, verify their details, then run
+          individual actions or full ban. Requests use your session cookie; the server checks your
+          email against{" "}
           <code className="text-foreground rounded bg-muted px-1 py-0.5 text-xs">MODERATOR_EMAILS</code>
           .
         </p>
@@ -171,18 +199,18 @@ export function ModerationClient() {
         <CardHeader>
           <CardTitle>Look up user</CardTitle>
           <CardDescription>
-            Paste the Auth user UUID (from Supabase dashboard → Authentication → Users).
+            Enter Auth user UUID or exact email address.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="user-id">User id (UUID)</Label>
+            <Label htmlFor="lookup">User id (UUID) or email</Label>
             <Input
-              id="user-id"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder="00000000-0000-4000-8000-000000000000"
-              className="font-mono text-sm"
+              id="lookup"
+              value={lookupInput}
+              onChange={(e) => setLookupInput(e.target.value)}
+              placeholder="00000000-0000-4000-8000-000000000000 or user@example.com"
+              className="text-sm"
             />
           </div>
           {lookupError && (
@@ -199,10 +227,11 @@ export function ModerationClient() {
       {user && (
         <Card className="border-amber-200 dark:border-amber-900">
           <CardHeader>
-            <CardTitle>Verify before ban</CardTitle>
+            <CardTitle>Verify before action</CardTitle>
             <CardDescription>
-              Confirm this account matches the violation. Banning is permanent and runs the full
-              moderation pipeline (Stripe, email, storage, Auth delete).
+              Confirm this account matches the intended moderation target. Banning is permanent and
+              runs the full pipeline (Stripe, email, storage, Auth delete). You can also run
+              subscription cancellation and storage wipe independently.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
@@ -238,29 +267,47 @@ export function ModerationClient() {
                 className="border-input mt-1 h-4 w-4 rounded"
               />
               <span>
-                I confirm this is the correct user and I intend to ban them and wipe their data.
+                I confirm this is the correct user and I understand these actions are destructive.
               </span>
             </label>
           </CardContent>
           <CardFooter className="flex flex-col items-stretch gap-3">
-            {banError && (
+            {actionError && (
               <p className="text-destructive text-sm" role="alert">
-                {banError}
+                {actionError}
               </p>
             )}
-            {banMessage && (
+            {actionMessage && (
               <p className="text-sm text-green-700 dark:text-green-400" role="status">
-                {banMessage}
+                {actionMessage}
               </p>
             )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button
+                type="button"
+                disabled={actionLoading !== null || !verified}
+                onClick={() => runAction("cancel")}
+                className={cn(!verified && "opacity-60")}
+              >
+                {actionLoading === "cancel" ? "Cancelling…" : "Cancel subscription only"}
+              </Button>
+              <Button
+                type="button"
+                disabled={actionLoading !== null || !verified}
+                onClick={() => runAction("storage")}
+                className={cn(!verified && "opacity-60")}
+              >
+                {actionLoading === "storage" ? "Deleting…" : "Delete storage only"}
+              </Button>
+            </div>
             <Button
               type="button"
               variant="destructive"
-              disabled={banLoading || !verified}
-              onClick={runBan}
+              disabled={actionLoading !== null || !verified}
+              onClick={() => runAction("ban")}
               className={cn(!verified && "opacity-60")}
             >
-              {banLoading ? "Banning…" : "Ban user permanently"}
+              {actionLoading === "ban" ? "Banning…" : "Ban user permanently"}
             </Button>
           </CardFooter>
         </Card>
