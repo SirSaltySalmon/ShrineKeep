@@ -15,7 +15,10 @@ export interface BoxesBatchCreateRequest {
 }
 
 export function parseCreateBoxesRequest(body: BoxCreateRequest | BoxesBatchCreateRequest): BoxCreateRequest[] {
-  if ("boxes" in body && Array.isArray(body.boxes)) {
+  if ("boxes" in body) {
+    if (!Array.isArray(body.boxes)) {
+      throw new Error("boxes must be an array")
+    }
     if (body.boxes.length === 0) {
       throw new Error("boxes array must not be empty")
     }
