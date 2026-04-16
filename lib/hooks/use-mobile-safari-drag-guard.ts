@@ -5,14 +5,11 @@ import { useEffect } from "react"
 const MOBILE_SAFARI_DRAG_CLASS = "mobile-safari-drag-active"
 const TOP_SCROLL_GUARD_PX = 10
 
-function isMobileSafari() {
+function isMobile() {
   if (typeof window === "undefined") return false
 
-  const ua = navigator.userAgent
   const hasTouch = navigator.maxTouchPoints > 0
-  const isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/i.test(ua)
-
-  return hasTouch && isSafari
+  return hasTouch
 }
 
 /**
@@ -21,7 +18,7 @@ function isMobileSafari() {
  */
 export function useMobileSafariDragGuard(isDragging: boolean) {
   useEffect(() => {
-    if (!isDragging || !isMobileSafari()) return
+    if (!isDragging || !isMobile()) return
 
     const root = document.documentElement
     const viewport = window.visualViewport
