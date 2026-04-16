@@ -31,10 +31,13 @@ interface BreadcrumbsProps {
 function DroppableHomeCrumb({
   onNavigate,
   dropDisabled,
+  dragActive,
 }: {
   onNavigate: () => void
   /** When already at root, home is not a move target. */
   dropDisabled: boolean
+  /** Prevent accidental navigation click while an active drag is in progress. */
+  dragActive: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: BREADCRUMB_ROOT_DROP_ID,
@@ -46,7 +49,7 @@ function DroppableHomeCrumb({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-9 min-w-9 items-center justify-center rounded-md p-1 -m-1 transition-colors shrink-0 touch-manipulation",
+        "flex min-h-11 min-w-11 items-center justify-center rounded-md p-2 transition-colors shrink-0 touch-none",
         isOver && "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
       )}
     >
@@ -54,7 +57,10 @@ function DroppableHomeCrumb({
         variant="ghost"
         size="sm"
         type="button"
-        onClick={onNavigate}
+        onClick={() => {
+          if (dragActive) return
+          onNavigate()
+        }}
         className={cn("h-8 shrink-0", isOver && "text-primary")}
       >
         <Home className="h-4 w-4" />
@@ -68,16 +74,19 @@ function DroppableBoxCrumb({
   onNavigate,
   activeDragId,
   selectedBoxIds,
+  isLast = false,
 }: {
   box: Box
   onNavigate: () => void
   activeDragId: string | null
   selectedBoxIds: ReadonlySet<string>
+  isLast?: boolean
 }) {
   const dropId = getBreadcrumbBoxDropId(box.id)
   const isDraggingThisBox = activeDragId === getBoxDragId(box.id)
   const isBoxDrag = Boolean(activeDragId?.startsWith("box-drag-"))
   const isSelectedMoveTarget = isBoxDrag && selectedBoxIds.has(box.id)
+  const dragActive = activeDragId != null
 
   const { isOver, setNodeRef } = useDroppable({
     id: dropId,
@@ -86,11 +95,11 @@ function DroppableBoxCrumb({
   })
 
   return (
-    <div className="flex items-center layout-shrink-visible min-w-0">
+    <div className={cn("flex items-center layout-shrink-visible min-w-0", isLast && "flex-1")}>
       <div
         ref={setNodeRef}
         className={cn(
-          "flex min-h-9 min-w-0 max-w-full items-center rounded-md px-1 py-1 -mx-1 -my-1 transition-colors touch-manipulation",
+          "flex min-h-11 min-w-0 max-w-full items-center rounded-md px-2 py-1 transition-colors touch-none",
           isOver && "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
         )}
       >
@@ -99,7 +108,10 @@ function DroppableBoxCrumb({
           variant="ghost"
           size="sm"
           type="button"
-          onClick={onNavigate}
+          onClick={() => {
+            if (dragActive) return
+            onNavigate()
+          }}
           className={cn(
             "h-8 min-w-0 max-w-full overflow-hidden",
             isOver && "text-primary"
@@ -121,6 +133,7 @@ export default function Breadcrumbs({
 }: BreadcrumbsProps) {
   const [path, setPath] = useState<Box[]>([])
   const supabase = createSupabaseClient()
+  const dragActive = activeDragId != null
 
   useEffect(() => {
     loadPath()
@@ -159,6 +172,7 @@ export default function Breadcrumbs({
         <DroppableHomeCrumb
           onNavigate={() => onBoxClick(null)}
           dropDisabled={!currentBoxId}
+          dragActive={dragActive}
         />
       ) : (
         <Button
@@ -186,7 +200,10 @@ export default function Breadcrumbs({
                 variant="ghost"
                 size="sm"
                 type="button"
-                onClick={() => onBoxClick(box)}
+                onClick={() => {
+                  if (dragActive) return
+                  onBoxClick(box)
+                }}
                 className="h-8 min-w-0 max-w-full overflow-hidden"
               >
                 <span className="block min-w-0 truncate-line text-left">
@@ -204,6 +221,7 @@ export default function Breadcrumbs({
               onNavigate={() => onBoxClick(box)}
               activeDragId={activeDragId}
               selectedBoxIds={selectedBoxIds}
+              isLast={isLast}
             />
           )
         }

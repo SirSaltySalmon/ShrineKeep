@@ -76,7 +76,7 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
       selectionMode={selectionMode}
       isOver={isOver}
       style={style}
-      className="item-card-no-select"
+      className={isDragging ? "item-card-no-select !transition-none" : "item-card-no-select"}
       data-box-id={box.id}
       onClick={(e) => onBoxClick(box, e)}
       {...attributes}

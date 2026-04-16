@@ -127,13 +127,13 @@ export function useDashboardData({
   }
 
   const loadBoxes = async () => {
-    await queryClient.invalidateQueries({ queryKey: boxesKey })
+    await queryClient.invalidateQueries({ queryKey: ["dashboard", "boxes", userId] })
   }
 
   const loadItems = async (_boxId: string | null) => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: itemsKey }),
-      queryClient.invalidateQueries({ queryKey: unacquiredKey }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "items", userId] }),
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "unacquired", userId] }),
     ])
   }
 
