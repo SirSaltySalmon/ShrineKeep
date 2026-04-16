@@ -172,4 +172,13 @@
     min-width: 0;
     overflow: hidden;
   }
+
+  /*
+   * During touch drag on iOS Safari, avoid top-edge overscroll that expands browser chrome
+   * and can cancel active drag interactions.
+   */
+  html.mobile-safari-drag-active,
+  html.mobile-safari-drag-active body {
+    overscroll-behavior-y: contain;
+  }
 }

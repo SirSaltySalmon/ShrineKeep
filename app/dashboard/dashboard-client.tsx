@@ -38,6 +38,7 @@ import { useLiveSubscription } from "@/lib/hooks/use-live-subscription"
 import { useDashboardData } from "@/lib/hooks/use-dashboard-data"
 import { useDashboardDialogs } from "@/lib/hooks/use-dashboard-dialogs"
 import { useDashboardDnd } from "@/lib/hooks/use-dashboard-dnd"
+import { useMobileSafariDragGuard } from "@/lib/hooks/use-mobile-safari-drag-guard"
 
 const DASHBOARD_DND_CONTEXT_ID = "dashboard-dnd-context"
 
@@ -194,6 +195,7 @@ export default function DashboardClient({
     bumpStatsRefreshKey: () => setStatsRefreshKey((k) => k + 1),
   })
   const itemDragActive = dndActiveId?.startsWith("item-") ?? false
+  useMobileSafariDragGuard(dndActiveId !== null)
   const contentSkeletonLoading = folderLoading || dndMoveLoading
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const selectedItems = useMemo(() => {
