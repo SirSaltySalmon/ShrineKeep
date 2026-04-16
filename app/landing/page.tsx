@@ -51,51 +51,41 @@ export default function LandingPage() {
           <div className="flex flex-col gap-1 items-center w-full ">
             <ScrollReveal delayMs={0} className="w-full">
               <div className="flex flex-wrap gap-3 sm:gap-4 md:gap-6 items-baseline justify-center">
-                <Floating as="span" className="inline-block" amplitudePx={7} durationSec={10}>
-                  <span
-                    className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl uppercase tracking-tight text-foreground"
-                    style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
-                  >
-                    Consumerism
-                  </span>
-                </Floating>
-                <Floating as="span" className="inline-block" amplitudePx={6} durationSec={10}>
-                  <span
-                    className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl italic text-foreground"
-                    style={{ fontFamily: "var(--font-playfair-display), serif", fontWeight: 900 }}
-                  >
-                    has
-                  </span>
-                </Floating>
+                <span
+                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl uppercase tracking-tight text-foreground"
+                  style={{ fontFamily: "var(--font-bebas-neue), sans-serif" }}
+                >
+                  Consumerism
+                </span>
+                <span
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl italic text-foreground"
+                  style={{ fontFamily: "var(--font-playfair-display), serif", fontWeight: 900 }}
+                >
+                  has
+                </span>
               </div>
             </ScrollReveal>
 
             <ScrollReveal delayMs={120} className="w-full">
               <div className="flex flex-wrap gap-3 sm:gap-4 md:gap-6 items-baseline justify-center">
-                <Floating as="span" className="inline-block" amplitudePx={7} durationSec={11}>
-                  <span
-                    className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl text-foreground"
-                    style={{ fontFamily: "var(--font-roboto), sans-serif", fontWeight: 700 }}
-                  >
-                    never
-                  </span>
-                </Floating>
-                <Floating as="span" className="inline-block" amplitudePx={6} durationSec={10}>
-                  <span
-                    className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl text-foreground"
-                    style={{ fontFamily: "var(--font-merriweather), Georgia, serif" }}
-                  >
-                    been
-                  </span>
-                </Floating>
-                <Floating as="span" className="inline-block" amplitudePx={6} durationSec={11}>
-                  <span
-                    className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl italic text-foreground"
-                    style={{ fontFamily: "var(--font-source-serif-4), serif", fontWeight: 900 }}
-                  >
-                    this
-                  </span>
-                </Floating>
+                <span
+                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl text-foreground"
+                  style={{ fontFamily: "var(--font-roboto), sans-serif", fontWeight: 700 }}
+                >
+                  never
+                </span>
+                <span
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl text-foreground"
+                  style={{ fontFamily: "var(--font-merriweather), Georgia, serif" }}
+                >
+                  been
+                </span>
+                <span
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl italic text-foreground"
+                  style={{ fontFamily: "var(--font-source-serif-4), serif", fontWeight: 900 }}
+                >
+                  this
+                </span>
               </div>
             </ScrollReveal>
 
@@ -115,14 +105,14 @@ export default function LandingPage() {
         {/* Hero images: stacked on small screens, same row on larger — full width */}
         <ScrollReveal delayMs={320} className="w-full">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
-            <Floating amplitudePx={12} durationSec={14} className="w-full">
+            <Floating amplitudePx={12} durationSec={14} className="w-full p-1">
               <div className="min-w-0 rounded-xl sm:rounded-2xl overflow-hidden shadow-xl border border-border bg-muted transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1.5 hover:shadow-2xl hover:border-border/70">
                 <div className="w-full relative" style={{ aspectRatio: "1649 / 761" }}>
                   <LandingHeroImage src_index={0} />
                 </div>
               </div>
             </Floating>
-            <Floating amplitudePx={12} durationSec={16} className="w-full">
+            <Floating amplitudePx={12} durationSec={16} className="w-full p-1">
               <div className="min-w-0 rounded-xl sm:rounded-2xl overflow-hidden shadow-xl border border-border bg-muted transition-[transform,box-shadow,border-color] duration-500 ease-out hover:-translate-y-1.5 hover:shadow-2xl hover:border-border/70">
                 <div className="w-full relative" style={{ aspectRatio: "1649 / 761" }}>
                   <LandingHeroImage src_index={1} />

@@ -15,6 +15,8 @@ interface UseDashboardDataParams {
   initialUserTags: Tag[]
 }
 
+type AffectedBoxInput = string | null | Array<string | null> | undefined
+
 export function useDashboardData({
   userId,
   supabase,
@@ -37,6 +39,19 @@ export function useDashboardData({
   ] as const
   const unacquiredKey = ["dashboard", "unacquired", userId, currentBoxId ?? "root"] as const
   const tagsKey = ["dashboard", "tags", userId] as const
+  const toScopeId = (boxId: string | null) => boxId ?? "root"
+
+  const normalizeAffectedBoxes = (affected: AffectedBoxInput): Array<string | null> => {
+    if (Array.isArray(affected)) {
+      const unique: Array<string | null> = []
+      for (const boxId of affected) {
+        if (!unique.includes(boxId)) unique.push(boxId)
+      }
+      return unique
+    }
+    if (affected === undefined) return []
+    return [affected]
+  }
 
   const boxesQuery = useQuery({
     queryKey: boxesKey,
@@ -126,15 +141,54 @@ export function useDashboardData({
     queryClient.setQueryData(tagsKey, sortTagsByColorThenName(tags))
   }
 
-  const loadBoxes = async () => {
-    await queryClient.invalidateQueries({ queryKey: ["dashboard", "boxes", userId] })
+  const loadBoxes = async (affected: AffectedBoxInput = undefined) => {
+    const affectedBoxes = normalizeAffectedBoxes(affected)
+    if (affectedBoxes.length === 0) {
+      await queryClient.invalidateQueries({ queryKey: ["dashboard", "boxes", userId] })
+      return
+    }
+
+    await Promise.all(
+      affectedBoxes.map((boxId) =>
+        queryClient.invalidateQueries({
+          queryKey: ["dashboard", "boxes", userId, toScopeId(boxId)],
+        })
+      )
+    )
   }
 
-  const loadItems = async (_boxId: string | null) => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "items", userId] }),
-      queryClient.invalidateQueries({ queryKey: ["dashboard", "unacquired", userId] }),
-    ])
+  const loadItems = async (affected: AffectedBoxInput = undefined) => {
+    const affectedBoxes = normalizeAffectedBoxes(affected)
+    if (affectedBoxes.length === 0) {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["dashboard", "items", userId] }),
+        queryClient.invalidateQueries({ queryKey: ["dashboard", "unacquired", userId] }),
+      ])
+      return
+    }
+
+    await Promise.all(
+      affectedBoxes.map((boxId) => {
+        const scopeId = toScopeId(boxId)
+        return Promise.all([
+          queryClient.invalidateQueries({
+            predicate: (query) => {
+              const queryKey = query.queryKey
+              return (
+                Array.isArray(queryKey) &&
+                queryKey[0] === "dashboard" &&
+                queryKey[1] === "items" &&
+                queryKey[2] === userId &&
+                queryKey[3] === scopeId
+              )
+            },
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ["dashboard", "unacquired", userId, scopeId],
+          }),
+        ])
+      })
+    )
   }
 
   const setUnacquiredItems = (next: Item[]) => {

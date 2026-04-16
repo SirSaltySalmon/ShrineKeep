@@ -7,6 +7,8 @@ import { MOVE_TO_PARENT_ZONE_ID } from "@/components/move-to-parent-zone"
 import { BREADCRUMB_ROOT_DROP_ID } from "@/components/breadcrumbs"
 import type { Box, Item } from "@/lib/types"
 
+type AffectedBoxInput = string | null | Array<string | null> | undefined
+
 interface UseDashboardDndParams {
   currentBoxId: string | null
   currentBox: Box | null
@@ -14,8 +16,8 @@ interface UseDashboardDndParams {
   boxes: Box[]
   selectedItemIds: Set<string>
   selectedBoxIds: Set<string>
-  loadItems: (boxId: string | null) => Promise<void>
-  loadBoxes: () => Promise<void>
+  loadItems: (affected?: AffectedBoxInput) => Promise<void>
+  loadBoxes: (affected?: AffectedBoxInput) => Promise<void>
   bumpStatsRefreshKey: () => void
 }
 
@@ -92,7 +94,10 @@ export function useDashboardDnd({
           const err = await res.json()
           throw new Error(err.error ?? "Failed to move item")
         }
-        await Promise.all([loadItems(currentBoxId), loadBoxes()])
+        await Promise.all([
+          loadItems([currentItemBoxId, targetParentBoxId]),
+          loadBoxes([currentBoxId]),
+        ])
         bumpStatsRefreshKey()
       } catch (e) {
         console.error("Error moving item:", e)
@@ -137,7 +142,10 @@ export function useDashboardDnd({
           const err = await res.json()
           throw new Error(err.error ?? "Failed to move box")
         }
-        await Promise.all([loadBoxes(), loadItems(currentBoxId)])
+        await Promise.all([
+          loadBoxes([currentBoxParentId, targetParentBoxId]),
+          loadItems(currentBoxId),
+        ])
         bumpStatsRefreshKey()
       } catch (e) {
         console.error("Error moving box:", e)
