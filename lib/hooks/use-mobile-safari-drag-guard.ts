@@ -3,7 +3,7 @@
 import { useEffect } from "react"
 
 const MOBILE_SAFARI_DRAG_CLASS = "mobile-safari-drag-active"
-const TOP_SCROLL_GUARD_PX = 1
+const TOP_SCROLL_GUARD_PX = 10
 
 function isMobileSafari() {
   if (typeof window === "undefined") return false
