@@ -193,7 +193,6 @@ export default function DashboardClient({
     loadBoxes,
     bumpStatsRefreshKey: () => setStatsRefreshKey((k) => k + 1),
   })
-  const dragActive = dndActiveId != null
   const contentSkeletonLoading = folderLoading || dndMoveLoading
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const selectedItems = useMemo(() => {
@@ -215,28 +214,6 @@ export default function DashboardClient({
       setActiveItemsTab("items")
     }
   }, [unacquiredItems.length])
-
-  useEffect(() => {
-    if (!dragActive) return
-
-    const html = document.documentElement
-    const body = document.body
-
-    const prevHtmlOverscroll = html.style.overscrollBehavior
-    const prevBodyOverscroll = body.style.overscrollBehavior
-    const prevBodyOverflow = body.style.overflow
-
-    // Prevent mobile pull-to-refresh / page scroll from cancelling active drag near top edge.
-    html.style.overscrollBehavior = "none"
-    body.style.overscrollBehavior = "none"
-    body.style.overflow = "hidden"
-
-    return () => {
-      html.style.overscrollBehavior = prevHtmlOverscroll
-      body.style.overscrollBehavior = prevBodyOverscroll
-      body.style.overflow = prevBodyOverflow
-    }
-  }, [dragActive])
 
   useEffect(() => {
     if (demoPromptDismissed) {

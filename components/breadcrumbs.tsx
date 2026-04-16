@@ -61,7 +61,12 @@ function DroppableHomeCrumb({
           if (dragActive) return
           onNavigate()
         }}
-        className={cn("h-8 shrink-0", isOver && "text-primary")}
+        className={cn(
+          "h-8 shrink-0",
+          isOver && "text-primary",
+          dragActive && "pointer-events-none"
+        )}
+        aria-disabled={dragActive}
       >
         <Home className="h-4 w-4" />
       </Button>
@@ -114,8 +119,10 @@ function DroppableBoxCrumb({
           }}
           className={cn(
             "h-8 min-w-0 max-w-full overflow-hidden",
-            isOver && "text-primary"
+            isOver && "text-primary",
+            dragActive && "pointer-events-none"
           )}
+          aria-disabled={dragActive}
         >
           <span className="block min-w-0 truncate-line text-left">{box.name}</span>
         </Button>
@@ -204,7 +211,11 @@ export default function Breadcrumbs({
                   if (dragActive) return
                   onBoxClick(box)
                 }}
-                className="h-8 min-w-0 max-w-full overflow-hidden"
+                className={cn(
+                  "h-8 min-w-0 max-w-full overflow-hidden",
+                  dragActive && "pointer-events-none"
+                )}
+                aria-disabled={dragActive}
               >
                 <span className="block min-w-0 truncate-line text-left">
                   {box.name}
