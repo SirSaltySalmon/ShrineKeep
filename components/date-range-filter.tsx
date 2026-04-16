@@ -35,7 +35,7 @@ export function DateRangeFilter({
   return (
     <div className={className}>
       <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1.5 layout-shrink-visible">
+        <div className="space-y-1.5 layout-shrink-visible w-[140px] shrink-0">
           <Label htmlFor="date-range-from" className="text-fluid-xs text-muted-foreground">
             From
           </Label>
@@ -44,10 +44,10 @@ export function DateRangeFilter({
             type="date"
             value={draftFrom}
             onChange={(e) => setDraftFrom(e.target.value)}
-            className="h-9 bg-background text-foreground border-border min-w-[140px]"
+            className="graph-date-input h-9 bg-background text-foreground border-border w-[140px] min-w-[140px] shrink-0"
           />
         </div>
-        <div className="space-y-1.5 layout-shrink-visible">
+        <div className="space-y-1.5 layout-shrink-visible w-[140px] shrink-0">
           <Label htmlFor="date-range-to" className="text-fluid-xs text-muted-foreground">
             To
           </Label>
@@ -56,7 +56,7 @@ export function DateRangeFilter({
             type="date"
             value={draftTo}
             onChange={(e) => setDraftTo(e.target.value)}
-            className="h-9 bg-background text-foreground border-border min-w-[140px]"
+            className="graph-date-input h-9 bg-background text-foreground border-border w-[140px] min-w-[140px] shrink-0"
           />
         </div>
         <Button
