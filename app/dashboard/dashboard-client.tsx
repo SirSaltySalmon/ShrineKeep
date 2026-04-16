@@ -193,6 +193,7 @@ export default function DashboardClient({
     loadBoxes,
     bumpStatsRefreshKey: () => setStatsRefreshKey((k) => k + 1),
   })
+  const itemDragActive = dndActiveId?.startsWith("item-") ?? false
   const contentSkeletonLoading = folderLoading || dndMoveLoading
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const selectedItems = useMemo(() => {
@@ -540,7 +541,10 @@ export default function DashboardClient({
         </div>
       )}
 
-      <main className="container mx-auto px-4 py-8 layout-shrink-visible" onMouseDown={handleMouseDown}>
+      <main
+        className="container mx-auto px-4 py-8 layout-shrink-visible overscroll-y-contain"
+        onMouseDown={handleMouseDown}
+      >
         <DndContext
           id={DASHBOARD_DND_CONTEXT_ID}
           sensors={sensors}
@@ -562,7 +566,11 @@ export default function DashboardClient({
               selectedBoxIds={selectedBoxIds}
             />
           </div>
-          <div className="flex flex-col gap-2 min-w-0 w-full">
+          <div
+            className={`flex flex-col gap-2 min-w-0 w-full ${
+              itemDragActive ? "pointer-events-none touch-none" : ""
+            }`}
+          >
             <div className="flex items-center gap-2 min-w-0">
               <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground shrink-0" />

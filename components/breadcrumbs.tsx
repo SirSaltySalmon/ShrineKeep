@@ -61,12 +61,7 @@ function DroppableHomeCrumb({
           if (dragActive) return
           onNavigate()
         }}
-        className={cn(
-          "h-8 shrink-0",
-          isOver && "text-primary",
-          dragActive && "pointer-events-none"
-        )}
-        aria-disabled={dragActive}
+        className={cn("h-8 shrink-0", isOver && "text-primary")}
       >
         <Home className="h-4 w-4" />
       </Button>
@@ -119,10 +114,8 @@ function DroppableBoxCrumb({
           }}
           className={cn(
             "h-8 min-w-0 max-w-full overflow-hidden",
-            isOver && "text-primary",
-            dragActive && "pointer-events-none"
+            isOver && "text-primary"
           )}
-          aria-disabled={dragActive}
         >
           <span className="block min-w-0 truncate-line text-left">{box.name}</span>
         </Button>
@@ -182,15 +175,17 @@ export default function Breadcrumbs({
           dragActive={dragActive}
         />
       ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          type="button"
-          onClick={() => onBoxClick(null)}
-          className="h-8 shrink-0"
-        >
-          <Home className="h-4 w-4" />
-        </Button>
+        <div className="flex min-h-11 min-w-11 items-center justify-center rounded-md p-2 shrink-0 touch-none">
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={() => onBoxClick(null)}
+            className="h-8 shrink-0"
+          >
+            <Home className="h-4 w-4" />
+          </Button>
+        </div>
       )}
       {path.map((box, index) => {
         const isLast = index === path.length - 1
@@ -202,25 +197,23 @@ export default function Breadcrumbs({
                 "flex items-center layout-shrink-visible min-w-0 flex-1"
               )}
             >
-              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-              <Button
-                variant="ghost"
-                size="sm"
-                type="button"
-                onClick={() => {
-                  if (dragActive) return
-                  onBoxClick(box)
-                }}
-                className={cn(
-                  "h-8 min-w-0 max-w-full overflow-hidden",
-                  dragActive && "pointer-events-none"
-                )}
-                aria-disabled={dragActive}
-              >
-                <span className="block min-w-0 truncate-line text-left">
-                  {box.name}
-                </span>
-              </Button>
+              <div className="flex min-h-11 min-w-0 max-w-full items-center rounded-md px-2 py-1 touch-none">
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  onClick={() => {
+                    if (dragActive) return
+                    onBoxClick(box)
+                  }}
+                  className="h-8 min-w-0 max-w-full overflow-hidden"
+                >
+                  <span className="block min-w-0 truncate-line text-left">
+                    {box.name}
+                  </span>
+                </Button>
+              </div>
             </div>
           )
         }
@@ -244,18 +237,20 @@ export default function Breadcrumbs({
               isLast && "min-w-0 flex-1"
             )}
           >
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              onClick={() => onBoxClick(box)}
-              className="h-8 min-w-0 max-w-full overflow-hidden"
-            >
-              <span className="block min-w-0 truncate-line text-left">
-                {box.name}
-              </span>
-            </Button>
+            <div className="flex min-h-11 min-w-0 max-w-full items-center rounded-md px-2 py-1 touch-none">
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={() => onBoxClick(box)}
+                className="h-8 min-w-0 max-w-full overflow-hidden"
+              >
+                <span className="block min-w-0 truncate-line text-left">
+                  {box.name}
+                </span>
+              </Button>
+            </div>
           </div>
         )
       })}
