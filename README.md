@@ -1,9 +1,9 @@
 # ShrineKeep
+## "Consumerism has never been this organized."
 
 Collection manager web app for tracking items, value, spending, and wishlist progress.
 
 - Live site: [shrinekeep.com](https://www.shrinekeep.com)
-- Product tagline: "Consumerism has never been this organized."
 
 ## What ShrineKeep does
 
@@ -45,6 +45,7 @@ Collection manager web app for tracking items, value, spending, and wishlist pro
 - Stripe for subscriptions.
 - Resend for email and moderation notifications.
 - Cloudflare Turnstile for anti-abuse.
+- PostHog for analytics.
 - Sentry for monitoring.
 - SerpAPI for optional image search.
 
@@ -64,7 +65,7 @@ Collection manager web app for tracking items, value, spending, and wishlist pro
 - Tailwind CSS + shadcn/ui
 - Stripe + Resend + Turnstile
 - Recharts, dnd-kit, zustand
-- Sentry
+- PostHog + Sentry
 
 ## Local development
 
