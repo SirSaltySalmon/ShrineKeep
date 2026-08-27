@@ -16,6 +16,7 @@ import ImageSearch from "./image-search"
 import ImageGalleryCarousel from "./image-gallery-carousel"
 import ValueGraph from "./value-graph"
 import BoxPickerDialog from "./box-picker-dialog"
+import { buildItemFormSnapshot, diffItemPatch, type ItemFormSnapshot } from "@/lib/item-patch"
 
 const MAX_PHOTOS = 10
 const MAX_TAGS_PER_USER = 256
@@ -47,6 +48,42 @@ function toLocalPhotos(item: Item | null): LocalPhoto[] {
     return [{ url: item.thumbnail_url, is_thumbnail: true }]
   }
   return []
+}
+
+function snapshotFromEditor(args: {
+  name: string
+  description: string
+  currentValue: string
+  acquisitionDate: string
+  acquisitionPrice: string
+  expectedPrice: string
+  photos: LocalPhoto[]
+  selectedTagIds: string[]
+  isWishlist: boolean
+  boxId: string | null
+  wishlistTargetBoxId: string | null
+}): ItemFormSnapshot {
+  const currentValueNum = args.currentValue.trim() === "" ? null : parseFloat(args.currentValue)
+  const acquisitionPriceNum = args.acquisitionPrice.trim() === "" ? null : parseFloat(args.acquisitionPrice)
+  const expectedPriceNum = args.expectedPrice.trim() === "" ? null : parseFloat(args.expectedPrice)
+  return buildItemFormSnapshot({
+    name: args.name.trim(),
+    description: args.description.trim() || null,
+    current_value: currentValueNum && !Number.isNaN(currentValueNum) ? currentValueNum : null,
+    acquisition_date: args.isWishlist ? null : (args.acquisitionDate || null),
+    acquisition_price: args.isWishlist
+      ? null
+      : (acquisitionPriceNum != null && !Number.isNaN(acquisitionPriceNum) ? acquisitionPriceNum : null),
+    expected_price: args.isWishlist
+      ? (expectedPriceNum && !Number.isNaN(expectedPriceNum) ? expectedPriceNum : null)
+      : null,
+    thumbnail_url: args.photos.find((p) => p.is_thumbnail)?.url ?? null,
+    box_id: args.isWishlist ? null : args.boxId,
+    wishlist_target_box_id: args.isWishlist ? args.wishlistTargetBoxId : null,
+    is_wishlist: args.isWishlist,
+    photos: args.photos,
+    tag_ids: args.selectedTagIds,
+  })
 }
 
 interface ItemDialogProps {
@@ -111,6 +148,7 @@ export default function ItemDialog({
   // Use ref to track unsaved uploads for cleanup (avoids stale closure issues)
   const unsavedUploadsRef = useRef<Set<string>>(new Set())
   const uploadInputRef = useRef<HTMLInputElement>(null)
+  const baselineRef = useRef<ItemFormSnapshot | null>(null)
 
   useEffect(() => {
     if (!isNew) return
@@ -163,17 +201,33 @@ export default function ItemDialog({
     if (!open) return
 
     if (item && !isNew) {
+      const localPhotos = toLocalPhotos(item)
+      const tagIds = item.tags?.map((t) => t.id) ?? []
+      const editingIsWishlist = isWishlist || !!item.is_wishlist
       setName(item.name || "")
       setDescription(item.description || "")
       setCurrentValue(item.current_value?.toString() || "")
       setAcquisitionDate(item.acquisition_date || "")
       setAcquisitionPrice(item.acquisition_price?.toString() || "")
       setExpectedPrice(item.expected_price?.toString() || "")
-      setPhotos(toLocalPhotos(item))
-      setSelectedTagIds(item.tags?.map((t) => t.id) ?? [])
+      setPhotos(localPhotos)
+      setSelectedTagIds(tagIds)
       setWishlistTargetBoxId(item.wishlist_target_box_id ?? null)
-      setUnsavedUploadedPhotos(new Set()) // Clear unsaved uploads when loading existing item
+      setUnsavedUploadedPhotos(new Set())
       unsavedUploadsRef.current = new Set()
+      baselineRef.current = snapshotFromEditor({
+        name: item.name || "",
+        description: item.description || "",
+        currentValue: item.current_value?.toString() || "",
+        acquisitionDate: item.acquisition_date || "",
+        acquisitionPrice: item.acquisition_price?.toString() || "",
+        expectedPrice: item.expected_price?.toString() || "",
+        photos: localPhotos,
+        selectedTagIds: tagIds,
+        isWishlist: editingIsWishlist,
+        boxId,
+        wishlistTargetBoxId: item.wishlist_target_box_id ?? null,
+      })
     } else if (isNew) {
       const startWishlistLike = isWishlist || defaultNewItemMode === "wishlist"
       setName("")
@@ -187,8 +241,9 @@ export default function ItemDialog({
       setWishlistTargetBoxId(
         !isWishlist && defaultNewItemMode === "wishlist" && boxId ? boxId : null
       )
-      setUnsavedUploadedPhotos(new Set()) // Clear unsaved uploads for new items
+      setUnsavedUploadedPhotos(new Set())
       unsavedUploadsRef.current = new Set()
+      baselineRef.current = null
     }
     setShowCreateTag(false)
     setNewTagName("")
@@ -329,6 +384,12 @@ export default function ItemDialog({
             console.error("Failed to delete photo:", errorData.error)
             alert(`Failed to delete photo: ${errorData.error || "Unknown error"}`)
             return // Don't remove from UI if deletion failed
+          }
+          if (baselineRef.current) {
+            baselineRef.current = {
+              ...baselineRef.current,
+              photos: baselineRef.current.photos.filter((p) => p.id !== photoToRemove.id),
+            }
           }
         } else {
           // Unsaved photo: delete from storage only
@@ -479,43 +540,81 @@ export default function ItemDialog({
     setSaving(true)
 
     try {
-      const currentValueNum = currentValue.trim() === "" ? null : parseFloat(currentValue)
-      const acquisitionPriceNum = acquisitionPrice.trim() === "" ? null : parseFloat(acquisitionPrice)
-      const expectedPriceNum = expectedPrice.trim() === "" ? null : parseFloat(expectedPrice)
-      const wishlistTargetId = effectiveIsWishlist ? wishlistTargetBoxId : null
-
-      const requestBody = {
-        ...(isNew ? {} : { id: item!.id }),
-        name: name.trim(),
-        description: description.trim() || null,
-        current_value: currentValueNum && !Number.isNaN(currentValueNum) ? currentValueNum : null,
-        acquisition_date: effectiveIsWishlist ? null : (acquisitionDate || null),
-        acquisition_price: effectiveIsWishlist ? null : (acquisitionPriceNum != null && !Number.isNaN(acquisitionPriceNum) ? acquisitionPriceNum : null),
-        expected_price: effectiveIsWishlist ? (expectedPriceNum && !Number.isNaN(expectedPriceNum) ? expectedPriceNum : null) : null,
-        thumbnail_url: photos.find((p) => p.is_thumbnail)?.url ?? null,
-        box_id: effectiveIsWishlist ? null : boxId,
-        wishlist_target_box_id: wishlistTargetId,
-        is_wishlist: effectiveIsWishlist,
-        photos: photos.map((p) => ({
-          url: p.url,
-          storage_path: p.storage_path,
-          is_thumbnail: p.is_thumbnail,
-        })),
-        tag_ids: selectedTagIds,
-      }
-
-      const response = await fetch("/api/items", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
+      const currentSnapshot = snapshotFromEditor({
+        name,
+        description,
+        currentValue,
+        acquisitionDate,
+        acquisitionPrice,
+        expectedPrice,
+        photos,
+        selectedTagIds,
+        isWishlist: effectiveIsWishlist,
+        boxId,
+        wishlistTargetBoxId,
       })
+
+      let response: Response
+      if (isNew) {
+        response = await fetch("/api/items", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: currentSnapshot.name,
+            description: currentSnapshot.description,
+            current_value: currentSnapshot.current_value,
+            acquisition_date: currentSnapshot.acquisition_date,
+            acquisition_price: currentSnapshot.acquisition_price,
+            expected_price: currentSnapshot.expected_price,
+            thumbnail_url: currentSnapshot.thumbnail_url,
+            box_id: currentSnapshot.box_id,
+            wishlist_target_box_id: currentSnapshot.wishlist_target_box_id,
+            is_wishlist: currentSnapshot.is_wishlist,
+            photos: currentSnapshot.photos.map((p) => ({
+              url: p.url,
+              storage_path: p.storage_path,
+              is_thumbnail: p.is_thumbnail,
+            })),
+            tag_ids: currentSnapshot.tag_ids,
+          }),
+        })
+      } else {
+        const baseline =
+          baselineRef.current ??
+          snapshotFromEditor({
+            name: item!.name || "",
+            description: item!.description || "",
+            currentValue: item!.current_value?.toString() || "",
+            acquisitionDate: item!.acquisition_date || "",
+            acquisitionPrice: item!.acquisition_price?.toString() || "",
+            expectedPrice: item!.expected_price?.toString() || "",
+            photos: toLocalPhotos(item!),
+            selectedTagIds: item!.tags?.map((t) => t.id) ?? [],
+            isWishlist: effectiveIsWishlist,
+            boxId,
+            wishlistTargetBoxId: item!.wishlist_target_box_id ?? null,
+          })
+        const patch = diffItemPatch(baseline, currentSnapshot, item!.id)
+        if (!patch) {
+          setUnsavedUploadedPhotos(new Set())
+          unsavedUploadsRef.current = new Set()
+          onOpenChange(false)
+          return
+        }
+        response = await fetch("/api/items", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(patch),
+        })
+      }
 
       if (!response.ok) {
         const errorData = (await response.json().catch(() => ({}))) as { error?: string }
         if (response.status === 403 && errorData.error === "item_limit_reached") {
-          // Close first, then upsell — avoids dialog stacking / focus trap conflicts.
           onOpenChange(false)
           onCapReached?.()
           return
@@ -523,7 +622,6 @@ export default function ItemDialog({
         throw new Error(errorData.error || "Failed to save item")
       }
 
-      // Clear unsaved uploads tracking since we successfully saved
       setUnsavedUploadedPhotos(new Set())
       unsavedUploadsRef.current = new Set()
 

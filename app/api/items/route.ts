@@ -2,18 +2,20 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { createItems } from "@/lib/api/create-item"
+import { applyItemPatch, ItemNotFoundError } from "@/lib/api/patch-item"
 import { ItemCapExceededError } from "@/lib/api/item-cap-error"
 import { getOwnedBoxIdSet } from "@/lib/api/validate-box-ownership"
 import { captureRouteException } from "@/lib/monitoring/sentry"
+import type { ItemPatch, ItemPhotoOps } from "@/lib/item-patch"
 
 interface PhotoData {
   url: string
-  storage_path?: string // Storage path for Supabase storage files
+  storage_path?: string
   is_thumbnail: boolean
 }
 
-interface ItemSaveRequest {
-  id?: string // If present, update; otherwise create
+interface ItemCreateRequest {
+  id?: string
   name: string
   description?: string | null
   current_value?: number | null
@@ -26,7 +28,15 @@ interface ItemSaveRequest {
   is_wishlist: boolean
   photos: PhotoData[]
   tag_ids?: string[]
-  value_history?: { value: number; recorded_at: string }[] // For copied items
+  value_history?: { value: number; recorded_at: string }[]
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error
+    ? error.message
+    : typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message: unknown }).message)
+      : fallback
 }
 
 export async function POST(request: NextRequest) {
@@ -42,14 +52,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const body: ItemSaveRequest = await request.json()
+    const body: ItemCreateRequest = await request.json()
 
-    // Validate required fields
+    if (body.id) {
+      return NextResponse.json(
+        { error: "Use PATCH to update an existing item" },
+        { status: 400 }
+      )
+    }
+
     if (!body.name || !body.name.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
 
-    const isNew = !body.id
     const thumbnailUrl = body.photos?.find((p) => p.is_thumbnail)?.url ?? body.thumbnail_url ?? null
     const collectionBoxId = body.is_wishlist ? null : (body.box_id || null)
     const wishlistTargetBoxId = body.is_wishlist ? (body.wishlist_target_box_id || null) : null
@@ -69,12 +84,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // For new collection items, default acquisition_date to today when not provided (same as manual "new item" creation)
     let acquisitionDate: string | null = null
     if (!body.is_wishlist) {
       acquisitionDate = body.acquisition_date ?? null
-      if (isNew && acquisitionDate === null)
-        acquisitionDate = new Date().toISOString().split("T")[0]
+      if (acquisitionDate === null) acquisitionDate = new Date().toISOString().split("T")[0]
     }
 
     const itemData: Record<string, unknown> = {
@@ -93,7 +106,6 @@ export async function POST(request: NextRequest) {
 
     const tagIds = Array.isArray(body.tag_ids) ? body.tag_ids : []
 
-    // Use shared createItems function
     const result = await createItems({
       supabase,
       userId: user.id,
@@ -102,10 +114,8 @@ export async function POST(request: NextRequest) {
           itemData,
           photos: body.photos,
           tagIds,
-          valueHistory: body.value_history, // For copied items
+          valueHistory: body.value_history,
           currentValue: body.current_value,
-          isUpdate: !isNew,
-          itemId: isNew ? undefined : body.id,
         },
       ],
     })
@@ -119,13 +129,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : typeof error === "object" && error !== null && "message" in error
-          ? String((error as { message: unknown }).message)
-          : "Failed to save item"
-
+    const message = errorMessage(error, "Failed to save item")
     console.error("Error saving item:", message, error)
     captureRouteException(error, {
       area: "items",
@@ -133,6 +137,84 @@ export async function POST(request: NextRequest) {
       userId,
       tags: {
         operation: "save_item",
+      },
+    })
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  let userId: string | null = null
+  try {
+    const supabase = await createSupabaseServerClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    userId = user?.id ?? null
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const body = (await request.json()) as ItemPatch
+    if (!body.id || typeof body.id !== "string") {
+      return NextResponse.json({ error: "id is required" }, { status: 400 })
+    }
+
+    if (body.name !== undefined && !body.name.trim()) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 })
+    }
+
+    const boxIdsToValidate = [
+      ...(body.box_id ? [body.box_id] : []),
+      ...(body.wishlist_target_box_id ? [body.wishlist_target_box_id] : []),
+    ]
+    const ownedBoxIds = await getOwnedBoxIdSet(supabase, user.id, boxIdsToValidate)
+    if (body.box_id && !ownedBoxIds.has(body.box_id)) {
+      return NextResponse.json({ error: "box_id must reference one of your boxes" }, { status: 400 })
+    }
+    if (body.wishlist_target_box_id && !ownedBoxIds.has(body.wishlist_target_box_id)) {
+      return NextResponse.json(
+        { error: "wishlist_target_box_id must reference one of your boxes" },
+        { status: 400 }
+      )
+    }
+
+    if (body.photos) {
+      const photos = body.photos as ItemPhotoOps
+      const invalid =
+        (photos.create && !Array.isArray(photos.create)) ||
+        (photos.update && !Array.isArray(photos.update)) ||
+        (photos.delete && !Array.isArray(photos.delete))
+      if (invalid) {
+        return NextResponse.json({ error: "Invalid photos patch" }, { status: 400 })
+      }
+    }
+
+    if (body.tag_ids !== undefined && !Array.isArray(body.tag_ids)) {
+      return NextResponse.json({ error: "tag_ids must be an array" }, { status: 400 })
+    }
+
+    const result = await applyItemPatch({
+      supabase,
+      userId: user.id,
+      patch: body,
+    })
+
+    return NextResponse.json({ success: true, itemId: result.itemId })
+  } catch (error: unknown) {
+    if (error instanceof ItemNotFoundError) {
+      return NextResponse.json({ error: "Item not found" }, { status: 404 })
+    }
+
+    const message = errorMessage(error, "Failed to update item")
+    console.error("Error updating item:", message, error)
+    captureRouteException(error, {
+      area: "items",
+      route: "/api/items",
+      userId,
+      tags: {
+        operation: "patch_item",
       },
     })
     return NextResponse.json({ error: message }, { status: 500 })

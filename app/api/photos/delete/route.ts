@@ -1,13 +1,15 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { deletePhotoRowsAndUnreferencedStorage } from "@/lib/api/photo-storage"
 
 /**
  * Delete a single photo from database and storage.
  * This endpoint:
  * 1. Verifies the photo exists and belongs to an item owned by the user
- * 2. Deletes the photo from storage bucket (if storage_path exists)
- * 3. Deletes the photo record from database
+ * 2. Deletes the blob from the bucket only if no other photo row still
+ *    references that storage_path (shared refs after copy/paste)
+ * 3. Deletes the photo record from the database
  */
 export async function POST(request: NextRequest) {
   try {
@@ -20,13 +22,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { photoId } = await request.json() as { photoId: string }
+    const { photoId } = (await request.json()) as { photoId: string }
 
     if (!photoId) {
       return NextResponse.json({ error: "photoId is required" }, { status: 400 })
     }
 
-    // Fetch the photo and verify ownership through the item
     const { data: photo, error: photoError } = await supabase
       .from("photos")
       .select("id, storage_path, item_id, items!inner(id, user_id)")
@@ -37,51 +38,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Photo not found" }, { status: 404 })
     }
 
-    // Verify the item belongs to the user
-    const item = (photo as any).items as { id: string; user_id: string } | null
+    const joined = (photo as { items?: { id: string; user_id: string } | { id: string; user_id: string }[] | null })
+      .items
+    const item = Array.isArray(joined) ? joined[0] ?? null : joined ?? null
     if (!item || item.user_id !== user.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    // Delete from storage only if no other item's photo references this path (shared refs after copy/paste)
-    if (photo.storage_path) {
-      const userId = user.id
-      const pathParts = photo.storage_path.split("/")
-      const isValidPath = pathParts.length >= 2 && pathParts[0] === userId
+    const result = await deletePhotoRowsAndUnreferencedStorage(supabase, user.id, [
+      { id: photo.id, storage_path: photo.storage_path ?? null },
+    ])
 
-      if (isValidPath) {
-        const { data: otherRefs } = await supabase
-          .from("photos")
-          .select("id, items!inner(user_id)")
-          .eq("storage_path", photo.storage_path)
-          .neq("id", photoId)
-          .eq("items.user_id", userId)
-
-        const stillReferenced = (otherRefs ?? []).length > 0
-        if (!stillReferenced) {
-          const { error: storageError } = await supabase.storage
-            .from("item-photos")
-            .remove([photo.storage_path])
-          if (storageError) {
-            console.error("Error deleting photo from storage:", storageError)
-          }
-        }
-      }
-    }
-
-    // Delete the photo record from database
-    const { error: deleteError } = await supabase
-      .from("photos")
-      .delete()
-      .eq("id", photoId)
-
-    if (deleteError) {
-      throw deleteError
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      deletedFromStorage: !!photo.storage_path 
+    return NextResponse.json({
+      success: true,
+      deletedFromStorage: result.deletedFromStorage > 0,
     })
   } catch (error: unknown) {
     const message =
