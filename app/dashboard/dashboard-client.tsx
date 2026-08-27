@@ -10,7 +10,12 @@ import {
   hasAnySearchFilter,
   type SearchFiltersState,
 } from "@/lib/types"
-import { buildSearchUrl, sortTagsByColorThenName } from "@/lib/utils"
+import {
+  buildSearchUrl,
+  getLocalItemSearchEmptyCopy,
+  itemMatchesLocalSearch,
+  sortTagsByColorThenName,
+} from "@/lib/utils"
 import AdvancedSearchFilters from "@/components/advanced-search-filters"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -204,8 +209,15 @@ export default function DashboardClient({
     return [...fromCollection, ...fromUnacquired]
   }, [items, unacquiredItems, selectedItemIds])
 
+  const visibleUnacquiredItems = useMemo(() => {
+    const query = searchQuery.trim()
+    if (!query) return unacquiredItems
+    return unacquiredItems.filter((item) => itemMatchesLocalSearch(item, query))
+  }, [unacquiredItems, searchQuery])
+
   const hasUnacquiredTab = !!currentBoxId && unacquiredItems.length > 0
-  const itemsInActiveItemsGrid = hasUnacquiredTab && activeItemsTab === "unacquired" ? unacquiredItems : items
+  const itemsInActiveItemsGrid =
+    hasUnacquiredTab && activeItemsTab === "unacquired" ? visibleUnacquiredItems : items
   const selectedBoxes = boxes.filter((b) => selectedBoxIds.has(b.id))
   const showSelectionBar =
     hasSelection ||
@@ -413,6 +425,21 @@ export default function DashboardClient({
   }
 
   const ActiveItemsIcon = activeItemsTab === "unacquired" ? Sparkle : Sword
+  const localSearchEmptyCopy = getLocalItemSearchEmptyCopy(searchQuery, searchFilters)
+  const localSearchEmptyText = localSearchEmptyCopy ? (
+    <>
+      No items in this box match your search.{" "}
+      <Link
+        href={localSearchEmptyCopy.href}
+        className="text-primary font-medium underline underline-offset-2 hover:no-underline"
+      >
+        Search all items
+      </Link>
+      <span className="block mt-3">
+        Or press Enter in the search box to see all matching items.
+      </span>
+    </>
+  ) : undefined
   const tabbedItemsHeader = (
     <div className="flex items-center gap-2 min-w-0">
       <ActiveItemsIcon className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
@@ -846,97 +873,82 @@ export default function DashboardClient({
               </div>
             )}
             <div>
-              {searchQuery.trim() && items.length === 0 && !contentSkeletonLoading ? (
-                <div className="text-center py-12 space-y-3 layout-shrink-visible">
-                  <h2 className="text-fluid-xl font-semibold flex items-center mb-4 min-w-0 truncate">
-                    <Sword className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
-                    Items
-                  </h2>
-                  <p className="text-fluid-sm text-muted-foreground">
-                    No items in this box.{" "}
-                    <Link
-                      href={buildSearchUrl(searchQuery.trim(), searchFilters)}
-                      className="text-primary font-medium underline underline-offset-2 hover:no-underline"
-                    >
-                      Search all items
-                    </Link>
-                  </p>
-                  <p className="text-fluid-sm text-muted-foreground">
-                    Or press Enter in the search box to see all matching items.
-                  </p>
-                </div>
+              {currentBoxId && unacquiredItems.length > 0 ? (
+                <Tabs
+                  value={activeItemsTab}
+                  onValueChange={(v) => setActiveItemsTab(v as "items" | "unacquired")}
+                >
+                  <TabsContent value="items">
+                    <ItemGrid
+                      items={items}
+                      loading={contentSkeletonLoading}
+                      currentBoxId={currentBoxId}
+                      onItemUpdate={refreshCurrentBoxData}
+                      headerContent={tabbedItemsHeader}
+                      emptyText={localSearchEmptyText}
+                      selectionMode={selectionMode}
+                      onEnterSelectionMode={() => setSelectionMode(true)}
+                      selectionProps={{
+                        selectedIds: selectedItemIds,
+                        setSelectedIds: setSelectedItemIds,
+                        registerCardRef: registerItemCardRef,
+                      }}
+                      totalItemCount={liveItemCount}
+                      itemCap={itemCap}
+                      isPro={liveIsPro}
+                      onCapReached={() => setShowItemCapUpsell(true)}
+                    />
+                  </TabsContent>
+                  <TabsContent value="unacquired">
+                    <ItemGrid
+                      items={visibleUnacquiredItems}
+                      loading={contentSkeletonLoading}
+                      currentBoxId={currentBoxId}
+                      onItemUpdate={refreshCurrentBoxData}
+                      headerContent={tabbedItemsHeader}
+                      variant="wishlist"
+                      addButtonLabel="New Wishlist Item"
+                      defaultNewItemMode="wishlist"
+                      emptyText={
+                        searchQuery.trim()
+                          ? "No wishlist items in this box match your search."
+                          : 'No wishlist items in this box yet. Click "New Wishlist Item" to add one linked to this box.'
+                      }
+                      selectionMode={selectionMode}
+                      onEnterSelectionMode={() => setSelectionMode(true)}
+                      selectionProps={{
+                        selectedIds: selectedItemIds,
+                        setSelectedIds: setSelectedItemIds,
+                        registerCardRef: registerItemCardRef,
+                      }}
+                      totalItemCount={liveItemCount}
+                      itemCap={itemCap}
+                      isPro={liveIsPro}
+                      onCapReached={() => setShowItemCapUpsell(true)}
+                      onMarkAcquired={(item) => setItemToMark(item)}
+                    />
+                  </TabsContent>
+                </Tabs>
               ) : (
-                currentBoxId && unacquiredItems.length > 0 ? (
-                  <Tabs
-                    value={activeItemsTab}
-                    onValueChange={(v) => setActiveItemsTab(v as "items" | "unacquired")}
-                  >
-                    <TabsContent value="items">
-                      <ItemGrid
-                        items={items}
-                        loading={contentSkeletonLoading}
-                        currentBoxId={currentBoxId}
-                        onItemUpdate={refreshCurrentBoxData}
-                        headerContent={tabbedItemsHeader}
-                        selectionMode={selectionMode}
-                        onEnterSelectionMode={() => setSelectionMode(true)}
-                        selectionProps={{
-                          selectedIds: selectedItemIds,
-                          setSelectedIds: setSelectedItemIds,
-                          registerCardRef: registerItemCardRef,
-                        }}
-                        totalItemCount={liveItemCount}
-                        itemCap={itemCap}
-                        isPro={liveIsPro}
-                        onCapReached={() => setShowItemCapUpsell(true)}
-                      />
-                    </TabsContent>
-                    <TabsContent value="unacquired">
-                      <ItemGrid
-                        items={unacquiredItems}
-                        loading={contentSkeletonLoading}
-                        currentBoxId={currentBoxId}
-                        onItemUpdate={refreshCurrentBoxData}
-                        headerContent={tabbedItemsHeader}
-                        variant="wishlist"
-                        addButtonLabel="New Wishlist Item"
-                        defaultNewItemMode="wishlist"
-                        emptyText='No wishlist items in this box yet. Click "New Wishlist Item" to add one linked to this box.'
-                        selectionMode={selectionMode}
-                        onEnterSelectionMode={() => setSelectionMode(true)}
-                        selectionProps={{
-                          selectedIds: selectedItemIds,
-                          setSelectedIds: setSelectedItemIds,
-                          registerCardRef: registerItemCardRef,
-                        }}
-                        totalItemCount={liveItemCount}
-                        itemCap={itemCap}
-                        isPro={liveIsPro}
-                        onCapReached={() => setShowItemCapUpsell(true)}
-                        onMarkAcquired={(item) => setItemToMark(item)}
-                      />
-                    </TabsContent>
-                  </Tabs>
-                ) : (
-                  <ItemGrid
-                    items={items}
-                    loading={contentSkeletonLoading}
-                    currentBoxId={currentBoxId}
-                    onItemUpdate={refreshCurrentBoxData}
-                    sectionTitle="Items"
-                    selectionMode={selectionMode}
-                    onEnterSelectionMode={() => setSelectionMode(true)}
-                    selectionProps={{
-                      selectedIds: selectedItemIds,
-                      setSelectedIds: setSelectedItemIds,
-                      registerCardRef: registerItemCardRef,
-                    }}
-                    totalItemCount={liveItemCount}
-                    itemCap={itemCap}
-                    isPro={liveIsPro}
-                    onCapReached={() => setShowItemCapUpsell(true)}
-                  />
-                )
+                <ItemGrid
+                  items={items}
+                  loading={contentSkeletonLoading}
+                  currentBoxId={currentBoxId}
+                  onItemUpdate={refreshCurrentBoxData}
+                  sectionTitle="Items"
+                  emptyText={localSearchEmptyText}
+                  selectionMode={selectionMode}
+                  onEnterSelectionMode={() => setSelectionMode(true)}
+                  selectionProps={{
+                    selectedIds: selectedItemIds,
+                    setSelectedIds: setSelectedItemIds,
+                    registerCardRef: registerItemCardRef,
+                  }}
+                  totalItemCount={liveItemCount}
+                  itemCap={itemCap}
+                  isPro={liveIsPro}
+                  onCapReached={() => setShowItemCapUpsell(true)}
+                />
               )}
             </div>
           </>
