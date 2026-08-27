@@ -1,15 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { POST } from "./route"
+import { POST, PATCH } from "./route"
 import { ItemCapExceededError } from "@/lib/api/item-cap-error"
+import { ItemNotFoundError } from "@/lib/api/patch-item"
 
 const {
   mockCreateSupabaseServerClient,
   mockCreateItems,
+  mockApplyItemPatch,
   mockGetOwnedBoxIdSet,
   mockCaptureRouteException,
 } = vi.hoisted(() => ({
   mockCreateSupabaseServerClient: vi.fn(),
   mockCreateItems: vi.fn(),
+  mockApplyItemPatch: vi.fn(),
   mockGetOwnedBoxIdSet: vi.fn(),
   mockCaptureRouteException: vi.fn(),
 }))
@@ -22,6 +25,16 @@ vi.mock("@/lib/api/create-item", () => ({
   createItems: mockCreateItems,
 }))
 
+vi.mock("@/lib/api/patch-item", () => ({
+  applyItemPatch: mockApplyItemPatch,
+  ItemNotFoundError: class ItemNotFoundError extends Error {
+    constructor() {
+      super("Item not found")
+      this.name = "ItemNotFoundError"
+    }
+  },
+}))
+
 vi.mock("@/lib/api/validate-box-ownership", () => ({
   getOwnedBoxIdSet: mockGetOwnedBoxIdSet,
 }))
@@ -30,9 +43,9 @@ vi.mock("@/lib/monitoring/sentry", () => ({
   captureRouteException: mockCaptureRouteException,
 }))
 
-function makeRequest(body: unknown): Request {
+function makeRequest(body: unknown, method: string = "POST"): Request {
   return new Request("http://localhost/api/items", {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   })
@@ -140,5 +153,91 @@ describe("POST /api/items", () => {
         userId: "user-1",
       })
     )
+    expect(mockCreateItems.mock.calls[0][0].items[0].isUpdate).toBeUndefined()
+  })
+
+  it("rejects POST with an item id", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+    })
+
+    const response = await POST(
+      makeRequest({
+        id: "item-1",
+        name: "Camera",
+        is_wishlist: false,
+        photos: [],
+      }) as any
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({
+      error: "Use PATCH to update an existing item",
+    })
+    expect(mockCreateItems).not.toHaveBeenCalled()
+  })
+})
+
+describe("PATCH /api/items", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("returns 401 when user is not authenticated", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+    })
+
+    const response = await PATCH(makeRequest({ id: "item-1", name: "Lens" }, "PATCH") as any)
+    expect(response.status).toBe(401)
+  })
+
+  it("returns 400 when id is missing", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+    })
+
+    const response = await PATCH(makeRequest({ name: "Lens" }, "PATCH") as any)
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: "id is required" })
+  })
+
+  it("returns 404 when the item is missing", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+    })
+    mockGetOwnedBoxIdSet.mockResolvedValue(new Set<string>())
+    mockApplyItemPatch.mockRejectedValue(new ItemNotFoundError())
+
+    const response = await PATCH(makeRequest({ id: "missing", name: "Lens" }, "PATCH") as any)
+    expect(response.status).toBe(404)
+  })
+
+  it("applies a sparse patch body", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+    })
+    mockGetOwnedBoxIdSet.mockResolvedValue(new Set<string>())
+    mockApplyItemPatch.mockResolvedValue({ itemId: "item-1", operations: [] })
+
+    const patch = {
+      id: "item-1",
+      name: "Lens",
+      photos: { update: [{ id: "photo-1", is_thumbnail: true }] },
+    }
+    const response = await PATCH(makeRequest(patch, "PATCH") as any)
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({
+      success: true,
+      itemId: "item-1",
+    })
+    expect(mockApplyItemPatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        patch,
+      })
+    )
+    expect(mockCreateItems).not.toHaveBeenCalled()
   })
 })

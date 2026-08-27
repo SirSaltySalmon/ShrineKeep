@@ -56,7 +56,7 @@ export default function BoxStatsPanel({
     <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
       <div className="p-4 layout-shrink-visible">
         <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
-          <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-auto">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-x-auto overflow-y-hidden">
             <BoxStatsSummary
               currentValue={currentValueDisplay}
               totalAcquisition={totalAcquisitionDisplay}

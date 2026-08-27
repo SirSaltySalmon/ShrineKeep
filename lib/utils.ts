@@ -44,6 +44,27 @@ export function buildSearchUrl(q: string, filters: SearchFiltersState, page?: nu
   return s ? `/dashboard/search?${s}` : "/dashboard/search"
 }
 
+/** Local in-box search copy for ItemGrid. Null means use the default empty state. */
+export function getLocalItemSearchEmptyCopy(
+  searchQuery: string,
+  filters: SearchFiltersState,
+): { href: string } | null {
+  const query = searchQuery.trim()
+  if (!query) return null
+  return { href: buildSearchUrl(query, filters) }
+}
+
+/** Case-insensitive name/description match, same fields as dashboard `ilike`. Blank query matches all. */
+export function itemMatchesLocalSearch(
+  item: Pick<Item, "name" | "description">,
+  searchQuery: string,
+): boolean {
+  const query = searchQuery.trim().toLowerCase()
+  if (!query) return true
+  if (item.name.toLowerCase().includes(query)) return true
+  return (item.description ?? "").toLowerCase().includes(query)
+}
+
 /** Tag text color from theme (--tag-foreground). Use for text inside tag chips. */
 export function getTagForeground(): string {
   if (typeof document === "undefined") return "hsl(0 0% 100%)"

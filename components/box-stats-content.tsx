@@ -66,7 +66,7 @@ export function BoxStatsSummary({
   }
 
   return (
-    <div className="flex items-center gap-10">
+    <div className="flex items-center gap-10 min-w-0 overflow-x-auto overflow-y-hidden">
       <div className="flex flex-col gap-0.5">
         <span className="text-xs text-muted-foreground leading-none">Value</span>
         <span className="text-base font-bold leading-tight" style={{ color: valueColor }}>

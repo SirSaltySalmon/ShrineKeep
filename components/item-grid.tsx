@@ -57,8 +57,8 @@ interface ItemGridProps {
   addButtonLabel?: string
   /** Initial Item Type when opening the new-item dialog from the dashboard (root or a box; wishlist page ignores). */
   defaultNewItemMode?: "collection" | "wishlist"
-  /** Empty-state text override. */
-  emptyText?: string
+  /** Empty-state content override. Stays inside the bordered section. */
+  emptyText?: ReactNode
   /** Wishlist-only action. */
   onMarkAcquired?: (item: Item) => void
   /** Main wishlist page: ItemDialog stays in locked wishlist mode (no collection toggle). */
