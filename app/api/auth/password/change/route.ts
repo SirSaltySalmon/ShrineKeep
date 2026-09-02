@@ -6,6 +6,7 @@ import {
   PASSWORD_LENGTH_MESSAGE,
 } from "@/lib/validation"
 import { captureRouteException } from "@/lib/monitoring/sentry"
+import { assertNotSandbox } from "@/lib/judge/sandbox"
 
 export async function POST(request: Request) {
   let userId: string | null = null
@@ -50,6 +51,11 @@ export async function POST(request: Request) {
         { error: "You must be signed in with an email account to change your password." },
         { status: 401 }
       )
+    }
+
+    const sandbox = await assertNotSandbox(supabase, user.id)
+    if (!sandbox.ok) {
+      return NextResponse.json({ error: sandbox.error }, { status: sandbox.status })
     }
 
     const { error: signInError } = await supabase.auth.signInWithPassword({

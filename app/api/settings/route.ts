@@ -5,6 +5,8 @@ import { Theme } from "@/lib/types"
 import { FONT_OPTIONS } from "@/lib/fonts"
 import type { FontFamilyId } from "@/lib/fonts"
 import { NAME_MAX_LENGTH, NAME_MAX_MESSAGE } from "@/lib/validation"
+import { requireMutableUser } from "@/lib/judge/require-mutable-user"
+import { assertNotSandbox } from "@/lib/judge/sandbox"
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,14 +68,9 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await requireMutableUser()
+    if (!session.ok) return session.response
+    const { supabase, user } = session
 
     const body = await request.json()
     const {
@@ -147,6 +144,12 @@ export async function PUT(request: NextRequest) {
     if (regenerate_wishlist_token) {
       updateData.wishlist_share_token = generateShareToken()
     } else if (wishlist_is_public !== undefined) {
+      if (wishlist_is_public) {
+        const sandbox = await assertNotSandbox(supabase, user.id)
+        if (!sandbox.ok) {
+          return NextResponse.json({ error: sandbox.error }, { status: sandbox.status })
+        }
+      }
       updateData.wishlist_is_public = wishlist_is_public
       if (wishlist_is_public && !existing?.wishlist_share_token) {
         updateData.wishlist_share_token = generateShareToken()

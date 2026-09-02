@@ -51,6 +51,23 @@ function makeRequest(body: unknown, method: string = "POST"): Request {
   })
 }
 
+function usersFrom(row: { is_sandbox: boolean; sandbox_expires_at: string | null }) {
+  return vi.fn().mockReturnValue({
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({ data: row, error: null }),
+      }),
+    }),
+  })
+}
+
+function liveUserClient() {
+  return {
+    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+    from: usersFrom({ is_sandbox: false, sandbox_expires_at: null }),
+  }
+}
+
 describe("POST /api/items", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -67,9 +84,31 @@ describe("POST /api/items", () => {
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" })
   })
 
+  it("returns 401 when a sandbox session is expired", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { is_sandbox: true, sandbox_expires_at: "2000-01-01T00:00:00.000Z" },
+              error: null,
+            }),
+          }),
+        }),
+      }),
+    })
+
+    const response = await POST(makeRequest({ name: "Card" }) as any)
+
+    expect(response.status).toBe(401)
+    await expect(response.json()).resolves.toEqual({ error: "Sandbox expired." })
+  })
+
   it("returns 400 when name is missing", async () => {
     mockCreateSupabaseServerClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+      from: usersFrom({ is_sandbox: false, sandbox_expires_at: null }),
     })
 
     const response = await POST(makeRequest({ is_wishlist: false, photos: [] }) as any)
@@ -79,9 +118,7 @@ describe("POST /api/items", () => {
   })
 
   it("returns 400 for non-owned collection box", async () => {
-    mockCreateSupabaseServerClient.mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
-    })
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
     mockGetOwnedBoxIdSet.mockResolvedValue(new Set<string>())
 
     const response = await POST(
@@ -100,9 +137,7 @@ describe("POST /api/items", () => {
   })
 
   it("returns 403 when cap is exceeded", async () => {
-    mockCreateSupabaseServerClient.mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
-    })
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
     mockGetOwnedBoxIdSet.mockResolvedValue(new Set<string>())
     mockCreateItems.mockRejectedValue(new ItemCapExceededError(100, 100))
 
@@ -129,6 +164,7 @@ describe("POST /api/items", () => {
           data: { user: { id: "user-1" } },
         }),
       },
+      from: usersFrom({ is_sandbox: false, sandbox_expires_at: null }),
     })
     mockGetOwnedBoxIdSet.mockResolvedValue(new Set<string>(["box-1"]))
     mockCreateItems.mockResolvedValue({ itemIds: ["item-1"], operations: [] })
@@ -157,9 +193,7 @@ describe("POST /api/items", () => {
   })
 
   it("rejects POST with an item id", async () => {
-    mockCreateSupabaseServerClient.mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
-    })
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
 
     const response = await POST(
       makeRequest({
@@ -193,9 +227,7 @@ describe("PATCH /api/items", () => {
   })
 
   it("returns 400 when id is missing", async () => {
-    mockCreateSupabaseServerClient.mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
-    })
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
 
     const response = await PATCH(makeRequest({ name: "Lens" }, "PATCH") as any)
     expect(response.status).toBe(400)
@@ -203,9 +235,7 @@ describe("PATCH /api/items", () => {
   })
 
   it("returns 404 when the item is missing", async () => {
-    mockCreateSupabaseServerClient.mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
-    })
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
     mockGetOwnedBoxIdSet.mockResolvedValue(new Set<string>())
     mockApplyItemPatch.mockRejectedValue(new ItemNotFoundError())
 
@@ -214,9 +244,7 @@ describe("PATCH /api/items", () => {
   })
 
   it("applies a sparse patch body", async () => {
-    mockCreateSupabaseServerClient.mockResolvedValue({
-      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
-    })
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
     mockGetOwnedBoxIdSet.mockResolvedValue(new Set<string>())
     mockApplyItemPatch.mockResolvedValue({ itemId: "item-1", operations: [] })
 

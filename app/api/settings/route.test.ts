@@ -51,9 +51,38 @@ describe("/api/settings", () => {
     expect(body.user_id).toBe("u1")
   })
 
+  it("PUT returns 403 when a sandbox user publishes a wishlist", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1" } } }) },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { is_sandbox: true, sandbox_expires_at: "2099-01-01T00:00:00.000Z" },
+              error: null,
+            }),
+            single: vi.fn().mockResolvedValue({ data: { wishlist_share_token: null }, error: null }),
+          }),
+        }),
+      }),
+    })
+    const response = await PUT(makePutRequest({ wishlist_is_public: true }) as any)
+    expect(response.status).toBe(403)
+  })
+
   it("PUT returns 400 for invalid theme format", async () => {
     mockCreateSupabaseServerClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1" } } }) },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { is_sandbox: false, sandbox_expires_at: null },
+              error: null,
+            }),
+          }),
+        }),
+      }),
     })
     const response = await PUT(makePutRequest({ theme: "bad" }) as any)
     expect(response.status).toBe(400)

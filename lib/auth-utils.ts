@@ -8,6 +8,7 @@ export type AuthEmailResponse =
   | { ok: false; code: "rate_limited"; message: string }
   | { ok: false; code: "failed"; message: string }
   | { ok: false; code: "missing_email"; message: string }
+  | { ok: false; code: "forbidden"; message: string }
 
 export function isRateLimitError(message: string): boolean {
   const lower = message.toLowerCase()

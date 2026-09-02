@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { stripe } from "@/lib/stripe/server"
 import { stripeSubscriptionHasScheduledCancellation } from "@/lib/stripe/subscription-state"
+import { assertNotSandbox } from "@/lib/judge/sandbox"
 import {
   captureRouteException,
   startRouteSpan,
@@ -38,6 +39,11 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const sandbox = await assertNotSandbox(supabase, user.id)
+    if (!sandbox.ok) {
+      return NextResponse.json({ error: sandbox.error }, { status: sandbox.status })
     }
 
     const { data: row } = await supabase

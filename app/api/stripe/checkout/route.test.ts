@@ -70,6 +70,24 @@ describe("POST /api/stripe/checkout", () => {
     expect(response.status).toBe(400)
   })
 
+  it("returns 403 for sandbox users", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1", email: "u@x.com" } } }) },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { is_sandbox: true, sandbox_expires_at: "2099-01-01T00:00:00.000Z" },
+            }),
+          }),
+        }),
+      }),
+    })
+    const response = await POST()
+    expect(response.status).toBe(403)
+    expect(mockStripeCheckoutCreate).not.toHaveBeenCalled()
+  })
+
   it("creates checkout session and returns url", async () => {
     mockCreateSupabaseServerClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1", email: "u@x.com" } } }) },
@@ -95,6 +113,13 @@ describe("POST /api/stripe/checkout", () => {
     process.env.NEXT_PUBLIC_APP_URL = ""
     mockCreateSupabaseServerClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1", email: "u@x.com" } } }) },
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: null }),
+          }),
+        }),
+      }),
     })
 
     const response = await POST()
