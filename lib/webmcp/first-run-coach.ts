@@ -157,9 +157,9 @@ export function initPrompt(collectionName: string): string {
 export function valuationPrompt(): string {
   return [
     "Via ShrineKeep WebMCP in this browser,",
-    "Update the estimated price of my owned and wishlist items in this box.",
-    "Use stage_item_edits for owned items and stage_wishlist_edits for wishlist items.",
-    "Set current_value from typical recent secondhand sold prices.",
+    "Update the valuation of my owned items in this box.",
+    "Use stage_item_edits, set valuation from typical recent secondhand sold prices.",
+    "(If user has no owned items, skip this step)"
   ].join("\n")
 }
 
