@@ -55,3 +55,10 @@ Key routing rules:
 - Architecture review → invoke plan-eng-review
 - Save progress, checkpoint, resume → invoke checkpoint
 - Code quality, health check → invoke health
+
+## Design System
+Always read `docs/DESIGN.md` before making any visual or UI decisions.
+All font choices, colors, spacing, and aesthetic direction are defined there.
+The in-app look is user-themed: use named tokens (`bg-background`, `hsl(var(--value-color))`, etc.), never hardcoded hex or Tailwind palette colors on themed routes.
+Do not deviate without explicit user approval.
+In QA mode, flag any code that doesn't match `docs/DESIGN.md`.
