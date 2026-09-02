@@ -12,14 +12,20 @@ import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
 import { Sparkle } from "lucide-react"
+import { useAgentSuggestions } from "@/lib/hooks/use-agent-suggestions"
+import AgentSuggestionReviewDialog from "@/components/agent-suggestion-review-dialog"
+import AgentStagingInbox from "@/components/agent-staging-inbox"
+import WebMcpStatusPanel from "@/components/webmcp-status-panel"
 
 interface WishlistClientProps {
+  userId: string
   initialWishlistIsPublic: boolean
   initialWishlistShareToken: string | null
   initialWishlistApplyColors: boolean
 }
 
 export default function WishlistClient({
+  userId,
   initialWishlistIsPublic,
   initialWishlistShareToken,
   initialWishlistApplyColors,
@@ -84,6 +90,12 @@ export default function WishlistClient({
   }
 
   const selectedItems = items.filter((i) => selectedItemIds.has(i.id))
+  const agentSuggestions = useAgentSuggestions({
+    userId,
+    page: "wishlist",
+    selectedItems,
+    onApplied: loadWishlistItems,
+  })
   const wishlistActionBarVisible =
     selectedItems.length > 0 ||
     !!copiedItemRefs?.itemIds?.length ||
@@ -124,6 +136,7 @@ export default function WishlistClient({
         onMouseDown={handleGridMouseDown}
       >
         <h1 className="sr-only">Wishlist</h1>
+        <WebMcpStatusPanel page="wishlist" {...agentSuggestions.webMcp} />
         <ItemGrid
           loading={loading}
           items={items}
@@ -191,6 +204,26 @@ export default function WishlistClient({
           onOpenChange={(open) => !open && setItemToMark(null)}
           onConfirm={handleMarkAsAcquiredConfirm}
         />}
+        <AgentSuggestionReviewDialog
+          key={agentSuggestions.batch?.id ?? "no-agent-suggestions"}
+          batch={agentSuggestions.batch}
+          open={agentSuggestions.open}
+          applying={agentSuggestions.applying}
+          error={agentSuggestions.error}
+          onOpenChange={agentSuggestions.onOpenChange}
+          onDiscard={agentSuggestions.discardStage}
+          onApplyItemEdits={agentSuggestions.applyItemEdits}
+          onApplyCreatedItems={agentSuggestions.applyCreatedItems}
+          onApplyWishlistPriceEdits={agentSuggestions.applyWishlistPriceEdits}
+        />
+        <AgentStagingInbox
+          batches={agentSuggestions.batches}
+          expanded={agentSuggestions.inboxExpanded}
+          actionBarVisible={wishlistActionBarVisible}
+          onExpandedChange={agentSuggestions.setInboxExpanded}
+          onReview={agentSuggestions.reviewStage}
+          onDiscard={agentSuggestions.discardStage}
+        />
         {!loading && <MarqueeOverlay />}
       </main>
     </div>

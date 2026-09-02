@@ -20,6 +20,7 @@ export default async function WishlistPage() {
 
   return (
     <WishlistClient
+      userId={user.id}
       initialWishlistIsPublic={settings?.wishlist_is_public ?? false}
       initialWishlistShareToken={settings?.wishlist_share_token ?? null}
       initialWishlistApplyColors={settings?.wishlist_apply_colors ?? false}

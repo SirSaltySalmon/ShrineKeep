@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase/client"
@@ -44,6 +44,19 @@ import { useDashboardData } from "@/lib/hooks/use-dashboard-data"
 import { useDashboardDialogs } from "@/lib/hooks/use-dashboard-dialogs"
 import { useDashboardDnd } from "@/lib/hooks/use-dashboard-dnd"
 import { useMobileSafariDragGuard } from "@/lib/hooks/use-mobile-safari-drag-guard"
+import { useAgentSuggestions } from "@/lib/hooks/use-agent-suggestions"
+import AgentSuggestionReviewDialog from "@/components/agent-suggestion-review-dialog"
+import WebMcpStatusPanel from "@/components/webmcp-status-panel"
+import AgentStagingInbox from "@/components/agent-staging-inbox"
+import {
+  COACH_STORAGE_KEY,
+  initialCoachState,
+  parseCoachState,
+  reduceCoach,
+  type CoachEvent,
+  type CoachState,
+} from "@/lib/webmcp/first-run-coach"
+import { chooseFirstRun, coachToolsSettled } from "@/lib/webmcp/first-run-chooser"
 
 const DASHBOARD_DND_CONTEXT_ID = "dashboard-dnd-context"
 
@@ -230,18 +243,40 @@ export default function DashboardClient({
     }
   }, [unacquiredItems.length])
 
+  const [coach, setCoach] = useState<CoachState>(() => initialCoachState(user.id))
+  const [nameDraft, setNameDraft] = useState("")
+  const [coachError, setCoachError] = useState<string | null>(null)
+  const [coachBusy, setCoachBusy] = useState(false)
+  const [checkElapsed, setCheckElapsed] = useState(0)
+  const [firstRunConsumed, setFirstRunConsumed] = useState(false)
+  const [showTutorialComplete, setShowTutorialComplete] = useState(false)
+
   useEffect(() => {
-    if (demoPromptDismissed) {
-      setShowDemoOfferDialog(false)
-      return
-    }
-    if (loading || contentSkeletonLoading) return
-    setShowDemoOfferDialog(true)
-  }, [
-    demoPromptDismissed,
-    loading,
-    contentSkeletonLoading,
-  ])
+    const stored = parseCoachState(
+      typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(COACH_STORAGE_KEY),
+      user.id
+    )
+    setCoach(stored)
+    setNameDraft(stored.collectionName)
+  }, [user.id])
+
+  const dispatchCoach = useCallback((event: CoachEvent) => {
+    setCoach((prev) => {
+      const next = reduceCoach(prev, event)
+      try {
+        sessionStorage.setItem(COACH_STORAGE_KEY, JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    const started = Date.now()
+    const id = window.setInterval(() => setCheckElapsed(Date.now() - started), 250)
+    return () => window.clearInterval(id)
+  }, [user.id])
 
   const createBox = async (name: string, description: string) => {
     if (!name.trim()) return
@@ -272,18 +307,63 @@ export default function DashboardClient({
     void refreshSubscriptionCounts()
   }
 
-  const handleDismissDemoOffer = async () => {
-    setDemoSeedError(null)
+  const agentSuggestions = useAgentSuggestions({
+    userId: user?.id,
+    page: "dashboard",
+    currentBoxId,
+    currentBoxName: currentBox?.name ?? "Root",
+    selectedBoxes,
+    selectedItems,
+    onApplied: refreshCurrentBoxData,
+    onToolStart: (name) => dispatchCoach({ type: "tool_start", name }),
+    onApplySuccess: (event) => dispatchCoach({ type: "apply_success", ...event }),
+  })
+
+  const firstRun = chooseFirstRun({
+    dismissed: demoPromptDismissed || firstRunConsumed,
+    coachTools: agentSuggestions.coachToolStatuses,
+    elapsedMs: checkElapsed,
+  })
+  const webMcpAvailable = coachToolsSettled(agentSuggestions.coachToolStatuses) === "ready"
+
+  useEffect(() => {
+    if (demoPromptDismissed || firstRunConsumed) {
+      setShowDemoOfferDialog(false)
+    }
+  }, [demoPromptDismissed, firstRunConsumed])
+
+  useEffect(() => {
+    dispatchCoach({ type: "box_opened", boxId: currentBoxId })
+  }, [currentBoxId, dispatchCoach])
+
+  const persistFirstRunConsumed = async () => {
+    setCoachBusy(true)
+    setCoachError(null)
     try {
       const res = await fetch("/api/demo/prompt/dismiss", { method: "POST" })
       const j = (await res.json()) as { error?: string }
       if (!res.ok) {
         throw new Error(j.error ?? "Failed to save preference")
       }
+      setFirstRunConsumed(true)
       setShowDemoOfferDialog(false)
       router.refresh()
     } catch (e) {
-      setDemoSeedError(e instanceof Error ? e.message : "Something went wrong")
+      const message = e instanceof Error ? e.message : "Something went wrong"
+      setCoachError(message)
+      setDemoSeedError(message)
+      throw e
+    } finally {
+      setCoachBusy(false)
+    }
+  }
+
+  const handleDismissDemoOffer = async () => {
+    setDemoSeedError(null)
+    try {
+      await persistFirstRunConsumed()
+    } catch {
+      /* error already stored */
     }
   }
 
@@ -301,6 +381,7 @@ export default function DashboardClient({
         }
         throw new Error(typeof j.error === "string" ? j.error : "Failed to generate demo")
       }
+      setFirstRunConsumed(true)
       setShowDemoOfferDialog(false)
       await Promise.all([
         supabase
@@ -320,6 +401,13 @@ export default function DashboardClient({
       setDemoSeedLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (coach.step !== "done" || demoPromptDismissed || firstRunConsumed || coachError) return
+    setShowTutorialComplete(true)
+    void persistFirstRunConsumed().catch(() => setShowTutorialComplete(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coach.step, demoPromptDismissed, firstRunConsumed, coachError])
 
   const handleMarkAsAcquiredConfirm = async (payload: {
     acquisitionDate: string
@@ -470,7 +558,7 @@ export default function DashboardClient({
             <DialogDescription>
               We can add demo boxes, items, tags, photos, and value history so you can explore how
               ShrineKeep works. This adds demo data to your existing library, and you can edit or
-              delete everything later.
+              delete everything later. This tutorial will not show again for this account.
             </DialogDescription>
           </DialogHeader>
           {demoSeedError ? (
@@ -496,7 +584,7 @@ export default function DashboardClient({
 
       {/* Post-payment confirmation banner */}
       {showUpgradedBanner && (
-        <div className="bg-green-50 border-b border-green-200 px-4 py-3 flex items-center justify-between text-fluid-sm text-green-800">
+        <div className="bg-[hsl(var(--value-color)/0.1)] border-b border-[hsl(var(--value-color)/0.2)] px-4 py-3 flex items-center justify-between text-fluid-sm text-[hsl(var(--value-color))]">
           <span>You&apos;re now Pro. Add unlimited items.</span>
           <button
             onClick={() => {
@@ -513,7 +601,7 @@ export default function DashboardClient({
 
       {/* past_due warning banner */}
       {liveSubscriptionStatus === "past_due" && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 text-fluid-sm text-amber-800">
+        <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-3 text-fluid-sm text-destructive">
           {livePastDueGraceEndsAt ? (
             liveIsPro ? (
               <>
@@ -797,6 +885,33 @@ export default function DashboardClient({
           </div>
         </div>
 
+        <WebMcpStatusPanel
+          page="dashboard"
+          {...agentSuggestions.webMcp}
+          coach={
+            firstRun === "coach" && !showTutorialComplete
+              ? {
+                  state: coach,
+                  nameDraft,
+                  onNameDraft: setNameDraft,
+                  onContinueName: () => dispatchCoach({ type: "set_name", name: nameDraft }),
+                  onSkipStep: () =>
+                    dispatchCoach({ type: "skip_step", boxId: currentBoxId, name: nameDraft }),
+                  onSkip: () => void handleDismissDemoOffer(),
+                  onSample: () => {
+                    setDemoSeedError(null)
+                    setShowDemoOfferDialog(true)
+                  },
+                  busy: coachBusy || demoSeedLoading,
+                  error: coachError,
+                  webMcpAvailable,
+                }
+              : undefined
+          }
+          completionNotice={showTutorialComplete}
+          onDismissCompletion={() => setShowTutorialComplete(false)}
+        />
+
         {loading ? (
           <>
             <BoxStatsPanel
@@ -1004,6 +1119,26 @@ export default function DashboardClient({
           loading={markingAcquired}
           onOpenChange={(open) => !open && setItemToMark(null)}
           onConfirm={handleMarkAsAcquiredConfirm}
+        />
+        <AgentSuggestionReviewDialog
+          key={agentSuggestions.batch?.id ?? "no-agent-suggestions"}
+          batch={agentSuggestions.batch}
+          open={agentSuggestions.open}
+          applying={agentSuggestions.applying}
+          error={agentSuggestions.error}
+          onOpenChange={agentSuggestions.onOpenChange}
+          onDiscard={agentSuggestions.discardStage}
+          onApplyItemEdits={agentSuggestions.applyItemEdits}
+          onApplyCreatedItems={agentSuggestions.applyCreatedItems}
+          onApplyWishlistPriceEdits={agentSuggestions.applyWishlistPriceEdits}
+        />
+        <AgentStagingInbox
+          batches={agentSuggestions.batches}
+          expanded={agentSuggestions.inboxExpanded}
+          actionBarVisible={showSelectionBar}
+          onExpandedChange={agentSuggestions.setInboxExpanded}
+          onReview={agentSuggestions.reviewStage}
+          onDiscard={agentSuggestions.discardStage}
         />
         <MarqueeOverlay />
         <UpsellModal

@@ -198,4 +198,35 @@
   html.mobile-safari-drag-active body {
     overscroll-behavior-y: contain;
   }
+
+  @keyframes sk-coach-scrim {
+    0% {
+      opacity: 0;
+    }
+    13% {
+      opacity: 1;
+    }
+    87% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .sk-coach-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    pointer-events: none;
+    background-color: hsl(var(--foreground) / 0.3);
+    animation: sk-coach-scrim 3s ease-in-out forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sk-coach-scrim {
+      animation: none;
+      opacity: 0;
+    }
+  }
 }
