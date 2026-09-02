@@ -4,6 +4,7 @@ import React from "react"
 import { Button } from "@/components/ui/button"
 import { CheckSquare, X, LayoutGrid, Package } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { selectionFloatingBottomOffset } from "@/lib/selection-floating-position"
 
 interface SelectionModeToggleProps {
   selectionMode: boolean
@@ -22,8 +23,6 @@ interface SelectionModeToggleProps {
   className?: string
 }
 
-const ACTION_BAR_HEIGHT = 60
-
 /**
  * Floating overlay in the bottom-right: hover to reveal "Select" FAB; in selection mode
  * expands to show "Select all items", "Select all boxes", and "Done". Moves up when the
@@ -40,7 +39,7 @@ export function SelectionModeToggle({
   boxCount = 0,
   className,
 }: SelectionModeToggleProps) {
-  const bottomOffset = actionBarVisible ? ACTION_BAR_HEIGHT + 12 : 24
+  const bottomOffset = selectionFloatingBottomOffset(actionBarVisible)
 
   if (selectionMode) {
     return (
