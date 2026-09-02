@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { buildApprovedCreatedItems } from "./review"
-import type { AgentCreateItemSuggestion } from "./types"
+import {
+  buildApprovedCreatedItems,
+  initialSelectedKeys,
+  persistAgentReviewDraft,
+  switchCreateItemKind,
+} from "./review"
+import type { AgentCreateItemSuggestion, AgentCreateItemsBatch } from "./types"
 
 function suggestion(
   overrides: Partial<AgentCreateItemSuggestion> & Pick<AgentCreateItemSuggestion, "key" | "name" | "itemKind">
@@ -73,5 +78,53 @@ describe("buildApprovedCreatedItems", () => {
     ]
 
     expect(buildApprovedCreatedItems(drafts, new Set(["selected"]))).toEqual([])
+  })
+})
+
+describe("switchCreateItemKind", () => {
+  it("copies expected price into acquisition when moving wishlist to owned", () => {
+    const next = switchCreateItemKind(
+      suggestion({ key: "card", name: "Aerial", itemKind: "wishlist", expectedPrice: 27.95, currentValue: 30 }),
+      "collection"
+    )
+    expect(next).toMatchObject({ itemKind: "collection", acquisitionPrice: 27.95, currentValue: 30 })
+  })
+
+  it("copies acquisition into expected price when moving owned to wishlist", () => {
+    const next = switchCreateItemKind(
+      suggestion({ key: "card", name: "Aerial", itemKind: "collection", acquisitionPrice: 19.99, currentValue: 24 }),
+      "wishlist"
+    )
+    expect(next).toMatchObject({ itemKind: "wishlist", expectedPrice: 19.99, currentValue: 24 })
+  })
+})
+
+describe("persistAgentReviewDraft", () => {
+  const batch: AgentCreateItemsBatch = {
+    id: "stage-1",
+    kind: "create_items",
+    title: "New box",
+    createdAt: "2026-09-03T00:00:00.000Z",
+    setSourceUrl: null,
+    destination: { kind: "new_box", parentBoxId: null, parentBoxName: "Root", newBoxName: "Witch from Mercury" },
+    entries: [
+      suggestion({ key: "keep", name: "Aerial", itemKind: "wishlist", expectedPrice: 10, existingMatch: "collection" }),
+      suggestion({ key: "drop", name: "Calibarn", itemKind: "wishlist", expectedPrice: 20 }),
+    ],
+  }
+
+  it("keeps edited values and an empty selection for the next review", () => {
+    const edited = [
+      { ...batch.entries[0], name: "Gundam Aerial", expectedPrice: 12 },
+      { ...batch.entries[1], itemKind: "collection" as const, acquisitionPrice: 20 },
+    ]
+    const saved = persistAgentReviewDraft(batch, { selectedKeys: [], entries: edited })
+    expect(saved.selectedKeys).toEqual([])
+    expect(saved.entries[0]).toMatchObject({ name: "Gundam Aerial", expectedPrice: 12 })
+    expect(initialSelectedKeys(saved)).toEqual(new Set())
+  })
+
+  it("defaults first-open selection to skip existing matches", () => {
+    expect([...initialSelectedKeys(batch)]).toEqual(["drop"])
   })
 })

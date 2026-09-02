@@ -1,18 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { selectedBoxContext, selectedItemContext } from "./selection-context"
-import type { Box, Item } from "@/lib/types"
-
-const box = (id: string): Box => ({
-  id,
-  user_id: "user-1",
-  parent_box_id: "parent-1",
-  name: `Box ${id}`,
-  description: "Intentionally omitted from MCP output",
-  is_public: false,
-  position: 0,
-  created_at: "2026-09-01T00:00:00.000Z",
-  updated_at: "2026-09-02T00:00:00.000Z",
-})
+import { selectedItemContext } from "./selection-context"
+import type { Item } from "@/lib/types"
 
 const item = (id: string, wishlist = false): Item => ({
   id,
@@ -69,26 +57,16 @@ describe("compact selected WebMCP context", () => {
     })
   })
 
-  it("paginates selected boxes and omits box descriptions", () => {
-    expect(selectedBoxContext([box("1"), box("2"), box("3")], { offset: 1, limit: 1 })).toEqual({
+  it("paginates selected items and caps page size", () => {
+    expect(selectedItemContext([item("1"), item("2"), item("3")], { offset: 1, limit: 1 })).toMatchObject({
       selectedCount: 3,
       returnedCount: 1,
       nextOffset: 2,
-      boxes: [
-        {
-          id: "2",
-          name: "Box 2",
-          parentBoxId: "parent-1",
-          updatedAt: "2026-09-02T00:00:00.000Z",
-        },
-      ],
+      items: [{ id: "2", name: "Item 2" }],
     })
-  })
 
-  it("caps page size to keep responses bounded", () => {
-    const boxes = Array.from({ length: 60 }, (_, index) => box(String(index)))
-    const result = selectedBoxContext(boxes, { limit: 500 })
-
+    const items = Array.from({ length: 60 }, (_, index) => item(String(index)))
+    const result = selectedItemContext(items, { limit: 500 })
     expect(result.returnedCount).toBe(50)
     expect(result.nextOffset).toBe(50)
   })

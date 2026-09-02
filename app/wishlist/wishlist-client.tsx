@@ -211,6 +211,7 @@ export default function WishlistClient({
           applying={agentSuggestions.applying}
           error={agentSuggestions.error}
           onOpenChange={agentSuggestions.onOpenChange}
+          onPersistReview={agentSuggestions.persistReview}
           onDiscard={agentSuggestions.discardStage}
           onApplyItemEdits={agentSuggestions.applyItemEdits}
           onApplyCreatedItems={agentSuggestions.applyCreatedItems}

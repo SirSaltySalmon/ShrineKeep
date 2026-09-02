@@ -503,3 +503,17 @@ Using descriptions is a hackathon compromise: users also write personal notes th
 Automatic thumbnail searches use item names. Both creation tools now guide agents to include a short verified maker, brand, product line, or variant identifier in every owned or wishlist product name when needed for an unambiguous match: `YouTooz Astarion vinyl figure`, for example. Identifiers in the box name or description alone are insufficient.
 
 This supersedes the earlier instruction to put prices, research notes, and dates in creation descriptions. Item-focused prose should be at most 100 characters; explicitly requested evidence links (including option C) go on separate lines as bare URLs, excluded from that prose limit. Prices and price bases belong in their dedicated fields and rationale, with evidence in `source_urls`. Shared guidance appears in both creation-tool descriptions and their name/description schemas. This is agent guidance; existing storage limits and description opt-in behavior remain in place.
+
+## 2026-09-03 — Slimmer tools, approach approval, no agent tags
+
+Live use and a context-size pass changed the WebMCP surface. Decisions:
+
+- Remove `get_selected_boxes`. Staged writes still target the currently open box. Item selection remains `get_selected_items`. Human box multi-select in the dashboard is unchanged. Dashboard tools drop from eight to seven.
+- Keep all agent-facing tool and field copy in `lib/webmcp/tool-context.ts`.
+- Drop other-tool “don’t call X” guards and locked appraisal methods (retail-first wishlist, typical secondhand-sold current value). Field identity stays: `current_value`, `expected_price`, and `acquisition_price` as an editable original/historical cost estimate, not necessarily what the user paid. Valuation-only requests still must not fill `acquisition_price`.
+- Before any price lookup, the agent suggests suitable approaches for each requested field and waits until the user has approved an approach for every one of those fields. Then it researches and stages in one call.
+- Read-tool truncation copy is only: descriptions default to 300 characters; request `include_full_description` when a full description is needed.
+- Remove agent tag replacement (`tag_names`, the `availableTags` catalog, review tag diffs). Manual tagging is unchanged. Reads may still return current tags for identity.
+
+This supersedes the 2026-09-02 selection-box tool, the intent-routing “don’t call selection for destination” pairing with `get_selected_boxes`, and the field-level retail/secondhand defaults from optional new-item pricing.
+

@@ -312,7 +312,6 @@ export default function DashboardClient({
     page: "dashboard",
     currentBoxId,
     currentBoxName: currentBox?.name ?? "Root",
-    selectedBoxes,
     selectedItems,
     onApplied: refreshCurrentBoxData,
     onToolStart: (name) => dispatchCoach({ type: "tool_start", name }),
@@ -1127,6 +1126,7 @@ export default function DashboardClient({
           applying={agentSuggestions.applying}
           error={agentSuggestions.error}
           onOpenChange={agentSuggestions.onOpenChange}
+          onPersistReview={agentSuggestions.persistReview}
           onDiscard={agentSuggestions.discardStage}
           onApplyItemEdits={agentSuggestions.applyItemEdits}
           onApplyCreatedItems={agentSuggestions.applyCreatedItems}

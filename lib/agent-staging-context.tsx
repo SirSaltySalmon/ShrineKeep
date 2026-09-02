@@ -8,6 +8,7 @@ interface AgentStagingContextValue {
   expanded: boolean
   addBatch: (batch: AgentSuggestionBatch) => void
   removeBatch: (batchId: string) => void
+  updateBatch: (batchId: string, batch: AgentSuggestionBatch) => void
   setExpanded: (expanded: boolean) => void
 }
 
@@ -31,9 +32,15 @@ export function AgentStagingProvider({ children }: { children: ReactNode }) {
     setBatches(next)
   }, [])
 
+  const updateBatch = useCallback((batchId: string, batch: AgentSuggestionBatch) => {
+    const next = batchesRef.current.map((candidate) => (candidate.id === batchId ? batch : candidate))
+    batchesRef.current = next
+    setBatches(next)
+  }, [])
+
   return (
     <AgentStagingContext.Provider
-      value={{ batches, expanded, addBatch, removeBatch, setExpanded }}
+      value={{ batches, expanded, addBatch, removeBatch, updateBatch, setExpanded }}
     >
       {children}
     </AgentStagingContext.Provider>

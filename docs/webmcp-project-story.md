@@ -18,11 +18,11 @@ On the dashboard or wishlist, a user can now talk to a compatible browser agent 
 - compare a complete set with the current box and stage only the missing items;
 - estimate current values or likely acquisition prices for owned items;
 - research expected prices for wishlist items;
-- edit item names, descriptions, and existing tags through the same review flow;
-- work only with the boxes or items explicitly selected in the interface; and
+- edit item names and descriptions through the same review flow;
+- work only with the items explicitly selected in the interface; and
 - optionally find a thumbnail for each newly approved item.
 
-The agent gets small, structured pieces of context instead of trying to scrape the screen. It can read the open box, include its child boxes when that is actually needed, look at the relevant wishlist, or ask for only the cards the user selected. There are eight tools on the dashboard and three on the wishlist page, each limited to what makes sense there. Tools are written in accordance to [Chrome's WebMCP Best Practices](https://developer.chrome.com/docs/ai/webmcp/best-practices)
+The agent gets small, structured pieces of context instead of trying to scrape the screen. It can read the open box, include its child boxes when that is actually needed, look at the relevant wishlist, or ask for only the cards the user selected. There are seven tools on the dashboard and three on the wishlist page, each limited to what makes sense there. Tools are written in accordance to [Chrome's WebMCP Best Practices](https://developer.chrome.com/docs/ai/webmcp/best-practices)
 
 The important part is that none of those tools silently changes the collection. Anything the agent wants to add or edit goes into a staging inbox. ShrineKeep shows the user the proposed names, prices, Owned/Wishlist choices, before-and-after values, reasons, sources, and possible duplicates. Every row can be edited, unchecked, approved, or thrown away. Only approved rows reach the real write APIs.
 
@@ -36,7 +36,7 @@ ShrineKeep is built with Next.js 16, React, and TypeScript, with Supabase handli
 
 A reusable React hook checks for `document.modelContext` and registers the right tools for the page the user is on. Registrations are cleaned up with an `AbortController` when that scope changes. The same hook records calls as they happen, which let me show a status panel without pretending that “the browser accepted a registration” means “an agent is connected and understands everything.”
 
-The read tools use small authenticated routes that check ownership and return only the fields needed for the job, with pagination so a large collection doesn't become one giant prompt. Selection is even smaller: those tools read the current React selection state directly. I generalized the edit tools to accept just the fields being changed, so the same operation can fix a name, update a description, replace a set of existing tags, or suggest prices without needing a separate tool for each field.
+The read tools use small authenticated routes that check ownership and return only the fields needed for the job, with pagination so a large collection doesn't become one giant prompt. Selection is even smaller: `get_selected_items` reads the current React selection state directly. I generalized the edit tools to accept just the fields being changed, so the same operation can fix a name, update a description, or suggest prices without a separate tool for each field. Shared tool copy lives in one module so those contracts stay consistent.
 
 Tools that can lead to a write only build typed suggestion batches. A shared client-side provider keeps those batches around while the user moves between the dashboard and wishlist. When the user finally applies one, the server authenticates them again, checks ownership and price fields, catches stale records through `updated_at`, and then reuses ShrineKeep's normal item and box operations. That also means value updates still appear in the existing value history. Optional thumbnail lookup reuses the regular image search and is allowed to fail without blocking the batch.
 
@@ -50,13 +50,12 @@ The tutorial became a major challenge of its own. Exposing the tools didn't expl
 
 Keeping that walkthrough in sync was more involved than writing the prompts. A tool being called, a suggestion appearing, and an approved write succeeding are different events. The tutorial can't treat them as interchangeable. It also has to know which box was created and whether the user has actually opened it before asking for valuations. Those transitions, along with skipped steps and saved progress, took their own implementation and tests.
 
-Live testing exposed a surprisingly important distinction between the box that is open and a box card that is selected. They can be completely different boxes. An agent could sometimes infer that visually, but it was not reliable enough to build on. That led to explicit selection tools and a rule that every staged action has to repeat where it is going.
 
 Another early mistake was treating “set up this collection” and “complete the collection in this box” as the same operation. They sound close, but one should create a new box and the other should reconcile against what is already there. Using the first flow for both produced duplicate cards and unnecessary child boxes. I split them into separate tools, and the completion flow now checks both owned and wishlist cards before proposing only what is missing.
 
 Choosing how many tools to expose was another balancing act. I didn't want a separate tool for every small task, with more schemas and descriptions for the agent to read. But making one tool do everything would bring back the scope confusion. I kept separate operations where the destination or approval flow really differs, and generalized edits within those boundaries. Furthermore, I directly acknowledge that destructive, relocation, and exploration actions should not be accessible to the agent, as these can destroy data, confuse users, and waste tokens, respectively. It was not worth it to implement this when users already have fast batch deletions and movement options.
 
-Pricing caused a different kind of ambiguity. Original retail, a current listing, a secondhand asking price, and a recent sold price are four different facts, but an agent can easily flatten them into “the price.” The contracts now say what kind of evidence to use for each field, and the review keeps the explanation and links next to the number. Browser support also varies, so I added feature detection, a short compatibility retry, and honest language for “browser accepted” versus “tool call received.”
+Pricing caused a different kind of ambiguity. Original retail, a current listing, a secondhand asking price, and a recent sold price are all valid approaches to price an item. I experimented with defaults, but collections from different spaces just aren't compatible with it and often lead to lots of time and tokens wasted looking at obviously wrong decisions. I ended up with just asking the agent to suggest a research approach for each requested field, wait for user approval on all of them, then research. The review still keeps the explanation and links next to the number.
 
 ## Accomplishments that we're proud of
 
@@ -67,8 +66,6 @@ It also still feels like ShrineKeep. The Site tools panel, staging inbox, review
 The safety model held up as the idea grew. Whether the agent is changing one selected card or proposing a few hundred items for a new box, nothing is added to the real collection until the user approves it in ShrineKeep.
 
 One of my tests used a genuinely specific example: METAL BUILD Evangelion releases, by a specific manufacturer Tamashii Nations. The agent worked from official and retailer sources, found the relevant units, discussed with the user on their pricing rationale, attached useful USD estimates and evidence, and staged the result.
-
-The current repository also passes all 189 automated tests across 50 files. The focused WebMCP tests cover things I was especially worried about: wrong tool routing, ambiguous destinations, lost prices, invalid status/price combinations, duplicate previews, selection scope, thumbnail lookup failures, and tutorial transitions when a user skips a step or leaves the created box.
 
 ## What we learned
 

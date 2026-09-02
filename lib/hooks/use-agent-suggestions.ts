@@ -3,20 +3,32 @@
 import { useCallback, useState } from "react"
 import { useWebMcpTool } from "@/lib/hooks/use-webmcp-tool"
 import { useAgentStaging } from "@/lib/agent-staging-context"
-import { selectedBoxContext, selectedItemContext } from "@/lib/webmcp/selection-context"
+import { selectedItemContext } from "@/lib/webmcp/selection-context"
 import { addFirstImageThumbnails } from "@/lib/webmcp/thumbnail-search"
 import { creationDescription } from "@/lib/webmcp/description-context"
 import {
+  acquisitionPriceFieldDescription,
+  attachPriceEvidenceFieldDescription,
   collectionInitializationToolDescription,
+  creationEvidenceDescriptionFieldDescription,
   creationNameGuidance,
-  creationDescriptionGuidance,
+  creationRationaleFieldDescription,
+  creationStatusFieldDescription,
   currentBoxItemCreationToolDescription,
-  selectedBoxesToolDescription,
+  currentBoxItemsToolDescription,
+  currentValueFieldDescription,
+  expectedPriceFieldDescription,
+  includeDescendantsFieldDescription,
+  itemEditsToolDescription,
+  ownedEditRationaleFieldDescription,
+  replacementDescriptionFieldDescription,
   selectedItemsToolDescription,
-  pricingResearchGuidance,
-  descriptionReadGuidance,
+  userConfirmedMatchFieldDescription,
+  wishlistContextToolDescription,
+  wishlistEditRationaleFieldDescription,
+  wishlistEditsToolDescription,
 } from "@/lib/webmcp/tool-context"
-import type { Box, Item, Tag } from "@/lib/types"
+import type { Item } from "@/lib/types"
 import type {
   AgentCreateItemsBatch,
   AgentItemEditBatch,
@@ -33,7 +45,6 @@ interface UseAgentSuggestionsOptions {
   page: "dashboard" | "wishlist"
   currentBoxId?: string | null
   currentBoxName?: string
-  selectedBoxes?: readonly Box[]
   selectedItems?: readonly Item[]
   onApplied: () => void | Promise<void>
   onToolStart?: (name: string) => void
@@ -112,27 +123,6 @@ function optionalDescription(value: unknown, index: number): string | null | und
   return value.trim() || null
 }
 
-function optionalTagNames(value: unknown, index: number): string[] | undefined {
-  if (value === undefined) return undefined
-  if (!Array.isArray(value) || value.length > 256) {
-    throw new Error(`Suggestion ${index + 1} tag_names must be an array of at most 256 names`)
-  }
-  const seen = new Set<string>()
-  const names: string[] = []
-  for (const candidate of value) {
-    if (typeof candidate !== "string" || !candidate.trim()) {
-      throw new Error(`Suggestion ${index + 1} tag_names contains an invalid name`)
-    }
-    const name = candidate.trim()
-    const key = name.toLocaleLowerCase()
-    if (!seen.has(key)) {
-      seen.add(key)
-      names.push(name)
-    }
-  }
-  return names
-}
-
 function safeSources(value: unknown): AgentSuggestionSource[] {
   if (!Array.isArray(value)) return []
   const sources: AgentSuggestionSource[] = []
@@ -207,63 +197,23 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return payload
 }
 
-async function loadAvailableTags(signal?: AbortSignal): Promise<Tag[]> {
-  const response = await fetch("/api/tags", { signal })
-  return parseJsonResponse<Tag[]>(response)
-}
-
-function resolveTagNames(tagNames: string[], availableTags: Tag[], index: number) {
-  const byName = new Map(availableTags.map((tag) => [tag.name.toLocaleLowerCase(), tag]))
-  const resolved = tagNames.map((name) => byName.get(name.toLocaleLowerCase()))
-  const unknown = tagNames.filter((_, tagIndex) => !resolved[tagIndex])
-  if (unknown.length > 0) {
-    throw new Error(`Suggestion ${index + 1} references unknown tag(s): ${unknown.join(", ")}`)
-  }
-  return resolved.map((tag) => tag!)
-}
-
 export function useAgentSuggestions({
   userId,
   page,
   currentBoxId = null,
   currentBoxName = "Root",
-  selectedBoxes = [],
   selectedItems = [],
   onApplied,
   onToolStart,
   onApplySuccess,
 }: UseAgentSuggestionsOptions) {
-  const { batches, expanded, addBatch, removeBatch, setExpanded } = useAgentStaging()
+  const { batches, expanded, addBatch, removeBatch, updateBatch, setExpanded } = useAgentStaging()
   const [reviewBatchId, setReviewBatchId] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const batch = batches.find((candidate) => candidate.id === reviewBatchId) ?? null
   const dashboardEnabled = Boolean(userId) && page === "dashboard"
   const wishlistEnabled = Boolean(userId)
-
-  const selectedBoxesTool = useWebMcpTool(
-    {
-      name: "get_selected_boxes",
-      title: "Read explicitly selected boxes",
-      description: selectedBoxesToolDescription,
-      inputSchema: {
-        type: "object",
-        properties: {
-          offset: { type: "integer", minimum: 0, default: 0 },
-          limit: { type: "integer", minimum: 1, maximum: 50, default: 25 },
-        },
-        additionalProperties: false,
-      },
-      annotations: { readOnlyHint: true, untrustedContentHint: true },
-      execute: (input) =>
-        toolResult("Selected boxes loaded", {
-          scope: currentBoxName,
-          ...selectedBoxContext(selectedBoxes, input),
-        }),
-    },
-    dashboardEnabled,
-    onToolStart
-  )
 
   const selectedItemsTool = useWebMcpTool(
     {
@@ -280,11 +230,9 @@ export function useAgentSuggestions({
         additionalProperties: false,
       },
       annotations: { readOnlyHint: true, untrustedContentHint: true },
-      execute: async (input, options) => {
-        const availableTags = await loadAvailableTags(options?.signal)
+      execute: async (input) => {
         return toolResult("Selected items loaded", {
           scope: page === "wishlist" ? "Wishlist" : currentBoxName,
-          availableTags: availableTags.map(({ id, name, color }) => ({ id, name, color })),
           ...selectedItemContext(selectedItems, input),
         })
       },
@@ -370,14 +318,13 @@ export function useAgentSuggestions({
     {
       name: "get_current_box_items",
       title: "Read owned items in current box",
-      description:
-        `Read only possessed collection items in the open ShrineKeep box. Wishlist items are excluded. Use include_descendants only when the user asks for recursive valuation. ${descriptionReadGuidance} ${pricingResearchGuidance}`,
+      description: currentBoxItemsToolDescription(currentBoxName),
       inputSchema: {
         type: "object",
         properties: {
           include_descendants: {
             type: "boolean",
-            description: "Include possessed items in nested boxes.",
+            description: includeDescendantsFieldDescription,
             default: false,
           },
           include_full_description: { type: "boolean", default: false },
@@ -396,21 +343,18 @@ export function useAgentSuggestions({
           typeof input.limit === "number" && Number.isInteger(input.limit)
             ? Math.max(1, Math.min(10, input.limit))
             : 5
-        const [response, availableTags] = await Promise.all([
-          fetch("/api/agent/collection-context", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            signal: options?.signal,
-            body: JSON.stringify({
-              boxId: currentBoxId,
-              includeDescendants: input.include_descendants === true,
-              includeFullDescription: input.include_full_description === true,
-              offset,
-              limit,
-            }),
+        const response = await fetch("/api/agent/collection-context", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: options?.signal,
+          body: JSON.stringify({
+            boxId: currentBoxId,
+            includeDescendants: input.include_descendants === true,
+            includeFullDescription: input.include_full_description === true,
+            offset,
+            limit,
           }),
-          loadAvailableTags(options?.signal),
-        ])
+        })
         const data = await parseJsonResponse<{
           items: ContextItem[]
           total: number
@@ -419,9 +363,6 @@ export function useAgentSuggestions({
         return toolResult("Owned-item context loaded", {
           scope: currentBoxName,
           itemKind: "collection_only",
-          appraisalDefaults:
-            "Typical recent sold price; second hand; shipping excluded; condition inferred from description.",
-          availableTags: availableTags.map(({ id, name, color }) => ({ id, name, color })),
           ...data,
         })
       },
@@ -433,9 +374,8 @@ export function useAgentSuggestions({
   const itemEditsTool = useWebMcpTool(
     {
       name: "stage_item_edits",
-      title: "Stage owned-item edits",
-      description:
-        `Stage sparse edits for possessed items returned by get_current_box_items or the owned rows from get_selected_items. Supports name, description, full tag-set replacement using existing tag names, current value, and acquisition price. Never include wishlist items. Price edits default to typical recent second-hand sold price with shipping excluded and require a concise evidence rationale. ${pricingResearchGuidance} Read full descriptions before proposing additions so personal notes are preserved.`,
+      title: "Stage owned item edits",
+      description: itemEditsToolDescription(),
       inputSchema: {
         type: "object",
         properties: {
@@ -452,20 +392,14 @@ export function useAgentSuggestions({
                 description: {
                   type: "string",
                   maxLength: 10_000,
-                  description: "Replacement description. Use an empty string to clear it.",
-                },
-                tag_names: {
-                  type: "array",
-                  maxItems: 256,
-                  description: "Complete replacement tag set. Use exact existing names from availableTags; [] clears all tags.",
-                  items: { type: "string" },
+                  description: replacementDescriptionFieldDescription,
                 },
                 current_value: { type: "number", minimum: 0 },
                 acquisition_price: { type: "number", minimum: 0 },
                 rationale: {
                   type: "string",
                   maxLength: 300,
-                  description: "One technical sentence: price basis, condition, material evidence.",
+                  description: ownedEditRationaleFieldDescription,
                 },
                 source_urls: {
                   type: "array",
@@ -493,7 +427,6 @@ export function useAgentSuggestions({
           const rationale = typeof raw.rationale === "string" ? raw.rationale.trim().slice(0, 300) : ""
           const proposedName = optionalName(raw.name, index)
           const proposedDescription = optionalDescription(raw.description, index)
-          const proposedTagNames = optionalTagNames(raw.tag_names, index)
           const currentValue = optionalPrice(raw.current_value)
           const acquisitionPrice = optionalPrice(raw.acquisition_price)
           const hasPriceEdit = currentValue !== undefined || acquisitionPrice !== undefined
@@ -503,7 +436,6 @@ export function useAgentSuggestions({
           if (
             proposedName === undefined &&
             proposedDescription === undefined &&
-            proposedTagNames === undefined &&
             !hasPriceEdit
           ) {
             throw new Error(`Suggestion ${index + 1} must include an editable field`)
@@ -512,24 +444,18 @@ export function useAgentSuggestions({
             itemId: raw.item_id,
             proposedName,
             proposedDescription,
-            proposedTagNames,
             proposedCurrentValue: currentValue,
             proposedAcquisitionPrice: acquisitionPrice,
             rationale,
             sources: safeSources(raw.source_urls),
           }
         })
-        const [response, availableTags] = await Promise.all([
-          fetch("/api/agent/collection-context", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            signal: options?.signal,
-            body: JSON.stringify({ itemIds: proposed.map((entry) => entry.itemId), includeFullDescription: true }),
-          }),
-          proposed.some((entry) => entry.proposedTagNames !== undefined)
-            ? loadAvailableTags(options?.signal)
-            : Promise.resolve([]),
-        ])
+        const response = await fetch("/api/agent/collection-context", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: options?.signal,
+          body: JSON.stringify({ itemIds: proposed.map((entry) => entry.itemId), includeFullDescription: true }),
+        })
         const context = await parseJsonResponse<{ items: ContextItem[] }>(response)
         const byId = new Map(context.items.map((item) => [item.id, item]))
         const entries = proposed.flatMap((entry, index) => {
@@ -543,14 +469,8 @@ export function useAgentSuggestions({
                 beforeCurrentValue: item.current_value,
                 beforeAcquisitionPrice: item.acquisition_price,
                 beforeDescription: item.description,
-                beforeTagNames: item.tags.map((tag) => tag.name),
                 proposedName: entry.proposedName,
                 proposedDescription: entry.proposedDescription,
-                proposedTagIds:
-                  entry.proposedTagNames === undefined
-                    ? undefined
-                    : resolveTagNames(entry.proposedTagNames, availableTags, index).map((tag) => tag.id),
-                proposedTagNames: entry.proposedTagNames,
                 proposedCurrentValue: entry.proposedCurrentValue,
                 proposedAcquisitionPrice: entry.proposedAcquisitionPrice,
                 rationale: entry.rationale,
@@ -591,12 +511,11 @@ export function useAgentSuggestions({
       inputSchema: {
         type: "object",
         properties: {
-          attach_price_evidence: { type: "boolean", default: false, description: "True only after explicit option C approval or an equivalent request to save evidence in descriptions." },
+          attach_price_evidence: { type: "boolean", default: false, description: attachPriceEvidenceFieldDescription },
           user_confirmed_match: {
             type: "boolean",
             enum: [true],
-            description:
-              "True only after the user approved the displayed matched set in chat. Price research is included only when the user chose it or requested it earlier.",
+            description: userConfirmedMatchFieldDescription,
           },
           collection_name: { type: "string", maxLength: 200 },
           source_url: { type: "string", format: "uri" },
@@ -612,28 +531,28 @@ export function useAgentSuggestions({
                   type: "string",
                   enum: ["wishlist", "owned"],
                   default: "wishlist",
-                  description: "Use owned only when the user says they possess the item; otherwise use wishlist.",
+                  description: creationStatusFieldDescription,
                 },
-                description: { type: "string", maxLength: 10_000, description: `Only with attach_price_evidence=true. ${creationDescriptionGuidance}` },
+                description: { type: "string", maxLength: 10_000, description: creationEvidenceDescriptionFieldDescription },
                 current_value: {
                   type: "number",
                   minimum: 0,
-                  description: "Typical recent secondhand sold-price estimate in USD, shipping excluded. Allowed for owned and wishlist items.",
+                  description: currentValueFieldDescription,
                 },
                 acquisition_price: {
                   type: "number",
                   minimum: 0,
-                  description: "Owned only: editable estimate of likely original retail or historical market price in USD; not the user's known actual payment.",
+                  description: acquisitionPriceFieldDescription,
                 },
                 expected_price: {
                   type: "number",
                   minimum: 0,
-                  description: "Wishlist only: reputable current USD retail price, or reputable secondhand fallback when unavailable/out of production; shipping excluded.",
+                  description: expectedPriceFieldDescription,
                 },
                 rationale: {
                   type: "string",
                   maxLength: 300,
-                  description: "Concise evidence basis for supplied prices; omit generic disclosure text.",
+                  description: creationRationaleFieldDescription,
                 },
                 source_urls: {
                   type: "array",
@@ -692,7 +611,7 @@ export function useAgentSuggestions({
       inputSchema: {
         type: "object",
         properties: {
-          attach_price_evidence: { type: "boolean", default: false, description: "True only after explicit option C approval or an equivalent request to save evidence in descriptions." },
+          attach_price_evidence: { type: "boolean", default: false, description: attachPriceEvidenceFieldDescription },
           title: { type: "string", maxLength: 120 },
           items: {
             type: "array",
@@ -706,28 +625,28 @@ export function useAgentSuggestions({
                   type: "string",
                   enum: ["wishlist", "owned"],
                   default: "wishlist",
-                  description: "Use owned only when the user says they possess the item; otherwise use wishlist.",
+                  description: creationStatusFieldDescription,
                 },
-                description: { type: "string", maxLength: 10_000, description: `Only with attach_price_evidence=true. ${creationDescriptionGuidance}` },
+                description: { type: "string", maxLength: 10_000, description: creationEvidenceDescriptionFieldDescription },
                 current_value: {
                   type: "number",
                   minimum: 0,
-                  description: "Typical recent secondhand sold-price estimate in USD, shipping excluded. Allowed for owned and wishlist items.",
+                  description: currentValueFieldDescription,
                 },
                 acquisition_price: {
                   type: "number",
                   minimum: 0,
-                  description: "Owned only: editable estimate of likely original retail or historical market price in USD; not the user's known actual payment.",
+                  description: acquisitionPriceFieldDescription,
                 },
                 expected_price: {
                   type: "number",
                   minimum: 0,
-                  description: "Wishlist only: reputable current USD retail price, or reputable secondhand fallback when unavailable/out of production; shipping excluded.",
+                  description: expectedPriceFieldDescription,
                 },
                 rationale: {
                   type: "string",
                   maxLength: 300,
-                  description: "Concise evidence basis for supplied prices; omit generic disclosure text.",
+                  description: creationRationaleFieldDescription,
                 },
                 source_urls: {
                   type: "array",
@@ -784,10 +703,7 @@ export function useAgentSuggestions({
     {
       name: page === "wishlist" ? "get_all_wishlist_items" : "get_current_box_wishlist_items",
       title: page === "wishlist" ? "Read all wishlist items" : "Read wishlist items in current box",
-      description:
-        page === "wishlist"
-          ? `Read all wishlist items with their associated box names for collection context. ${descriptionReadGuidance} ${pricingResearchGuidance}`
-          : `Read only wishlist items associated with the open box. Possessed items are excluded. ${descriptionReadGuidance} ${pricingResearchGuidance}`,
+      description: wishlistContextToolDescription(page, currentBoxName),
       inputSchema: {
         type: "object",
         properties: {
@@ -807,21 +723,18 @@ export function useAgentSuggestions({
           typeof input.limit === "number" && Number.isInteger(input.limit)
             ? Math.max(1, Math.min(10, input.limit))
             : 5
-        const [response, availableTags] = await Promise.all([
-          fetch("/api/agent/wishlist-context", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            signal: options?.signal,
-            body: JSON.stringify({
-              all: page === "wishlist",
-              includeFullDescription: input.include_full_description === true,
-              boxId: page === "dashboard" ? currentBoxId : null,
-              offset,
-              limit,
-            }),
+        const response = await fetch("/api/agent/wishlist-context", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: options?.signal,
+          body: JSON.stringify({
+            all: page === "wishlist",
+            includeFullDescription: input.include_full_description === true,
+            boxId: page === "dashboard" ? currentBoxId : null,
+            offset,
+            limit,
           }),
-          loadAvailableTags(options?.signal),
-        ])
+        })
         const data = await parseJsonResponse<{
           items: WishlistContextItem[]
           total: number
@@ -829,9 +742,6 @@ export function useAgentSuggestions({
         }>(response)
         return toolResult("Wishlist context loaded", {
           scope: page === "wishlist" ? "All wishlist items" : currentBoxName,
-          pricingDefault:
-            "Current reputable retail price when available; otherwise a suitable reputable secondhand-market price; shipping excluded.",
-          availableTags: availableTags.map(({ id, name, color }) => ({ id, name, color })),
           ...data,
         })
       },
@@ -844,10 +754,7 @@ export function useAgentSuggestions({
     {
       name: "stage_wishlist_edits",
       title: "Stage wishlist item edits",
-      description:
-        page === "wishlist"
-          ? `Stage sparse edits for wishlist items returned by get_all_wishlist_items or get_selected_items. Supports name, description, full tag-set replacement using existing tag names, current value, and expected price. Use each associated box name as research context. Expected price uses current reputable retail or a suitable secondhand fallback; current value uses recent secondhand sold evidence. Price edits require a concise evidence rationale; USD, shipping excluded. ${pricingResearchGuidance} Read full descriptions before proposing additions.`
-          : `Stage sparse edits only for wishlist items returned by get_current_box_wishlist_items or the wishlist rows from get_selected_items. Supports name, description, full tag-set replacement using existing tag names, current value, and expected price. Do not edit possessed collection items. Expected price uses current reputable retail or a suitable secondhand fallback; current value uses recent secondhand sold evidence. Price edits require a concise evidence rationale; USD, shipping excluded. ${pricingResearchGuidance} Read full descriptions before proposing additions.`,
+      description: wishlistEditsToolDescription(page),
       inputSchema: {
         type: "object",
         properties: {
@@ -864,20 +771,14 @@ export function useAgentSuggestions({
                 description: {
                   type: "string",
                   maxLength: 10_000,
-                  description: "Replacement description. Use an empty string to clear it.",
-                },
-                tag_names: {
-                  type: "array",
-                  maxItems: 256,
-                  description: "Complete replacement tag set. Use exact existing names from availableTags; [] clears all tags.",
-                  items: { type: "string" },
+                  description: replacementDescriptionFieldDescription,
                 },
                 current_value: { type: "number", minimum: 0 },
                 expected_price: { type: "number", minimum: 0 },
                 rationale: {
                   type: "string",
                   maxLength: 300,
-                  description: "One concise price basis, such as a recent sold comparable or retailer stock.",
+                  description: wishlistEditRationaleFieldDescription,
                 },
                 source_urls: {
                   type: "array",
@@ -906,7 +807,6 @@ export function useAgentSuggestions({
           const currentValue = optionalPrice(raw.current_value)
           const proposedName = optionalName(raw.name, index)
           const proposedDescription = optionalDescription(raw.description, index)
-          const proposedTagNames = optionalTagNames(raw.tag_names, index)
           const rationale = typeof raw.rationale === "string" ? raw.rationale.trim().slice(0, 300) : ""
           const hasPriceEdit = expectedPrice !== undefined || currentValue !== undefined
           if (hasPriceEdit && !rationale) {
@@ -915,7 +815,6 @@ export function useAgentSuggestions({
           if (
             proposedName === undefined &&
             proposedDescription === undefined &&
-            proposedTagNames === undefined &&
             !hasPriceEdit
           ) {
             throw new Error(`Suggestion ${index + 1} must include an editable field`)
@@ -924,24 +823,18 @@ export function useAgentSuggestions({
             itemId: raw.item_id,
             proposedName,
             proposedDescription,
-            proposedTagNames,
             proposedExpectedPrice: expectedPrice,
             proposedCurrentValue: currentValue,
             rationale,
             sources: safeSources(raw.source_urls),
           }
         })
-        const [response, availableTags] = await Promise.all([
-          fetch("/api/agent/wishlist-context", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            signal: options?.signal,
-            body: JSON.stringify({ itemIds: proposed.map((entry) => entry.itemId), includeFullDescription: true }),
-          }),
-          proposed.some((entry) => entry.proposedTagNames !== undefined)
-            ? loadAvailableTags(options?.signal)
-            : Promise.resolve([]),
-        ])
+        const response = await fetch("/api/agent/wishlist-context", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: options?.signal,
+          body: JSON.stringify({ itemIds: proposed.map((entry) => entry.itemId), includeFullDescription: true }),
+        })
         const context = await parseJsonResponse<{ items: WishlistContextItem[] }>(response)
         const allowedItems = context.items.filter(
           (item) => page === "wishlist" || item.target_box_id === currentBoxId
@@ -959,14 +852,8 @@ export function useAgentSuggestions({
                 beforeExpectedPrice: item.expected_price,
                 beforeCurrentValue: item.current_value,
                 beforeDescription: item.description,
-                beforeTagNames: item.tags.map((tag) => tag.name),
                 proposedName: entry.proposedName,
                 proposedDescription: entry.proposedDescription,
-                proposedTagIds:
-                  entry.proposedTagNames === undefined
-                    ? undefined
-                    : resolveTagNames(entry.proposedTagNames, availableTags, index).map((tag) => tag.id),
-                proposedTagNames: entry.proposedTagNames,
                 proposedExpectedPrice: entry.proposedExpectedPrice,
                 proposedCurrentValue: entry.proposedCurrentValue,
                 rationale: entry.rationale,
@@ -1135,7 +1022,6 @@ export function useAgentSuggestions({
   const enabledToolStates =
     page === "dashboard"
       ? [
-          selectedBoxesTool,
           selectedItemsTool,
           collectionContextTool,
           itemEditsTool,
@@ -1177,6 +1063,7 @@ export function useAgentSuggestions({
     setInboxExpanded: setExpanded,
     reviewStage: setReviewBatchId,
     discardStage,
+    persistReview: (next: AgentSuggestionBatch) => updateBatch(next.id, next),
     onOpenChange: handleOpenChange,
     applyItemEdits,
     applyCreatedItems,

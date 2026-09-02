@@ -26,7 +26,7 @@ vi.mock("react", () => ({
 vi.mock("@/lib/agent-staging-context", () => ({
   useAgentStaging: () => ({
     batches: harness.batches, expanded: false, setExpanded: vi.fn(),
-    addBatch: (batch: AgentSuggestionBatch) => harness.batches.push(batch), removeBatch: vi.fn(),
+    addBatch: (batch: AgentSuggestionBatch) => harness.batches.push(batch), removeBatch: vi.fn(), updateBatch: vi.fn(),
   }),
 }))
 vi.mock("@/lib/hooks/use-webmcp-tool", () => ({

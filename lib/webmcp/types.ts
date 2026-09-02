@@ -11,11 +11,8 @@ export interface AgentItemEditSuggestion {
   beforeCurrentValue: number | null
   beforeAcquisitionPrice: number | null
   beforeDescription: string | null
-  beforeTagNames: string[]
   proposedName?: string
   proposedDescription?: string | null
-  proposedTagIds?: string[]
-  proposedTagNames?: string[]
   proposedCurrentValue?: number
   proposedAcquisitionPrice?: number
   rationale: string
@@ -44,11 +41,8 @@ export interface AgentWishlistPriceSuggestion {
   beforeExpectedPrice: number | null
   beforeCurrentValue: number | null
   beforeDescription: string | null
-  beforeTagNames: string[]
   proposedName?: string
   proposedDescription?: string | null
-  proposedTagIds?: string[]
-  proposedTagNames?: string[]
   proposedExpectedPrice?: number
   proposedCurrentValue?: number
   rationale: string
@@ -59,6 +53,8 @@ interface AgentSuggestionBatchBase {
   id: string
   title: string
   createdAt: string
+  selectedKeys?: string[]
+  imageSearchOverride?: boolean | null
 }
 
 export interface AgentItemEditBatch extends AgentSuggestionBatchBase {
@@ -102,7 +98,6 @@ export interface ApprovedItemEdit {
   expected_updated_at: string
   name?: string
   description?: string | null
-  tag_ids?: string[]
   current_value?: number
   acquisition_price?: number
 }
@@ -125,7 +120,6 @@ export interface ApprovedWishlistPriceEdit {
   expected_updated_at: string
   name?: string
   description?: string | null
-  tag_ids?: string[]
   expected_price?: number
   current_value?: number
 }

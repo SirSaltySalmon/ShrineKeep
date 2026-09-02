@@ -1,4 +1,4 @@
-import type { Box, Item } from "@/lib/types"
+import type { Item } from "@/lib/types"
 import { descriptionContext } from "./description-context"
 
 const DEFAULT_SELECTION_LIMIT = 25
@@ -31,21 +31,6 @@ function pageResult<T>(records: readonly T[], input: SelectionPageInput) {
     returnedCount: page.length,
     nextOffset: offset + limit < records.length ? offset + limit : null,
     page,
-  }
-}
-
-export function selectedBoxContext(boxes: readonly Box[], input: SelectionPageInput) {
-  const result = pageResult(boxes, input)
-  return {
-    selectedCount: result.selectedCount,
-    returnedCount: result.returnedCount,
-    nextOffset: result.nextOffset,
-    boxes: result.page.map((box) => ({
-      id: box.id,
-      name: box.name,
-      parentBoxId: box.parent_box_id ?? null,
-      updatedAt: box.updated_at,
-    })),
   }
 }
 

@@ -158,7 +158,7 @@ export function valuationPrompt(): string {
   return [
     "Via ShrineKeep WebMCP in this browser,",
     "Update the valuation of my owned items in this box.",
-    "Use stage_item_edits, set valuation from typical recent secondhand sold prices.",
+    "Use stage_item_edits to update current_value: suggest approaches, wait until I approve one, then research. Leave acquisition_price unchanged unless asked.",
     "(If user has no owned items, skip this step)"
   ].join("\n")
 }
