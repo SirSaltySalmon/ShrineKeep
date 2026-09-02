@@ -383,7 +383,7 @@ function CoachSteps({ coach }: { coach: NonNullable<Props["coach"]> }) {
               <p className="text-fluid-sm font-medium">
                 {step === "copy_init"
                   ? "Paste this into your agent, confirm the match in chat, then wait here."
-                  : "Paste this into your agent, then approve the valuation suggestions in ShrineKeep."}
+                  : "Paste this into your agent, approve the valuation suggestions, then wait here."}
               </p>
               <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-card p-3 text-fluid-xs leading-relaxed">
                 {prompt}
