@@ -60,6 +60,13 @@ describe("POST /api/demo/seed", () => {
     mockCreateSupabaseServerClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1" } } }) },
       rpc,
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            maybeSingle: vi.fn().mockResolvedValue({ data: { is_sandbox: false, sandbox_expires_at: null }, error: null }),
+          }),
+        }),
+      }),
     })
     mockEnsureDemoTagIds.mockResolvedValue({})
     mockBuildDemoBoxCopyPayloads.mockReturnValue([])

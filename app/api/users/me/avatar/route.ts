@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { requireMutableUser } from "@/lib/judge/require-mutable-user"
 import { NextResponse } from "next/server"
 
 const AVATARS_BUCKET = "avatars"
@@ -11,14 +12,9 @@ const AVATARS_BUCKET = "avatars"
  */
 export async function DELETE() {
   try {
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-
-    if (!authUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await requireMutableUser()
+    if (!session.ok) return session.response
+    const { supabase, user: authUser } = session
 
     const { data: profile, error: profileError } = await supabase
       .from("users")

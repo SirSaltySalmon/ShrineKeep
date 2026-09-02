@@ -9,9 +9,23 @@ CREATE TABLE IF NOT EXISTS public.users (
   name TEXT NOT NULL DEFAULT '',
   avatar_url TEXT,
   grandfathered_item_count INTEGER,
+  is_sandbox BOOLEAN NOT NULL DEFAULT false,
+  sandbox_expires_at TIMESTAMPTZ,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS public.sandbox_purge_queue (
+  user_id UUID PRIMARY KEY,
+  enqueued_at TIMESTAMPTZ NOT NULL DEFAULT TIMEZONE('utc', NOW())
+);
+
+COMMENT ON COLUMN public.users.is_sandbox IS
+  'Throwaway sandbox (judge) account. Service-role writes only.';
+COMMENT ON COLUMN public.users.sandbox_expires_at IS
+  'When set, this sandbox must be treated as logged-out after this time.';
+COMMENT ON TABLE public.sandbox_purge_queue IS
+  'Auth user ids queued for storage purge after Auth delete. No FK: the user row is already gone.';
 
 -- Boxes (collections/hierarchical containers)
 CREATE TABLE IF NOT EXISTS public.boxes (
@@ -160,6 +174,9 @@ CREATE INDEX IF NOT EXISTS idx_user_settings_share_token ON public.user_settings
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON public.subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON public.subscriptions(stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON public.subscriptions(stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_users_sandbox_expiry
+  ON public.users (sandbox_expires_at)
+  WHERE is_sandbox = true;
 
 -- Row Level Security (RLS) Policies
 
@@ -176,6 +193,7 @@ ALTER TABLE public.wish_lists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.wish_list_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sandbox_purge_queue ENABLE ROW LEVEL SECURITY;
 
 -- Users policies
 CREATE POLICY "Users can view own profile"
@@ -205,7 +223,14 @@ CREATE POLICY "Users can create own boxes"
 
 CREATE POLICY "Users can update own boxes"
   ON public.boxes FOR UPDATE
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = user_id)
+  WITH CHECK (
+    auth.uid() = user_id
+    AND (
+      is_public = false
+      OR NOT EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.is_sandbox)
+    )
+  );
 
 CREATE POLICY "Users can delete own boxes"
   ON public.boxes FOR DELETE
@@ -384,11 +409,18 @@ CREATE POLICY "Users can view own friendships"
 
 CREATE POLICY "Users can create friendships"
   ON public.friendships FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK (
+    auth.uid() = user_id
+    AND NOT EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.is_sandbox)
+    AND NOT EXISTS (SELECT 1 FROM public.users u WHERE u.id = friend_id AND u.is_sandbox)
+  );
 
 CREATE POLICY "Users can update own friendships"
   ON public.friendships FOR UPDATE
-  USING (auth.uid() = user_id OR auth.uid() = friend_id);
+  USING (
+    (auth.uid() = user_id OR auth.uid() = friend_id)
+    AND NOT EXISTS (SELECT 1 FROM public.users u WHERE u.id = auth.uid() AND u.is_sandbox)
+  );
 
 -- Wish lists policies
 CREATE POLICY "Users can view own wish lists"
@@ -493,6 +525,20 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Sandbox flags are service-role writes only
+CREATE OR REPLACE FUNCTION public.protect_sandbox_columns()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role' THEN
+    NEW.is_sandbox := OLD.is_sandbox;
+    NEW.sandbox_expires_at := OLD.sandbox_expires_at;
+  END IF;
+  RETURN NEW;
+END;
+$$;
 
 -- Atomic box paste: inserts copied boxes, collection items, linked wishlist items, photos, item_tags, and value_history in one transaction.
 DROP FUNCTION IF EXISTS public.paste_box_trees_atomic(UUID, UUID, INTEGER, JSONB, JSONB, JSONB);
@@ -902,6 +948,12 @@ CREATE TRIGGER update_items_updated_at BEFORE UPDATE ON public.items
 
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+DROP TRIGGER IF EXISTS protect_sandbox_columns ON public.users;
+CREATE TRIGGER protect_sandbox_columns
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.protect_sandbox_columns();
 
 CREATE TRIGGER update_wish_lists_updated_at BEFORE UPDATE ON public.wish_lists
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

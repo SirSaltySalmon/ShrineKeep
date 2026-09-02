@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { requireMutableUser } from "@/lib/judge/require-mutable-user"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { flattenBoxCopyTreesForAtomicPaste } from "@/lib/api/copy-expand"
@@ -9,14 +10,9 @@ import { getEffectiveCap, getSubscriptionStatus } from "@/lib/subscription"
 
 export async function POST(_request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await requireMutableUser()
+    if (!session.ok) return session.response
+    const { supabase, user } = session
 
     const tagIdsByName = await ensureDemoTagIds(supabase, user.id)
     const trees = buildDemoBoxCopyPayloads(tagIdsByName)

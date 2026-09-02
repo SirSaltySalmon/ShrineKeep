@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { requireMutableUser } from "@/lib/judge/require-mutable-user"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { TAG_COLORS, type TagColor } from "@/lib/types"
@@ -35,13 +36,9 @@ export async function GET() {
 /** POST: create a tag (enforces 256 limit) */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await requireMutableUser()
+    if (!session.ok) return session.response
+    const { supabase, user } = session
     const body = await request.json()
     const name = typeof body.name === "string" ? body.name.trim() : ""
     const color = typeof body.color === "string" && isValidColor(body.color) ? body.color : "blue"
@@ -79,13 +76,9 @@ export async function POST(request: NextRequest) {
 /** PATCH: update a tag (name and/or color) */
 export async function PATCH(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await requireMutableUser()
+    if (!session.ok) return session.response
+    const { supabase, user } = session
     const body = await request.json()
     const id = typeof body.id === "string" ? body.id : ""
     if (!id) {

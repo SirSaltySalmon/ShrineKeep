@@ -47,7 +47,7 @@ Collection manager web app for tracking items, value, spending, and wishlist pro
 - Cloudflare Turnstile for anti-abuse.
 - PostHog for analytics.
 - Sentry for monitoring.
-- SerpAPI for optional image search.
+- SerpAPI for image search.
 
 ### Main code areas
 
@@ -57,6 +57,7 @@ Collection manager web app for tracking items, value, spending, and wishlist pro
 - `lib/supabase/` server/client/service Supabase setup.
 - `docs/` project-level documentation.
 - Architecture reference: `docs/architecture.md`
+- Design system (token-based, user themes): `docs/DESIGN.md`
 
 ## Tech stack
 

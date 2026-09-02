@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { requireMutableUser } from "@/lib/judge/require-mutable-user"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { deletePhotoRowsAndUnreferencedStorage } from "@/lib/api/photo-storage"
@@ -13,14 +14,9 @@ import { deletePhotoRowsAndUnreferencedStorage } from "@/lib/api/photo-storage"
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await requireMutableUser()
+    if (!session.ok) return session.response
+    const { supabase, user } = session
 
     const { photoId } = (await request.json()) as { photoId: string }
 

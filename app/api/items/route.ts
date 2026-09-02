@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { requireMutableUser } from "@/lib/judge/require-mutable-user"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { createItems } from "@/lib/api/create-item"
@@ -42,15 +43,10 @@ function errorMessage(error: unknown, fallback: string): string {
 export async function POST(request: NextRequest) {
   let userId: string | null = null
   try {
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    userId = user?.id ?? null
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await requireMutableUser()
+    if (!session.ok) return session.response
+    const { supabase, user } = session
+    userId = user.id
 
     const body: ItemCreateRequest = await request.json()
 
@@ -146,15 +142,10 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   let userId: string | null = null
   try {
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    userId = user?.id ?? null
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await requireMutableUser()
+    if (!session.ok) return session.response
+    const { supabase, user } = session
+    userId = user.id
 
     const body = (await request.json()) as ItemPatch
     if (!body.id || typeof body.id !== "string") {

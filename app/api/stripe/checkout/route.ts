@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { getStripePriceId, stripe } from "@/lib/stripe/server"
+import { assertNotSandbox } from "@/lib/judge/sandbox"
 import {
   captureRouteException,
   captureRouteMessage,
@@ -20,6 +21,11 @@ export async function POST() {
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const sandbox = await assertNotSandbox(supabase, user.id)
+    if (!sandbox.ok) {
+      return NextResponse.json({ error: sandbox.error }, { status: sandbox.status })
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL

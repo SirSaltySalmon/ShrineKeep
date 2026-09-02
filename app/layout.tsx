@@ -24,6 +24,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import BoneyardRegistryLoader from "@/components/boneyard-registry-loader"
 import QueryProvider from "@/components/query-provider"
+import { AgentStagingProvider } from "@/lib/agent-staging-context"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
 const geistSans = GeistSans
@@ -84,7 +85,9 @@ export default function RootLayout({
         >
           <QueryProvider>
             <BoneyardRegistryLoader />
-            <Suspense fallback={null}>{children}</Suspense>
+            <AgentStagingProvider>
+              <Suspense fallback={null}>{children}</Suspense>
+            </AgentStagingProvider>
           </QueryProvider>
         </ThemeProvider>
       </body>

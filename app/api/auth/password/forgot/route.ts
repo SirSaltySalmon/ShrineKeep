@@ -2,6 +2,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 import { type AuthEmailResponse, isRateLimitError } from "@/lib/auth-utils"
 import { captureRouteException } from "@/lib/monitoring/sentry"
+import { createSupabaseServiceClient } from "@/lib/supabase/service"
+import { assertNotSandbox } from "@/lib/judge/sandbox"
 
 export async function POST(request: Request): Promise<NextResponse<AuthEmailResponse>> {
   try {
@@ -21,6 +23,31 @@ export async function POST(request: Request): Promise<NextResponse<AuthEmailResp
     }
 
     const supabase = await createSupabaseServerClient()
+    const {
+      data: { user: signedIn },
+    } = await supabase.auth.getUser()
+    if (signedIn) {
+      const sandbox = await assertNotSandbox(supabase, signedIn.id)
+      if (!sandbox.ok) {
+        return NextResponse.json(
+          { ok: false, code: "forbidden", message: sandbox.error },
+          { status: sandbox.status }
+        )
+      }
+    } else {
+      const service = createSupabaseServiceClient()
+      const { data: profile } = await service
+        .from("users")
+        .select("id, is_sandbox")
+        .eq("email", email)
+        .maybeSingle()
+      if (profile?.is_sandbox) {
+        return NextResponse.json(
+          { ok: false, code: "forbidden", message: "Not available on a temporary sandbox account." },
+          { status: 403 }
+        )
+      }
+    }
     const origin =
       request.headers.get("origin") ??
       (typeof request.url === "string" ? new URL(request.url).origin : "")
