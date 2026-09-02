@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { redirectIfSandboxRowExpired } from "@/lib/judge/redirect-if-expired"
 import AppNav from "@/components/app-nav"
 import { CopiedItemProvider } from "@/lib/copied-item-context"
 
@@ -36,9 +37,15 @@ export default async function WishlistLayout({
   }
 
   const [{ data: user }, { data: settings }] = await Promise.all([
-    supabase.from("users").select("name, username").eq("id", authUser.id).single(),
+    supabase
+      .from("users")
+      .select("name, username, is_sandbox, sandbox_expires_at")
+      .eq("id", authUser.id)
+      .single(),
     supabase.from("user_settings").select("use_custom_display_name").eq("user_id", authUser.id).single(),
   ])
+
+  redirectIfSandboxRowExpired(user)
 
   const providerName =
     (authUser.user_metadata?.name as string | undefined) ??
@@ -53,7 +60,7 @@ export default async function WishlistLayout({
 
   return (
     <div className="min-h-screen bg-background">
-      <AppNav name={displayName} />
+      <AppNav name={displayName} sandbox={user?.is_sandbox === true} />
       <CopiedItemProvider>{children}</CopiedItemProvider>
     </div>
   )

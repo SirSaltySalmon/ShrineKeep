@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test"
 
+const hasAuthCredentials = Boolean(process.env.E2E_AUTH_EMAIL && process.env.E2E_AUTH_PASSWORD)
+
 test("landing page renders", async ({ page }) => {
   await page.goto("/landing")
   await expect(page.getByRole("link", { name: "Sign Up" })).toBeVisible()
@@ -15,7 +17,12 @@ test("dashboard redirects unauthenticated users to login", async ({ page }) => {
   await expect(page).toHaveURL(/\/auth\/login/)
 })
 
-const hasAuthCredentials = Boolean(process.env.E2E_AUTH_EMAIL && process.env.E2E_AUTH_PASSWORD)
+test("judge page renders without minting", async ({ page }) => {
+  await page.goto("/judge")
+  await expect(page.getByText("Try ShrineKeep")).toBeVisible()
+  await expect(page.getByRole("button", { name: /enter sandbox/i })).toBeVisible()
+})
+
 
 test("authenticated user can sign in and open dashboard", async ({ page }) => {
   test.skip(!hasAuthCredentials, "E2E auth credentials are required for authenticated smoke tests")

@@ -9,9 +9,10 @@ import { SiteLogo, SITE_LOGO_STROKE_MATCH_LUCIDE } from "@/components/site-logo"
 
 interface AppNavProps {
   name: string | null
+  sandbox?: boolean
 }
 
-export default function AppNav({ name }: AppNavProps) {
+export default function AppNav({ name, sandbox = false }: AppNavProps) {
   const router = useRouter()
 
   const handleLogout = async () => {
@@ -48,6 +49,14 @@ export default function AppNav({ name }: AppNavProps) {
               </Link>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
+              {sandbox ? (
+                <Link
+                  href="/judge"
+                  className="text-fluid-xs text-muted-foreground hover:text-foreground whitespace-nowrap truncate max-w-[160px] sm:max-w-none"
+                >
+                  Temporary account · 24h
+                </Link>
+              ) : null}
               {name && (
                 <span className="text-fluid-sm text-muted-foreground whitespace-nowrap truncate max-w-[120px] sm:max-w-[200px]">{name}</span>
               )}
