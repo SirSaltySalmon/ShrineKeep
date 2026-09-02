@@ -76,12 +76,12 @@ const dashboardPrompts = [
   { title: "Complete the collection in my current box", detail: "Compare the researched list with owned and wishlist cards, then stage missing cards. Choose A: list only; B: research each price; C: research and save evidence in descriptions (recommended for future valuations)." },
   { title: "Update valuations for only the items I selected", detail: "Use ShrineKeep's compact selection context instead of reading every card in the box. Uses item description for additional context." },
   { title: "Update the estimated value of what I own in this box", detail: "Research current resale values and prepare suggested updates. Uses item description for additional context." },
-  { title: "Update valuations of wishlist items in this box", detail: "Stage estimated worth for wishlist cards. Expected purchase prices can be included when they need a correction. Uses item description for additional context." },
+  { title: "Update expected price of wishlist items in this box", detail: "Stage estimated worth for wishlist cards. Expected purchase prices can be included when they need a correction. Uses item description for additional context." },
 ]
 
 const wishlistPrompts = [
-  { title: "Update valuations on my wishlist", detail: "Stage estimated worth for wishlist cards. Expected purchase prices can be included when they need a correction." },
-  { title: "Update only the wishlist items I selected", detail: "Read the compact ShrineKeep selection and leave every unselected card alone." },
+  { title: "Update expected prices of my wishlist", detail: "Stage estimated worth for wishlist cards. Expected purchase prices can be included when they need a correction. Uses item description for additional context." },
+  { title: "Update expected price of only the wishlist items I selected", detail: "Use ShrineKeep's compact selection context instead of reading every card in the box. Uses item description for additional context." },
 ]
 
 function formatActivityTime(timestamp: string) {

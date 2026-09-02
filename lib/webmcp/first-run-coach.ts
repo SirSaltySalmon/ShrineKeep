@@ -147,7 +147,8 @@ export function reduceCoach(state: CoachState, event: CoachEvent): CoachState {
 
 export function initPrompt(collectionName: string): string {
   return [
-    `Set up a new box for my ${collectionName} collection.`,
+    "Via ShrineKeep WebMCP in this browser,",
+    `Set up a new box for my ${collectionName} collection`,
     "Research a real matched set, show it to me in chat, wait for my confirmation,",
     "then call stage_collection_initialization with user_confirmed_match true.",
   ].join("\n")
@@ -155,7 +156,8 @@ export function initPrompt(collectionName: string): string {
 
 export function valuationPrompt(): string {
   return [
-    "Update the estimated value of my owned and wishlist items in this box.",
+    "Via ShrineKeep WebMCP in this browser,",
+    "Update the estimated price of my owned and wishlist items in this box.",
     "Use stage_item_edits for owned items and stage_wishlist_edits for wishlist items.",
     "Set current_value from typical recent secondhand sold prices.",
   ].join("\n")
