@@ -223,6 +223,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
 
           <TabsContent value="personal" className="space-y-6 mt-6 min-w-0">
             <PersonalSettings
+              aiWidgetVisible={initialSettings?.ai_widget_visible ?? true}
               displayName={displayName}
               useCustomDisplayName={useCustomDisplayName}
               providerName={initialProfile.providerName}

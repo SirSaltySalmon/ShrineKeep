@@ -138,6 +138,8 @@ CREATE TABLE IF NOT EXISTS public.user_settings (
   wishlist_apply_colors BOOLEAN DEFAULT false NOT NULL,
   use_custom_display_name BOOLEAN DEFAULT true NOT NULL,
   dashboard_demo_prompt_dismissed BOOLEAN DEFAULT false NOT NULL,
+  ai_widget_visible BOOLEAN DEFAULT true NOT NULL,
+  ai_tutorial_reset_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );

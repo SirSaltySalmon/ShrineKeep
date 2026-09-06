@@ -294,6 +294,9 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
     // Return defaults if no settings exist
     return {
       user_id: userId,
+      ai_widget_visible: true,
+      dashboard_demo_prompt_dismissed: false,
+      ai_tutorial_reset_at: null,
       color_scheme: null,
       header_font_family: "Inter",
       body_font_family: "Inter",

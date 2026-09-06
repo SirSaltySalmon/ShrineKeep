@@ -206,6 +206,9 @@ export function hasAnySearchFilter(f: SearchFiltersState): boolean {
 }
 
 export interface UserSettings {
+  ai_widget_visible?: boolean
+  dashboard_demo_prompt_dismissed?: boolean
+  ai_tutorial_reset_at?: string | null
   user_id: string
   color_scheme?: Theme | null
   /** Heading typography key (e.g. Inter, Playfair Display). */

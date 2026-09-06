@@ -49,7 +49,7 @@ import AgentSuggestionReviewDialog from "@/components/agent-suggestion-review-di
 import WebMcpStatusPanel from "@/components/webmcp-status-panel"
 import AgentStagingInbox from "@/components/agent-staging-inbox"
 import {
-  COACH_STORAGE_KEY,
+  coachStorageKey,
   initialCoachState,
   parseCoachState,
   reduceCoach,
@@ -61,6 +61,8 @@ import { chooseFirstRun, coachToolsSettled } from "@/lib/webmcp/first-run-choose
 const DASHBOARD_DND_CONTEXT_ID = "dashboard-dnd-context"
 
 interface DashboardClientProps {
+  aiWidgetVisible?: boolean
+  tutorialResetAt?: string | null
   user: any
   /** Theme (color_scheme) from user_settings; not used for graph overlay. */
   initialTheme?: Theme | null
@@ -74,7 +76,7 @@ interface DashboardClientProps {
   /** null when Pro (unlimited) */
   itemCap?: number | null
   freeTierCap?: number
-  /** From user_settings — when true, never show the one-time demo offer. */
+  /** Tutorial completed or skipped; can be reset in Personal settings. */
   demoPromptDismissed?: boolean
   initialBoxes?: Box[]
   initialItems?: Item[]
@@ -82,6 +84,8 @@ interface DashboardClientProps {
 }
 
 export default function DashboardClient({
+  aiWidgetVisible = true,
+  tutorialResetAt = null,
   user,
   initialTheme,
   initialGraphOverlay = true,
@@ -253,24 +257,24 @@ export default function DashboardClient({
 
   useEffect(() => {
     const stored = parseCoachState(
-      typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(COACH_STORAGE_KEY),
+      typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(coachStorageKey(tutorialResetAt)),
       user.id
     )
     setCoach(stored)
     setNameDraft(stored.collectionName)
-  }, [user.id])
+  }, [user.id, tutorialResetAt])
 
   const dispatchCoach = useCallback((event: CoachEvent) => {
     setCoach((prev) => {
       const next = reduceCoach(prev, event)
       try {
-        sessionStorage.setItem(COACH_STORAGE_KEY, JSON.stringify(next))
+        sessionStorage.setItem(coachStorageKey(tutorialResetAt), JSON.stringify(next))
       } catch {
         /* ignore */
       }
       return next
     })
-  }, [])
+  }, [tutorialResetAt])
 
   useEffect(() => {
     const started = Date.now()
@@ -557,7 +561,7 @@ export default function DashboardClient({
             <DialogDescription>
               We can add demo boxes, items, tags, photos, and value history so you can explore how
               ShrineKeep works. This adds demo data to your existing library, and you can edit or
-              delete everything later. This tutorial will not show again for this account.
+              delete everything later. You can restart this tutorial in Settings → Personal.
             </DialogDescription>
           </DialogHeader>
           {demoSeedError ? (
@@ -885,6 +889,7 @@ export default function DashboardClient({
         </div>
 
         <WebMcpStatusPanel
+          visible={aiWidgetVisible}
           page="dashboard"
           {...agentSuggestions.webMcp}
           coach={

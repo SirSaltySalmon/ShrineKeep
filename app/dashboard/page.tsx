@@ -19,7 +19,7 @@ export default async function DashboardPage() {
     supabase.from("users").select("*").eq("id", authUser.id).single(),
     supabase
       .from("user_settings")
-      .select("color_scheme, graph_overlay, dashboard_demo_prompt_dismissed")
+      .select("*")
       .eq("user_id", authUser.id)
       .maybeSingle(),
     loadDashboardRootData(supabase, authUser.id),
@@ -37,6 +37,9 @@ export default async function DashboardPage() {
 
   return (
     <DashboardClient
+      key={`${authUser.id}:${settings?.ai_tutorial_reset_at ?? "initial"}`}
+      aiWidgetVisible={settings?.ai_widget_visible ?? true}
+      tutorialResetAt={settings?.ai_tutorial_reset_at ?? null}
       user={user}
       initialTheme={theme}
       initialGraphOverlay={graphOverlay}

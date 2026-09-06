@@ -18,6 +18,7 @@ import AgentStagingInbox from "@/components/agent-staging-inbox"
 import WebMcpStatusPanel from "@/components/webmcp-status-panel"
 
 interface WishlistClientProps {
+  aiWidgetVisible?: boolean
   userId: string
   initialWishlistIsPublic: boolean
   initialWishlistShareToken: string | null
@@ -25,6 +26,7 @@ interface WishlistClientProps {
 }
 
 export default function WishlistClient({
+  aiWidgetVisible = true,
   userId,
   initialWishlistIsPublic,
   initialWishlistShareToken,
@@ -136,7 +138,7 @@ export default function WishlistClient({
         onMouseDown={handleGridMouseDown}
       >
         <h1 className="sr-only">Wishlist</h1>
-        <WebMcpStatusPanel page="wishlist" {...agentSuggestions.webMcp} />
+        <WebMcpStatusPanel page="wishlist" visible={aiWidgetVisible} {...agentSuggestions.webMcp} />
         <ItemGrid
           loading={loading}
           items={items}

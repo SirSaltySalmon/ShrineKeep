@@ -23,6 +23,61 @@ function makePutRequest(body: unknown): Request {
 }
 
 describe("/api/settings", () => {
+  function mockMutableSettings(saveError: unknown = null) {
+    const chain = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { is_sandbox: false }, error: null }),
+      single: vi.fn().mockResolvedValue({ data: { wishlist_share_token: null }, error: null }),
+      upsert: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { user_id: "u1" }, error: saveError }),
+        }),
+      }),
+    }
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1" } } }) },
+      from: vi.fn().mockReturnValue(chain),
+    })
+    return chain
+  }
+
+  it.each([true, false])("saves widget visibility %s only for the authenticated user", async (visible) => {
+    const chain = mockMutableSettings()
+    const response = await PUT(makePutRequest({ ai_widget_visible: visible, user_id: "someone-else" }) as any)
+    expect(response.status).toBe(200)
+    expect(chain.upsert).toHaveBeenCalledWith({ user_id: "u1", ai_widget_visible: visible }, { onConflict: "user_id" })
+  })
+
+  it("restarts the tutorial and restores visibility atomically", async () => {
+    const chain = mockMutableSettings()
+    const response = await PUT(makePutRequest({ restart_ai_tutorial: true, ai_widget_visible: false }) as any)
+    expect(response.status).toBe(200)
+    expect(chain.upsert).toHaveBeenCalledWith({
+      user_id: "u1", ai_widget_visible: true, dashboard_demo_prompt_dismissed: false,
+      ai_tutorial_reset_at: expect.any(String),
+    }, { onConflict: "user_id" })
+    expect(Number.isNaN(Date.parse(chain.upsert.mock.calls[0][0].ai_tutorial_reset_at))).toBe(false)
+  })
+
+  it.each([{ ai_widget_visible: "false" }, { restart_ai_tutorial: 1 }, { ai_widget_visible: null }])("rejects malformed AI preferences %j", async (body) => {
+    const chain = mockMutableSettings()
+    expect((await PUT(makePutRequest(body) as any)).status).toBe(400)
+    expect(chain.upsert).not.toHaveBeenCalled()
+  })
+
+  it("does not report success when a preference save fails", async () => {
+    mockMutableSettings({ message: "Database unavailable" })
+    expect((await PUT(makePutRequest({ ai_widget_visible: false }) as any)).status).toBe(500)
+  })
+
+  it("requires authentication to change AI preferences", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+    })
+    expect((await PUT(makePutRequest({ restart_ai_tutorial: true }) as any)).status).toBe(401)
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
   })

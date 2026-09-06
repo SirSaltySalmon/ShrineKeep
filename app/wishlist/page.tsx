@@ -14,12 +14,13 @@ export default async function WishlistPage() {
 
   const { data: settings } = await supabase
     .from("user_settings")
-    .select("wishlist_is_public, wishlist_share_token, wishlist_apply_colors")
+    .select("*")
     .eq("user_id", user.id)
     .maybeSingle()
 
   return (
     <WishlistClient
+      aiWidgetVisible={settings?.ai_widget_visible ?? true}
       userId={user.id}
       initialWishlistIsPublic={settings?.wishlist_is_public ?? false}
       initialWishlistShareToken={settings?.wishlist_share_token ?? null}

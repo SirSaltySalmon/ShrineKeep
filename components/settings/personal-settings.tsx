@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   NAME_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -74,6 +75,7 @@ function cropImageToSquare(file: File): Promise<File> {
 }
 
 export interface PersonalSettingsProps {
+  aiWidgetVisible?: boolean
   /** Display name stored in public.users (editable). */
   displayName: string
   /** Whether to show custom display name (true) or provider name (false). */
@@ -96,6 +98,7 @@ export interface PersonalSettingsProps {
 }
 
 export function PersonalSettings({
+  aiWidgetVisible = true,
   displayName,
   useCustomDisplayName,
   providerName,
@@ -126,6 +129,31 @@ export function PersonalSettings({
   const router = useRouter()
   const [savingProfile, setSavingProfile] = useState(false)
   const [savedProfile, setSavedProfile] = useState(false)
+  const [widgetVisible, setWidgetVisible] = useState(aiWidgetVisible)
+  const [savingAi, setSavingAi] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [restartOpen, setRestartOpen] = useState(false)
+
+  const saveAiPreferences = async (visible: boolean, restart = false) => {
+    setSavingAi(true)
+    setAiError(null)
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ai_widget_visible: visible, restart_ai_tutorial: restart }),
+      })
+      if (!response.ok) throw new Error("Could not save AI preferences. Please try again.")
+      setWidgetVisible(visible)
+      setRestartOpen(false)
+      if (restart) router.push("/dashboard")
+      router.refresh()
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "Could not save AI preferences.")
+    } finally {
+      setSavingAi(false)
+    }
+  }
 
   const handleSaveProfile = async () => {
     setSavingProfile(true)
@@ -268,6 +296,32 @@ export function PersonalSettings({
 
   return (
     <div className="space-y-6">
+      <div className="space-y-4">
+        <h3 className="text-fluid-lg font-semibold">AI widget and tutorial</h3>
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="ai-widget-visible">Show the “Use AI with ShrineKeep” widget</Label>
+            <p className="text-fluid-sm text-muted-foreground">Show the widget on your Dashboard and Wishlist. An active tutorial stays visible until you finish or skip it.</p>
+          </div>
+          <Switch id="ai-widget-visible" checked={widgetVisible} disabled={savingAi} onCheckedChange={(value) => void saveAiPreferences(value)} />
+        </div>
+        <p className="text-fluid-sm text-muted-foreground">Replay the guided tutorial anytime. Restarting also shows the widget again.</p>
+        <Button type="button" variant="outline" disabled={savingAi} onClick={() => { setAiError(null); setRestartOpen(true) }}>Restart tutorial</Button>
+        {aiError && !restartOpen && <p role="alert" className="text-fluid-sm text-destructive">{aiError}</p>}
+        <Dialog open={restartOpen} onOpenChange={(value) => { if (!savingAi) setRestartOpen(value) }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Restart the AI tutorial?</DialogTitle>
+              <DialogDescription>The tutorial will start from the beginning on your Dashboard, and the AI widget will be visible again. Your existing boxes and items will stay as they are.</DialogDescription>
+            </DialogHeader>
+            {aiError && <p role="alert" className="text-fluid-sm text-destructive">{aiError}</p>}
+            <DialogFooter>
+              <Button variant="outline" disabled={savingAi} onClick={() => setRestartOpen(false)}>Cancel</Button>
+              <Button disabled={savingAi} onClick={() => void saveAiPreferences(true, true)}>{savingAi ? "Saving…" : "Restart tutorial"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
       <div>
         <h3 className="text-fluid-lg font-semibold mb-2">Profile photo</h3>
         {isEmailProvider ? (

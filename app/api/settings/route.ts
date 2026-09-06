@@ -42,6 +42,9 @@ export async function GET(request: NextRequest) {
         wishlist_share_token: null,
         wishlist_apply_colors: false,
         use_custom_display_name: true,
+        ai_widget_visible: true,
+        dashboard_demo_prompt_dismissed: false,
+        ai_tutorial_reset_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -84,6 +87,8 @@ export async function PUT(request: NextRequest) {
       wishlist_apply_colors,
       regenerate_wishlist_token,
       use_custom_display_name,
+      ai_widget_visible,
+      restart_ai_tutorial,
       name: displayName,
       avatar_url: avatarUrl,
     } = body
@@ -108,7 +113,22 @@ export async function PUT(request: NextRequest) {
       wishlist_share_token?: string | null
       wishlist_apply_colors?: boolean
       use_custom_display_name?: boolean
+      ai_widget_visible?: boolean
+      dashboard_demo_prompt_dismissed?: boolean
+      ai_tutorial_reset_at?: string
     } = {}
+
+    for (const value of [ai_widget_visible, restart_ai_tutorial]) {
+      if (value !== undefined && typeof value !== "boolean") {
+        return NextResponse.json({ error: "AI preferences must be booleans" }, { status: 400 })
+      }
+    }
+    if (ai_widget_visible !== undefined) updateData.ai_widget_visible = ai_widget_visible
+    if (restart_ai_tutorial === true) {
+      updateData.dashboard_demo_prompt_dismissed = false
+      updateData.ai_widget_visible = true
+      updateData.ai_tutorial_reset_at = new Date().toISOString()
+    }
 
     if (themePayload !== undefined) {
       updateData.color_scheme = themePayload

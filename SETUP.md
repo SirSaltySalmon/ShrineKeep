@@ -189,6 +189,7 @@ If you want to access your site from the internet, you can use cloud deployment 
 - Make sure you ran the `migration_add_user_settings.sql` script if upgrading
 - Ensure the `user_settings` table exists in your database
 - For **Personal** settings (display name switch), run `supabase/migrations/20250214000000_add_use_custom_display_name.sql` if the column is missing
+- For **Personal → AI widget and tutorial**, run `supabase/migrations/20260906192956_add_ai_widget_preferences.sql` before deploying the UI. It adds the account-wide widget visibility preference (visible by default) and a tutorial restart timestamp. Existing completion flags are preserved. Application status and verification steps are recorded in `docs/ai-widget-preferences.md`.
 
 ### Public wishlist link not working
 - Ensure `user_settings` table exists and has RLS policies enabled
