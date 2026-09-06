@@ -50,5 +50,8 @@ stripe.exe
 .claude/
 .gstack/
 
+# Supabase local CLI state
+/supabase/.temp/
+
 # Sentry Config File
 .env.sentry-build-plugin
