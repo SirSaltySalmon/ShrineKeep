@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { POST } from "./route"
-import { buildApprovedCreatedItems } from "@/lib/webmcp/review"
+import { buildApprovedCreatedItems, switchCreateItemKind } from "@/lib/webmcp/review"
 
 const {
   mockCreateSupabaseServerClient,
@@ -61,17 +61,21 @@ describe("POST /api/items/suggestions/create", () => {
     const evidence = "Blue edition; retail USD 25; checked 2026-09-02. https://shop.example.com/blue"
     const drafts = (["collection", "wishlist"] as const).map((itemKind) => ({
       key: itemKind, name: itemKind, itemKind, description: evidence,
-      currentValue: 20, acquisitionPrice: 25, expectedPrice: 25,
+      currentValue: 20, acquisitionPrice: null, expectedPrice: 25, retailEstimate: 25,
       rationale: "Retail reference", sources: [{ url: "https://shop.example.com/blue" }], existingMatch: null,
     }))
     drafts[0].description += " User-reviewed note."
-    const items = buildApprovedCreatedItems(drafts, new Set(["collection", "wishlist"]), true)
+    const reviewed = drafts.map((draft) => switchCreateItemKind({ ...draft, itemKind: "wishlist" }, draft.itemKind))
+    const items = buildApprovedCreatedItems(reviewed, new Set(["collection", "wishlist"]), true)
     const response = await POST(makeRequest({
       mode: "apply", createNewBox, parentBoxId: "box-1", targetBoxId: "box-1",
       newBoxName: "Collection", attach_price_evidence: true, items,
     }) as any)
     expect(response.status).toBe(200)
     const saved = mockCreateItems.mock.calls[0][0].items
+    expect(saved[0].itemData).toMatchObject({ acquisition_price: 25, expected_price: null })
+    expect(saved[1].itemData).toMatchObject({ acquisition_price: null, expected_price: 25 })
+    expect(saved.every((entry: { itemData: object }) => !("retailEstimate" in entry.itemData))).toBe(true)
     expect(saved.map((entry: { itemData: { description: string } }) => entry.itemData.description))
       .toEqual([`${evidence} User-reviewed note.`, evidence])
     expect(saved[0].itemData.box_id).toBe(createNewBox ? "box-new" : "box-1")

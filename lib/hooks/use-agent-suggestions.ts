@@ -82,6 +82,7 @@ interface WishlistContextItem {
 }
 
 interface CreateCandidate {
+  retailEstimate: number | null
   description: string | null
   name: string
   itemKind: "collection" | "wishlist"
@@ -167,6 +168,7 @@ function createCandidates(
     const currentValue = optionalPrice(raw.current_value)
     const acquisitionPrice = optionalPrice(raw.acquisition_price)
     const expectedPrice = optionalPrice(raw.expected_price)
+    const retailEstimate = optionalPrice(raw.retail_estimate)
     if (status === "wishlist" && acquisitionPrice !== undefined) {
       throw new Error(`Item ${index + 1} is wishlist and cannot include acquisition_price`)
     }
@@ -179,8 +181,9 @@ function createCandidates(
       description,
       itemKind: status === "owned" ? "collection" as const : "wishlist" as const,
       currentValue: currentValue ?? null,
-      acquisitionPrice: acquisitionPrice ?? null,
-      expectedPrice: expectedPrice ?? null,
+      retailEstimate: retailEstimate ?? expectedPrice ?? acquisitionPrice ?? null,
+      acquisitionPrice: status === "owned" ? acquisitionPrice ?? retailEstimate ?? null : null,
+      expectedPrice: status === "wishlist" ? expectedPrice ?? retailEstimate ?? null : null,
       rationale: typeof raw.rationale === "string" ? raw.rationale.trim().slice(0, 300) : "",
       sources: safeSources(raw.source_urls),
     }]
@@ -533,6 +536,7 @@ export function useAgentSuggestions({
                   default: "wishlist",
                   description: creationStatusFieldDescription,
                 },
+                retail_estimate: { type: "number", minimum: 0, description: "Researched retail estimate in USD, shipping excluded. Seeds expected price for Wishlist or editable acquisition estimate for Owned; retained when switching status during review." },
                 description: { type: "string", maxLength: 10_000, description: creationEvidenceDescriptionFieldDescription },
                 current_value: {
                   type: "number",
@@ -627,6 +631,7 @@ export function useAgentSuggestions({
                   default: "wishlist",
                   description: creationStatusFieldDescription,
                 },
+                retail_estimate: { type: "number", minimum: 0, description: "Researched retail estimate in USD, shipping excluded. Seeds expected price for Wishlist or editable acquisition estimate for Owned; retained when switching status during review." },
                 description: { type: "string", maxLength: 10_000, description: creationEvidenceDescriptionFieldDescription },
                 current_value: {
                   type: "number",

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useAgentSuggestions } from "./use-agent-suggestions"
-import { buildApprovedCreatedItems } from "@/lib/webmcp/review"
+import { buildApprovedCreatedItems, persistAgentReviewDraft, switchCreateItemKind } from "@/lib/webmcp/review"
 import type { AgentSuggestionBatch } from "@/lib/webmcp/types"
 
 interface Tool {
@@ -52,6 +52,47 @@ describe("pricing evidence MCP flow", () => {
   afterEach(() => vi.unstubAllGlobals())
 
   for (const name of ["stage_collection_initialization", "stage_items_in_current_box"]) {
+    it.each(["wishlist", "owned"])(`${name}: retains retail research through review persistence from %s`, async (status) => {
+      const requests: Record<string, unknown>[] = []
+      vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
+        const body = JSON.parse(init.body)
+        requests.push(body)
+        return Response.json(body.mode === "preview"
+          ? { items: [{ name: "Item", existingMatch: null }] }
+          : { success: true, itemIds: ["new-1"], boxId: "box-1" })
+      }))
+      render()
+      await harness.tools.get(name)!.execute({
+        user_confirmed_match: true, collection_name: "Collection",
+        items: [{ name: "Item", status, initial_status: status, retail_estimate: 25, current_value: 30 }],
+      })
+      const batch = harness.batches[0]
+      if (batch.kind !== "create_items") throw new Error("Expected creation stage")
+      const owned = { ...switchCreateItemKind(batch.entries[0], "collection"), acquisitionPrice: 18 }
+      const wishlist = switchCreateItemKind(owned, "wishlist")
+      expect(wishlist.expectedPrice).toBe(25)
+      const saved = persistAgentReviewDraft(batch, { selectedKeys: [wishlist.key], entries: [wishlist] })
+      if (saved.kind !== "create_items") throw new Error("Expected creation stage")
+      const reopened = switchCreateItemKind(saved.entries[0], "collection")
+      expect(reopened).toMatchObject({ retailEstimate: 25, acquisitionPrice: 18, currentValue: 30 })
+      await render().applyCreatedItems(buildApprovedCreatedItems([reopened], new Set([reopened.key])), false)
+      expect(requests[1].items).toEqual([{ name: "Item", item_kind: "collection", current_value: 30, acquisition_price: 18, expected_price: null }])
+    })
+
+    it.each([
+      { status: "owned", expected_price: 25 },
+      { status: "wishlist", acquisition_price: 25 },
+    ])(`${name}: retail estimate does not bypass canonical validation: %j`, async (item) => {
+      const fetch = vi.fn()
+      vi.stubGlobal("fetch", fetch)
+      render()
+      await expect(harness.tools.get(name)!.execute({
+        user_confirmed_match: true, collection_name: "Collection",
+        items: [{ name: "Item", initial_status: item.status, ...item, retail_estimate: 25 }],
+      })).rejects.toThrow("cannot include")
+      expect(fetch).not.toHaveBeenCalled()
+    })
+
     it.each(["A", "B", "C"])(`${name}: approval %s survives staging, review and apply`, async (choice) => {
       const requests: Record<string, unknown>[] = []
       vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
