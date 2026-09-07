@@ -26,6 +26,7 @@ const MAX_TAGS_PER_USER = 256
 interface LocalPhoto {
   id?: string
   url: string
+  previewUrl?: string
   storage_path?: string // Storage path for Supabase storage files
   is_thumbnail: boolean
 }
@@ -152,8 +153,17 @@ export default function ItemDialog({
   const [unsavedUploadedPhotos, setUnsavedUploadedPhotos] = useState<Set<string>>(new Set())
   // Use ref to track unsaved uploads for cleanup (avoids stale closure issues)
   const unsavedUploadsRef = useRef<Set<string>>(new Set())
+  const uploadPreviewUrls = useRef<Set<string>>(new Set())
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const baselineRef = useRef<ItemFormSnapshot | null>(null)
+
+  useEffect(() => {
+    const previews = uploadPreviewUrls.current
+    return () => {
+      previews.forEach(url => URL.revokeObjectURL(url))
+      previews.clear()
+    }
+  }, [open])
 
   useEffect(() => {
     if (!isNew) return
@@ -492,30 +502,15 @@ export default function ItemDialog({
         continue
       }
       
-      // For wishlist items, use public URL (accessible via storage policy)
-      // For private items, use signed URL (valid for 1 year)
-      let url: string
-      if (effectiveIsWishlist) {
-        // Wishlist items: use public URL (policy allows public access)
-        const { data: publicUrlData } = supabase.storage.from("item-photos").getPublicUrl(filePath)
-        url = publicUrlData.publicUrl
-      } else {
-        // Private items: use signed URL
-        const { data: signedUrlData } = await supabase.storage
-          .from("item-photos")
-          .createSignedUrl(filePath, 31536000) // 1 year expiration
-        
-        if (signedUrlData?.signedUrl) {
-          url = signedUrlData.signedUrl
-        } else {
-          console.error("Failed to generate signed URL for:", filePath)
-          // Fallback to public URL (shouldn't happen, but just in case)
-          const { data: publicUrlData } = supabase.storage.from("item-photos").getPublicUrl(filePath)
-          url = publicUrlData.publicUrl
-        }
-      }
+      // Persist a canonical object URL, never a long-lived bearer token.
+      // Unsaved objects render from a local preview until a photo reference exists.
+      const { data: publicUrlData } = supabase.storage.from("item-photos").getPublicUrl(filePath)
+      const url = publicUrlData.publicUrl
+      const previewUrl = URL.createObjectURL(file)
+      uploadPreviewUrls.current.add(previewUrl)
       newPhotos.push({ 
         url, 
+        previewUrl,
         storage_path: filePath,
         is_thumbnail: false 
       })
@@ -1041,7 +1036,7 @@ export default function ItemDialog({
                       aria-label="View full screen"
                     >
                       <ThumbnailImage
-                        src={ownerPhotoSource(p)}
+                        src={p.previewUrl ?? ownerPhotoSource(p)}
                         alt={`Image ${i + 1}`}
                         className="object-cover"
                       />
@@ -1196,7 +1191,7 @@ export default function ItemDialog({
       <ImageGalleryCarousel
         open={galleryOpen}
         onOpenChange={setGalleryOpen}
-        images={photos.map((p) => ({ url: ownerPhotoSource(p), alt: name }))}
+        images={photos.map((p) => ({ url: p.previewUrl ?? ownerPhotoSource(p), alt: name }))}
         initialIndex={galleryInitialIndex}
       />
     </>

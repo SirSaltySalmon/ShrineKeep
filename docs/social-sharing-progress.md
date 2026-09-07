@@ -233,3 +233,9 @@ App `.env.local` points at the disposable local stack with social flags false an
 Dashboard item cards, drag cards, saved editor photos and gallery now use `/api/media/photo/:id?image=1`. The owner endpoint reauthorizes before a private/no-store 307; its JSON contract remains compatible. Native images avoid optimizer caching. Raw form URLs stay unchanged. Legacy external-only thumbnails remain a compatibility fallback. Public read-only cards keep their separate delivery path. Also fixed an existing nullable RPC-payload type error in box deletion.
 
 Validation: 18 media unit/HTTP tests pass; repository typecheck passes; scoped ESLint passes with the intentional native-img warning. No browser or clone blob delivery proof yet (clone lacks original blobs). Next: eliminate one-year upload URLs, then T02 details/thumbnails, GC consumer and avatar cutover. Broad RLS and feature gates remain unchanged.
+
+## 2026-09-08 — Upload previews (T05)
+
+New item uploads persist canonical object URLs plus storage paths and use temporary browser blob previews. They no longer mint one-year signed URLs or attempt public-bucket display for wishlist uploads. Preview URLs are excluded by the form snapshot allowlist and revoked on editor close/unmount. Existing saved photos use authorized delivery from the preceding chunk.
+
+Validation: 27 focused media/form tests, typecheck and scoped editor ESLint pass. `media-lifecycle.sql` passed directly against Docker `supabase_db_db-clones` using rollback-only fixtures. Browser upload/gallery checks remain pending. Original clone blobs remain absent; public bucket/RLS cutover, avatar editor and durable GC still pending.
