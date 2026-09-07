@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { POST, PATCH } from "./route"
 import { ItemCapExceededError } from "@/lib/api/item-cap-error"
 import { ItemNotFoundError } from "@/lib/api/patch-item"
@@ -69,6 +69,25 @@ function liveUserClient() {
 }
 
 describe("POST /api/items", () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it("persists explicit Private on creation when rollout is enabled", async () => {
+    vi.stubEnv("SOCIAL_SHARING_EDITS_ENABLED", "true")
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
+    mockGetOwnedBoxIdSet.mockResolvedValue(new Set())
+    mockCreateItems.mockResolvedValue({ itemIds: ["item-1"] })
+    const response = await POST(makeRequest({ name: "Lens", is_wishlist: true, wishlist_is_private: true, photos: [] }) as any)
+    expect(response.status).toBe(200)
+    expect(mockCreateItems.mock.calls[0][0].items[0].itemData.wishlist_is_private).toBe(true)
+  })
+
+  it("does not create when a supplied privacy field is gated off", async () => {
+    vi.stubEnv("SOCIAL_SHARING_EDITS_ENABLED", "false")
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
+    const response = await POST(makeRequest({ name: "Lens", is_wishlist: true, wishlist_is_private: true, photos: [] }) as any)
+    expect(response.status).toBe(503)
+    expect(mockCreateItems).not.toHaveBeenCalled()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -213,6 +232,43 @@ describe("POST /api/items", () => {
 })
 
 describe("PATCH /api/items", () => {
+  it("requires a separate edit to clear Private while moving", async () => {
+    vi.stubEnv("SOCIAL_SHARING_EDITS_ENABLED", "true")
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
+    const response = await PATCH(makeRequest({
+      id: "item-1", wishlist_is_private: false, wishlist_target_box_id: "box-2",
+    }, "PATCH") as any)
+    expect(response.status).toBe(409)
+    expect(mockApplyItemPatch).not.toHaveBeenCalled()
+  })
+  afterEach(() => vi.unstubAllEnvs())
+
+  it.each([true, false])("passes explicit privacy %s when rollout is enabled", async (value) => {
+    vi.stubEnv("SOCIAL_SHARING_EDITS_ENABLED", "true")
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
+    mockGetOwnedBoxIdSet.mockResolvedValue(new Set())
+    mockApplyItemPatch.mockResolvedValue({ itemId: "item-1" })
+    const patch = { id: "item-1", wishlist_is_private: value }
+    const response = await PATCH(makeRequest(patch, "PATCH") as any)
+    expect(response.status).toBe(200)
+    expect(mockApplyItemPatch).toHaveBeenCalledWith(expect.objectContaining({ patch }))
+  })
+
+  it("rejects privacy edits while rollout is disabled", async () => {
+    vi.stubEnv("SOCIAL_SHARING_EDITS_ENABLED", "false")
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
+    const response = await PATCH(makeRequest({ id: "item-1", wishlist_is_private: true }, "PATCH") as any)
+    expect(response.status).toBe(503)
+    expect(mockApplyItemPatch).not.toHaveBeenCalled()
+  })
+
+  it.each([null, "false", 0, {}])("rejects non-boolean privacy %s", async (value) => {
+    vi.stubEnv("SOCIAL_SHARING_EDITS_ENABLED", "true")
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
+    const response = await PATCH(makeRequest({ id: "item-1", wishlist_is_private: value }, "PATCH") as any)
+    expect(response.status).toBe(400)
+    expect(mockApplyItemPatch).not.toHaveBeenCalled()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -267,5 +323,26 @@ describe("PATCH /api/items", () => {
       })
     )
     expect(mockCreateItems).not.toHaveBeenCalled()
+  })
+
+  it("returns an actionable conflict when a wishlist move broadens visibility", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
+    mockGetOwnedBoxIdSet.mockResolvedValue(new Set(["public-box"]))
+    mockApplyItemPatch.mockRejectedValue({
+      code: "P0001",
+      message: "privacy_conflict",
+      details: "Internal database details",
+    })
+
+    const response = await PATCH(makeRequest({
+      id: "item-1", wishlist_target_box_id: "public-box",
+    }, "PATCH") as any)
+
+    expect(response.status).toBe(409)
+    const body = await response.json()
+    expect(body.code).toBe("privacy_conflict")
+    expect(body.error).toContain("visible to more people")
+    expect(JSON.stringify(body)).not.toContain("Internal database details")
+    expect(mockCaptureRouteException).not.toHaveBeenCalled()
   })
 })

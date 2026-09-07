@@ -8,6 +8,7 @@ import { ItemCapExceededError } from "@/lib/api/item-cap-error"
 import { getOwnedBoxIdSet } from "@/lib/api/validate-box-ownership"
 import { captureRouteException } from "@/lib/monitoring/sentry"
 import type { ItemPatch, ItemPhotoOps } from "@/lib/item-patch"
+import { isPrivacyConflictError, PRIVACY_CONFLICT_CODE, PRIVACY_CONFLICT_MESSAGE } from "@/lib/api/privacy-conflict"
 
 interface PhotoData {
   url: string
@@ -27,6 +28,7 @@ interface ItemCreateRequest {
   box_id?: string | null
   wishlist_target_box_id?: string | null
   is_wishlist: boolean
+  wishlist_is_private?: boolean
   photos: PhotoData[]
   tag_ids?: string[]
   value_history?: { value: number; recorded_at: string }[]
@@ -40,6 +42,17 @@ function errorMessage(error: unknown, fallback: string): string {
       : fallback
 }
 
+function validatePrivacyEdit(body: { wishlist_is_private?: unknown }) {
+  if (body.wishlist_is_private === undefined) return null
+  if (typeof body.wishlist_is_private !== "boolean") {
+    return NextResponse.json({ error: "wishlist_is_private must be a boolean" }, { status: 400 })
+  }
+  if (process.env.SOCIAL_SHARING_EDITS_ENABLED !== "true") {
+    return NextResponse.json({ error: "Sharing edits are unavailable" }, { status: 503 })
+  }
+  return null
+}
+
 export async function POST(request: NextRequest) {
   let userId: string | null = null
   try {
@@ -49,6 +62,8 @@ export async function POST(request: NextRequest) {
     userId = user.id
 
     const body: ItemCreateRequest = await request.json()
+    const privacyError = validatePrivacyEdit(body)
+    if (privacyError) return privacyError
 
     if (body.id) {
       return NextResponse.json(
@@ -98,6 +113,7 @@ export async function POST(request: NextRequest) {
       wishlist_target_box_id: wishlistTargetBoxId,
       user_id: user.id,
       is_wishlist: body.is_wishlist,
+      ...(body.wishlist_is_private !== undefined ? { wishlist_is_private: body.wishlist_is_private } : {}),
     }
 
     const tagIds = Array.isArray(body.tag_ids) ? body.tag_ids : []
@@ -148,6 +164,17 @@ export async function PATCH(request: NextRequest) {
     userId = user.id
 
     const body = (await request.json()) as ItemPatch
+    const privacyError = validatePrivacyEdit(body)
+    if (privacyError) return privacyError
+    if (
+      body.wishlist_is_private === false &&
+      (body.box_id !== undefined || body.wishlist_target_box_id !== undefined || body.is_wishlist !== undefined)
+    ) {
+      return NextResponse.json({
+        error: "Save the move first, then change this item's wishlist visibility separately.",
+        code: "privacy_conflict",
+      }, { status: 409 })
+    }
     if (!body.id || typeof body.id !== "string") {
       return NextResponse.json({ error: "id is required" }, { status: 400 })
     }
@@ -196,6 +223,16 @@ export async function PATCH(request: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof ItemNotFoundError) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 })
+    }
+
+    if (isPrivacyConflictError(error)) {
+      return NextResponse.json(
+        {
+          error: PRIVACY_CONFLICT_MESSAGE,
+          code: PRIVACY_CONFLICT_CODE,
+        },
+        { status: 409 }
+      )
     }
 
     const message = errorMessage(error, "Failed to update item")

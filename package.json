@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:db:native": "powershell -NoProfile -ExecutionPolicy Bypass -File supabase/tests/run-native.ps1",
     "check": "npm run test",
     "check:full": "npm run lint && npm run typecheck && npm run test",
     "cap:sync": "cap sync",

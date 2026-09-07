@@ -33,6 +33,18 @@ function snapshot(overrides: Partial<ItemFormSnapshot> = {}): ItemFormSnapshot {
 }
 
 describe("diffItemPatch", () => {
+  it("preserves Private during unrelated edits and permits explicit clearing", () => {
+    const base = snapshot({ wishlist_is_private: true })
+    expect(diffItemPatch(base, snapshot({ wishlist_is_private: true, name: "Lens" }), "item-1"))
+      .toEqual({ id: "item-1", name: "Lens" })
+    expect(diffItemPatch(base, snapshot({ wishlist_is_private: false }), "item-1"))
+      .toEqual({ id: "item-1", wishlist_is_private: false })
+  })
+
+  it("does not clear privacy when an older editor omits it", () => {
+    expect(diffItemPatch(snapshot({ wishlist_is_private: true }), snapshot(), "item-1")).toBeNull()
+    expect(snapshot()).not.toHaveProperty("wishlist_is_private")
+  })
   it("returns null when nothing changed", () => {
     const base = snapshot()
     expect(diffItemPatch(base, snapshot(), "item-1")).toBeNull()

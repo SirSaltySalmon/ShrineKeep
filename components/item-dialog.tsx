@@ -62,6 +62,7 @@ function snapshotFromEditor(args: {
   isWishlist: boolean
   boxId: string | null
   wishlistTargetBoxId: string | null
+  wishlistIsPrivate?: boolean
 }): ItemFormSnapshot {
   const currentValueNum = args.currentValue.trim() === "" ? null : parseFloat(args.currentValue)
   const acquisitionPriceNum = args.acquisitionPrice.trim() === "" ? null : parseFloat(args.acquisitionPrice)
@@ -81,6 +82,7 @@ function snapshotFromEditor(args: {
     box_id: args.isWishlist ? null : args.boxId,
     wishlist_target_box_id: args.isWishlist ? args.wishlistTargetBoxId : null,
     is_wishlist: args.isWishlist,
+    wishlist_is_private: args.wishlistIsPrivate,
     photos: args.photos,
     tag_ids: args.selectedTagIds,
   })
@@ -136,6 +138,8 @@ export default function ItemDialog({
   const [galleryInitialIndex, setGalleryInitialIndex] = useState(0)
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
   const [wishlistTargetBoxId, setWishlistTargetBoxId] = useState<string | null>(null)
+  const [wishlistIsPrivate, setWishlistIsPrivate] = useState<boolean | undefined>(undefined)
+  const privacyEditsEnabled = process.env.NEXT_PUBLIC_SOCIAL_SHARING_EDITS_ENABLED === "true"
   const [wishlistTargetBoxName, setWishlistTargetBoxName] = useState<string | null>(null)
   const [showBoxPicker, setShowBoxPicker] = useState(false)
   const [userTags, setUserTags] = useState<Tag[]>([])
@@ -213,6 +217,7 @@ export default function ItemDialog({
       setPhotos(localPhotos)
       setSelectedTagIds(tagIds)
       setWishlistTargetBoxId(item.wishlist_target_box_id ?? null)
+      setWishlistIsPrivate(item.wishlist_is_private)
       setUnsavedUploadedPhotos(new Set())
       unsavedUploadsRef.current = new Set()
       baselineRef.current = snapshotFromEditor({
@@ -227,6 +232,7 @@ export default function ItemDialog({
         isWishlist: editingIsWishlist,
         boxId,
         wishlistTargetBoxId: item.wishlist_target_box_id ?? null,
+        wishlistIsPrivate: item.wishlist_is_private,
       })
     } else if (isNew) {
       const startWishlistLike = isWishlist || defaultNewItemMode === "wishlist"
@@ -236,6 +242,7 @@ export default function ItemDialog({
       setAcquisitionDate(startWishlistLike ? "" : new Date().toISOString().split("T")[0])
       setAcquisitionPrice("")
       setExpectedPrice("")
+      setWishlistIsPrivate(privacyEditsEnabled ? false : undefined)
       setPhotos([])
       setSelectedTagIds([])
       setWishlistTargetBoxId(
@@ -248,7 +255,7 @@ export default function ItemDialog({
     setShowCreateTag(false)
     setNewTagName("")
     setNewTagColor("blue")
-  }, [item, isNew, open, isWishlist, defaultNewItemMode, boxId])
+  }, [item, isNew, open, isWishlist, defaultNewItemMode, boxId, privacyEditsEnabled])
 
   const handleNewItemModeSwitch = (mode: "collection" | "wishlist") => {
     if (!canSwitchNewItemMode || mode === newItemMode) return
@@ -552,6 +559,7 @@ export default function ItemDialog({
         isWishlist: effectiveIsWishlist,
         boxId,
         wishlistTargetBoxId,
+        wishlistIsPrivate,
       })
 
       let response: Response
@@ -572,6 +580,7 @@ export default function ItemDialog({
             box_id: currentSnapshot.box_id,
             wishlist_target_box_id: currentSnapshot.wishlist_target_box_id,
             is_wishlist: currentSnapshot.is_wishlist,
+            wishlist_is_private: currentSnapshot.wishlist_is_private,
             photos: currentSnapshot.photos.map((p) => ({
               url: p.url,
               storage_path: p.storage_path,
@@ -595,6 +604,7 @@ export default function ItemDialog({
             isWishlist: effectiveIsWishlist,
             boxId,
             wishlistTargetBoxId: item!.wishlist_target_box_id ?? null,
+            wishlistIsPrivate: item!.wishlist_is_private,
           })
         const patch = diffItemPatch(baseline, currentSnapshot, item!.id)
         if (!patch) {
@@ -803,6 +813,26 @@ export default function ItemDialog({
                     </Button>
                   </div>
                 </div>
+                {privacyEditsEnabled && wishlistIsPrivate !== undefined && (
+                  <div className="space-y-2">
+                    <Label htmlFor="item-wishlist-privacy">Wishlist visibility</Label>
+                    <select
+                      id="item-wishlist-privacy"
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      value={wishlistIsPrivate ? "private" : "inherit"}
+                      onChange={(event) => setWishlistIsPrivate(event.target.value === "private")}
+                      disabled={saving}
+                    >
+                      <option value="inherit">Use box wishlist visibility</option>
+                      <option value="private">Private</option>
+                    </select>
+                    <p className="text-sm text-muted-foreground">
+                      {wishlistIsPrivate
+                        ? "Only you can see this wishlist item, even when its box is shared."
+                        : "Uses its box's wishlist audience. Items without a box use the account audience or their preserved visibility after detaching."}
+                    </p>
+                  </div>
+                )}
               </>
             ) : (
               <>

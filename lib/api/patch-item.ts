@@ -23,6 +23,7 @@ const SCALAR_KEYS = [
   "box_id",
   "wishlist_target_box_id",
   "is_wishlist",
+  "wishlist_is_private",
 ] as const
 
 function hasPhotoWork(photos: ItemPhotoOps | undefined): boolean {
@@ -101,7 +102,7 @@ async function applyPhotoOps(
   if (deleteIds.length > 0) {
     const { data: rows, error } = await supabase
       .from("photos")
-      .select("id, storage_path")
+      .select("id, storage_path, asset_id")
       .eq("item_id", itemId)
       .in("id", deleteIds)
 

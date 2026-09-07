@@ -78,4 +78,18 @@ describe("POST /api/items/move", () => {
       "box-9"
     )
   })
+
+  it("maps privacy_conflict to HTTP 409", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+    })
+    mockMoveItems.mockRejectedValue({ code: "P0001", message: "privacy_conflict" })
+
+    const response = await POST(makeRequest({ itemId: "item-1", targetBoxId: "box-2" }) as any)
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({
+      error: "This move would make the wishlist item visible to more people. Keep its current target or choose a box with the same or more restricted visibility.",
+      code: "privacy_conflict",
+    })
+  })
 })

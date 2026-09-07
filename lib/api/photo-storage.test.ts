@@ -78,4 +78,19 @@ describe("deletePhotoRowsAndUnreferencedStorage", () => {
     expect(result.deletedFromStorage).toBe(0)
     expect(result.deletedCount).toBe(1)
   })
+
+  it("does not remove registered assets from storage", async () => {
+    const { supabase, remove, photosDeleteIn } = makeSupabase({
+      remainingRefs: [{ id: "photo-1", storage_path: "user-1/items/a.jpg" }],
+    })
+
+    const result = await deletePhotoRowsAndUnreferencedStorage(supabase, "user-1", [
+      { id: "photo-1", storage_path: "user-1/items/a.jpg", asset_id: "asset-1" },
+    ])
+
+    expect(remove).not.toHaveBeenCalled()
+    expect(photosDeleteIn).toHaveBeenCalledWith("id", ["photo-1"])
+    expect(result.deletedFromStorage).toBe(0)
+    expect(result.deletedCount).toBe(1)
+  })
 })

@@ -135,6 +135,6 @@ describe("persistAgentReviewDraft", () => {
   })
 
   it("defaults first-open selection to skip existing matches", () => {
-    expect([...initialSelectedKeys(batch)]).toEqual(["drop"])
+    expect(Array.from(initialSelectedKeys(batch))).toEqual(["drop"])
   })
 })

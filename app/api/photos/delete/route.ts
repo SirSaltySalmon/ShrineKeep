@@ -5,12 +5,8 @@ import type { NextRequest } from "next/server"
 import { deletePhotoRowsAndUnreferencedStorage } from "@/lib/api/photo-storage"
 
 /**
- * Delete a single photo from database and storage.
- * This endpoint:
- * 1. Verifies the photo exists and belongs to an item owned by the user
- * 2. Deletes the blob from the bucket only if no other photo row still
- *    references that storage_path (shared refs after copy/paste)
- * 3. Deletes the photo record from the database
+ * Delete a single photo. Rows are removed first. Unregistered blobs are
+ * deleted only when unreferenced; registered assets are left for media GC.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     const { data: photo, error: photoError } = await supabase
       .from("photos")
-      .select("id, storage_path, item_id, items!inner(id, user_id)")
+      .select("id, storage_path, asset_id, item_id, items!inner(id, user_id)")
       .eq("id", photoId)
       .single()
 
@@ -42,7 +38,11 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await deletePhotoRowsAndUnreferencedStorage(supabase, user.id, [
-      { id: photo.id, storage_path: photo.storage_path ?? null },
+      {
+        id: photo.id,
+        storage_path: photo.storage_path ?? null,
+        asset_id: "asset_id" in photo ? (photo.asset_id as string | null) : null,
+      },
     ])
 
     return NextResponse.json({
