@@ -34,6 +34,7 @@ try {
     'supabase/migrations/20260907160500_media_lifecycle.sql',
     'supabase/migrations/20260907172603_sharing_box_delete.sql',
     'supabase/migrations/20260907174306_sharing_owner_media_and_ownership.sql',
+    'supabase/migrations/20260907181159_media_gc_worker_leases.sql',
     'supabase/tests/social-foundation.sql',
     'supabase/tests/social-transactions.sql',
     'supabase/tests/public-reads.sql',
@@ -44,6 +45,7 @@ try {
     'supabase/tests/social-receipts.sql',
     'supabase/tests/social-lists.sql',
     'supabase/tests/media-lifecycle.sql',
+    'supabase/tests/media-gc-worker.sql',
     'supabase/tests/box-delete.sql',
     'supabase/tests/owner-media.sql',
     'supabase/tests/box-paste-inheritance.sql'

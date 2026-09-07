@@ -165,6 +165,13 @@ try {
   assert.equal((await observer.query(`SELECT state FROM public.media_assets WHERE id='${mediaAsset}'`)).at(-1), "ready")
   console.log("PASS lease/GC contention: live lease prevents deleting claim")
 
+  const gcAsset = (await observer.query(`SET ROLE service_role; SELECT public.media_register_asset('${mediaOwner}','item-photos','${mediaOwner}/items/two-workers.jpg','image/jpeg',12,'ready') -> 'data' ->> 'assetId'; RESET ROLE`)).at(-1)
+  await observer.query(`INSERT INTO public.media_gc_queue(asset_id) VALUES ('${gcAsset}')`)
+  const secondGcWorker = await contend(`SELECT public.media_claim_gc(4)`, `SELECT public.media_claim_gc(4)`)
+  assert.equal(secondGcWorker.data.assets.length, 0)
+  assert.equal((await observer.query(`SELECT attempt_count FROM public.media_gc_queue WHERE asset_id='${gcAsset}'`)).at(-1), "1")
+  console.log("PASS GC worker contention: one live claim and one attempt")
+
   const deleteTarget = "92000000-0000-4000-8000-000000000010"
   await observer.query(`INSERT INTO public.boxes(id,user_id,name) VALUES ('${deleteTarget}','${uuid(7)}','Delete contention')`)
   const deleteWait = await contend(

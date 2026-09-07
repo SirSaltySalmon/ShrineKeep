@@ -75,7 +75,7 @@ BEGIN
   response := public.media_claim_gc(10);
   PERFORM pg_temp.assert_true(response->'data'->'assets'->0->>'id' = registered_id::text, 'unreferenced asset claimed');
   PERFORM pg_temp.assert_true((SELECT state FROM public.media_assets WHERE id = registered_id) = 'deleting', 'claimed asset is deleting');
-  response := public.media_finalize_gc(registered_id);
+  response := public.media_complete_gc(registered_id, (response->'data'->'assets'->0->>'claimToken')::uuid, true);
   PERFORM pg_temp.assert_true(response->'data'->>'state' = 'deleted', 'GC tombstone');
   PERFORM pg_temp.assert_true(NOT EXISTS (SELECT 1 FROM public.media_gc_queue q WHERE q.asset_id = registered_id), 'queue cleared');
 
@@ -96,7 +96,7 @@ BEGIN
   response := public.media_release_lease(job_id, registered_id);
   response := public.media_claim_gc(10);
   PERFORM pg_temp.assert_true(response->'data'->'assets'->0->>'id' = registered_id::text, 'released lease allows GC');
-  PERFORM pg_temp.assert_true((SELECT public.media_finalize_gc(registered_id)->'data'->>'state') = 'deleted', 'finalize after lease');
+  PERFORM pg_temp.assert_true((SELECT public.media_complete_gc(registered_id, (response->'data'->'assets'->0->>'claimToken')::uuid, true)->'data'->>'state') = 'deleted', 'finalize after lease');
 
   response := public.media_register_asset(owner_id, 'avatars', owner_id::text || '/avatars/v1.jpg', 'image/png', 12, 'pending');
   avatar_id := (response->'data'->>'assetId')::uuid;
