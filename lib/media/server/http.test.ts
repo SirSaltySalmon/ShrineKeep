@@ -104,4 +104,24 @@ describe("owner media HTTP boundaries", () => {
     expect(result.status).toBe(401)
     expect(mocks.service).not.toHaveBeenCalled()
   })
+
+  it("redirects image requests only after owner authorization, without caching", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { ok: true }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: {
+        kind: "external", referenceId: photo, externalUrl: "https://images.example.test/photo.jpg",
+      } }, error: null })
+    const result = await ownerMediaResponse(new NextRequest(`http://localhost/api/media/photo/${photo}?image=1`), "photo", photo)
+    expect(result.status).toBe(307)
+    expect(result.headers.get("location")).toBe("https://images.example.test/photo.jpg")
+    expect(result.headers.get("cache-control")).toContain("no-store")
+    expect(mocks.rpc.mock.calls[1][1].p_actor_id).toBe(owner)
+  })
+
+  it("never redirects a denied image request", async () => {
+    mocks.rpc.mockResolvedValue({ data: { ok: false, error: { code: "not_found" } }, error: null })
+    const result = await ownerMediaResponse(new NextRequest(`http://localhost/api/media/photo/${photo}?image=1`), "photo", photo)
+    expect(result.status).toBe(404)
+    expect(result.headers.get("location")).toBeNull()
+    expect(mocks.signed).not.toHaveBeenCalled()
+  })
 })

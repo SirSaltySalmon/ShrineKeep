@@ -69,7 +69,11 @@ export async function ownerMediaResponse(request: NextRequest, kindValue: string
       },
       "media_authorize_owner_reference",
     )
-    return json(await authorize(kind, referenceId, viewer.data))
+    const result = await authorize(kind, referenceId, viewer.data)
+    if (result.ok && request.nextUrl.searchParams.get("image") === "1") {
+      return new NextResponse(null, { status: 307, headers: { ...headers, Location: result.data.url } })
+    }
+    return json(result)
   } catch {
     return json({ ok: false, error: { code: "temporarily_unavailable", status: 503 } })
   }

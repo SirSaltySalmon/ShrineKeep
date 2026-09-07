@@ -64,7 +64,7 @@ export async function deleteBoxes(
   if (envelope?.ok === true) {
     const payload = record(envelope.data)
     const deletedCount = payload?.deletedCount
-    if (typeof deletedCount !== "number" || !Number.isSafeInteger(deletedCount) || deletedCount < 0) {
+    if (!payload || typeof deletedCount !== "number" || !Number.isSafeInteger(deletedCount) || deletedCount < 0) {
       throw new BoxMutationError("temporarily_unavailable", 503)
     }
     if (mode === "delete-all") {

@@ -7,6 +7,7 @@ import { Selectable, CARD_HOVER_MOTION_CLASS } from "@/components/selectable"
 import { Button } from "@/components/ui/button"
 import { Image as ImageIcon, Check } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
+import { ownerThumbnailSource } from "@/lib/media/presentation"
 
 const VALUE_COLOR_STYLE = { color: "hsl(var(--value-color))" } as const
 const ACQUISITION_COLOR_STYLE = { color: "hsl(var(--acquisition-color))" } as const
@@ -39,15 +40,16 @@ export default function ItemCard({
       ? "min-h-[424px]"
       : "min-h-[450px]"
   const isCollection = variant === "collection"
+  const thumbnailSource = readOnly ? item.thumbnail_url : ownerThumbnailSource(item)
   const secondaryPrice = isCollection ? item.acquisition_price : item.expected_price
   const secondaryLabel = isCollection ? "Acquired for" : "Expected"
 
   const card = (
       <Card className={itemMinHeightClass}>
       <div className="relative w-full h-48 bg-muted rounded-t-lg overflow-hidden">
-        {item.thumbnail_url ? (
+        {thumbnailSource ? (
           <ThumbnailImage
-            src={item.thumbnail_url}
+            src={thumbnailSource}
             alt={item.name}
             className="object-cover"
           />

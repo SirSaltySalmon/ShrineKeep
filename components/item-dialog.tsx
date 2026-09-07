@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Upload, Search as SearchIcon, Trash2, LayoutGrid, Plus, X, Link as LinkIcon } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
+import { ownerPhotoSource } from "@/lib/media/presentation"
 import { ThumbnailBadge, ThumbnailActionButtons } from "./thumbnail-content"
 import ImageSearch from "./image-search"
 import ImageGalleryCarousel from "./image-gallery-carousel"
@@ -1040,7 +1041,7 @@ export default function ItemDialog({
                       aria-label="View full screen"
                     >
                       <ThumbnailImage
-                        src={p.url}
+                        src={ownerPhotoSource(p)}
                         alt={`Image ${i + 1}`}
                         className="object-cover"
                       />
@@ -1195,7 +1196,7 @@ export default function ItemDialog({
       <ImageGalleryCarousel
         open={galleryOpen}
         onOpenChange={setGalleryOpen}
-        images={photos.map((p) => ({ url: p.url, alt: name }))}
+        images={photos.map((p) => ({ url: ownerPhotoSource(p), alt: name }))}
         initialIndex={galleryInitialIndex}
       />
     </>

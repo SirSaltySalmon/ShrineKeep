@@ -1,12 +1,6 @@
 "use client"
 
-import Image from "next/image"
-
-/**
- * Renders a thumbnail: uses next/Image for Supabase storage URLs (optimized),
- * native <img> for external URLs (e.g. from image search) so we don't need to
- * whitelist every host in next.config.js.
- */
+/** Native delivery preserves session cookies and avoids caching private media in the optimizer. */
 export default function ThumbnailImage({
   src,
   alt,
@@ -16,12 +10,6 @@ export default function ThumbnailImage({
   alt: string
   className?: string
 }) {
-  const isSupabase = src.includes("supabase.co")
-
-  if (isSupabase) {
-    return <Image src={src} alt={alt} fill className={className} />
-  }
-
   return (
     <img
       src={src}
