@@ -4,22 +4,18 @@ import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { useCallback } from "react"
 import { Box } from "@/lib/types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatCurrency } from "@/lib/utils"
-import { Package, Pencil, TrendingUp } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Selectable } from "@/components/selectable"
+import { OWNER_CAPABILITIES } from "@/lib/sharing/presentation/capabilities"
+import { presentOwnerBox } from "@/lib/sharing/presentation/adapters"
+import BoxCard from "./box-card"
 
 interface DroppableBoxCardProps {
   box: Box
   onBoxClick: (box: Box, e: React.MouseEvent) => void
   onRename?: (box: Box) => void
   onShowStats?: (box: Box) => void
-  /** When true, show selection ring (focus ring). */
   selected?: boolean
-  /** When true, show lighter ring on hover (selection mode). */
   selectionMode?: boolean
-  /** Register this card's root element for marquee intersection. */
   registerBoxCardRef?: (id: string, el: HTMLDivElement | null) => void
 }
 
@@ -46,8 +42,6 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
     data: { type: "box", box },
   })
 
-  // Same DOM node is both draggable and droppable; disable drop while this card
-  // is the drag source so collision detection does not highlight it over itself.
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: getBoxDropId(box.id),
     data: { type: "box", box },
@@ -69,6 +63,8 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
     [setDropRef, setDragRef, registerBoxCardRef, box.id]
   )
 
+  const presented = presentOwnerBox(box)
+
   return (
     <Selectable
       ref={mergedRef}
@@ -82,65 +78,14 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
       {...attributes}
       {...listeners}
     >
-      <Card className="min-h-[152px]">
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2 min-w-0">
-          <div className="flex items-center space-x-2 layout-shrink-visible">
-            <Package className="h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-muted-foreground" />
-            <CardTitle className="text-fluid-lg min-w-0" title={box.name}>{box.name}</CardTitle>
-          </div>
-          <div className="flex shrink-0 gap-0.5">
-            {onShowStats && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onShowStats(box)
-                }}
-                aria-label="View value and acquisition graphs"
-                title="Value & acquisition graphs"
-              >
-                <TrendingUp className="h-4 w-4" />
-              </Button>
-            )}
-            {onRename && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRename(box)
-                }}
-                aria-label="Rename box"
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-        {box.description && (
-          <CardDescription className="line-clamp-2">
-            {box.description}
-          </CardDescription>
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-1 text-fluid-sm text-muted-foreground layout-shrink-visible">
-          {box.total_value !== undefined && (
-            <div className="truncate">Total Value: {formatCurrency(box.total_value)}</div>
-          )}
-          {box.total_acquisition_cost !== undefined && (
-            <div className="truncate">Acquired: {formatCurrency(box.total_acquisition_cost)}</div>
-          )}
-          {box.item_count !== undefined && (
-            <div className="truncate">{box.item_count} items</div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      <BoxCard
+        box={presented}
+        capabilities={OWNER_CAPABILITIES}
+        frame="embedded"
+        onBoxClick={() => {}}
+        onRename={onRename ? () => onRename(box) : undefined}
+        onShowStats={onShowStats ? () => onShowStats(box) : undefined}
+      />
     </Selectable>
   )
 }

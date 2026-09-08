@@ -6,7 +6,10 @@ import { Skeleton } from "boneyard-js/react"
 import { Button } from "@/components/ui/button"
 import { Plus, Grid3x3 } from "lucide-react"
 import DroppableBoxCard from "./droppable-box-card"
+import BoxCard from "./box-card"
 import { BOX_SKELETON_FIXTURES } from "@/components/boneyard-fixtures"
+import { OWNER_CAPABILITIES, type CollectionCapabilities } from "@/lib/sharing/presentation/capabilities"
+import { presentOwnerBox } from "@/lib/sharing/presentation/adapters"
 import {
   Dialog,
   DialogContent,
@@ -29,11 +32,12 @@ interface BoxGridProps {
   onRename?: (box: Box) => void
   onShowStats?: (box: Box) => void
   /** Called when a box is created. Should reload boxes. */
-  onCreateBox: (name: string, description: string) => Promise<void>
+  onCreateBox?: (name: string, description: string) => Promise<void>
   /** When provided, card shows selection ring when true for that box. */
   isBoxSelected?: (boxId: string) => boolean
   /** Toggle box selection. */
-  toggleBoxSelection: (boxId: string) => void
+  toggleBoxSelection?: (boxId: string) => void
+  capabilities?: CollectionCapabilities
   /** When true, click only toggles selection; when false, click navigates (shift-click still toggles). */
   selectionMode?: boolean
   /** Called when shift-click happens to enable selection mode. */
@@ -52,6 +56,7 @@ export default function BoxGrid({
   onCreateBox,
   isBoxSelected,
   toggleBoxSelection,
+  capabilities = OWNER_CAPABILITIES,
   selectionMode = false,
   onEnterSelectionMode,
   registerBoxCardRef,
@@ -61,19 +66,19 @@ export default function BoxGrid({
   const [newBoxDescription, setNewBoxDescription] = useState("")
 
   const handleBoxCardClick = (box: Box, e: React.MouseEvent) => {
-    if (selectionMode) {
-      toggleBoxSelection(box.id)
+    if (capabilities.canSelect && selectionMode) {
+      toggleBoxSelection?.(box.id)
       return
     }
-    if (e.shiftKey) {
-      toggleBoxSelection(box.id)
+    if (capabilities.canSelect && e.shiftKey) {
+      toggleBoxSelection?.(box.id)
       return
     }
     onBoxClick(box)
   }
 
   const handleCreateBox = async () => {
-    if (!newBoxName.trim()) return
+    if (!newBoxName.trim() || !onCreateBox) return
     await onCreateBox(newBoxName, newBoxDescription)
     setNewBoxName("")
     setNewBoxDescription("")
@@ -129,27 +134,34 @@ export default function BoxGrid({
           <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 shrink-0" />
           Boxes
         </h2>
-        {addButton}
+        {capabilities.canCreate ? addButton : null}
       </div>
       {!loading && boxes.length === 0 ? (
         <div className="min-h-[152px] text-center py-8 text-muted-foreground">
-          Try adding a new box!
+          {capabilities.canCreate ? "Try adding a new box!" : "Nothing is visible here."}
         </div>
       ) : (
         <div className="min-h-[152px] grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {displayedBoxes.map((box, index) => {
-            const fixtureCard = (
+            const presented = presentOwnerBox(box)
+            const fixtureCard = capabilities.canDrag ? (
               <DroppableBoxCard
                 box={box}
                 onBoxClick={() => {}}
                 onRename={() => {}}
                 onShowStats={() => {}}
               />
+            ) : (
+              <BoxCard
+                box={presented}
+                capabilities={capabilities}
+                onBoxClick={() => {}}
+              />
             )
 
             const cardContent = loading ? (
               fixtureCard
-            ) : (
+            ) : capabilities.canDrag ? (
               <DroppableBoxCard
                 box={box}
                 onBoxClick={handleBoxCardClick}
@@ -158,6 +170,16 @@ export default function BoxGrid({
                 selected={isBoxSelected?.(box.id) ?? false}
                 selectionMode={selectionMode}
                 registerBoxCardRef={registerBoxCardRef}
+              />
+            ) : (
+              <BoxCard
+                box={presented}
+                capabilities={capabilities}
+                selected={isBoxSelected?.(box.id) ?? false}
+                selectionMode={selectionMode}
+                onBoxClick={(next, event) => handleBoxCardClick(box, event)}
+                onRename={onRename ? () => onRename(box) : undefined}
+                onShowStats={onShowStats ? () => onShowStats(box) : undefined}
               />
             )
 

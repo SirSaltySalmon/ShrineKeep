@@ -10,7 +10,11 @@ type Direction = "incoming" | "outgoing"
 type BlockEntry = { userId: string; createdAt: string }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const unavailable: OperationResult<never> = { ok: false, error: { code: "temporarily_unavailable", status: 503 } }
+const notFound: OperationResult<never> = { ok: false, error: { code: "not_found", status: 404 } }
 const invalid: OperationResult<never> = { ok: false, error: { code: "invalid_input", status: 400 } }
+const socialPageSize = SHARING_LIMITS.socialPageSize
+const socialOverFetch = socialPageSize + 1
+const socialLastIndex = socialPageSize - 1
 
 function object(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null
@@ -86,7 +90,7 @@ export function createSocialReadCore(rpc: SharingRpc, cursorSecret: string) {
       const first = object(context.data)
       if (first?.ok !== true) return failure(context.data)
       const head = object(first.data)
-      if (!head || !revision(head.revision) || head.viewerCategory !== "owner") return unavailable
+      if (!head || !revision(head.revision) || head.viewerCategory !== "owner") return notFound
       const scope: CursorScope = {
         ownerId: actorId, viewer: { kind: "authenticated", userId: actorId }, viewerCategory: "owner", surface,
         sort: surface === "friends" ? "accepted_at,id:desc" : "created_at,id:desc", search: query,
@@ -107,29 +111,29 @@ export function createSocialReadCore(rpc: SharingRpc, cursorSecret: string) {
       const envelope = object(response.data)
       if (envelope?.ok !== true) return failure(response.data)
       const data = object(envelope.data)
-      if (!data || data.revision !== scope.revision || data.viewerCategory !== "owner" || !Array.isArray(data.rows) || data.rows.length > 21) return unavailable
+      if (!data || data.revision !== scope.revision || data.viewerCategory !== "owner" || !Array.isArray(data.rows) || data.rows.length > socialOverFetch) return notFound
       if (surface === "notifications") {
         if (typeof data.unreadCount !== "number" || !Number.isInteger(data.unreadCount) || data.unreadCount < 0 || data.unreadCount > SOCIAL_DEFAULTS.unreadCountCap ||
-          typeof data.unreadCountCapped !== "boolean") return unavailable
-      } else if ("unreadCount" in data || "unreadCountCapped" in data) return unavailable
+          typeof data.unreadCountCapped !== "boolean") return notFound
+      } else if ("unreadCount" in data || "unreadCountCapped" in data) return notFound
       const rows: Array<{ item: T; key: { value: string; id: string } }> = []
       for (const value of data.rows) {
         const row = object(value)
         const item = parse(row?.item)
         const key = object(row?.key)
-        if (!item || !key || !validKey(key)) return unavailable
+        if (!item || !key || !validKey(key)) return notFound
         const itemId = surface === "friends" ? object(object(row?.item)?.profile)?.id : surface === "requests" ? object(row?.item)?.requestId
           : surface === "blocks" ? object(row?.item)?.userId : object(row?.item)?.id
-        if (itemId !== key.id) return unavailable
+        if (itemId !== key.id) return notFound
         rows.push({ item, key: { value: key.value as string, id: key.id as string } })
       }
-      const entries = rows.slice(0, 20).map(row => row.item)
-      const hasMore = rows.length > 20
-      const page = { entries, hasMore, nextCursor: hasMore ? encodeCursor(scope, rows[19].key, cursorSecret) : null }
+      const entries = rows.slice(0, socialPageSize).map(row => row.item)
+      const hasMore = rows.length > socialPageSize
+      const page = { entries, hasMore, nextCursor: hasMore ? encodeCursor(scope, rows[socialLastIndex].key, cursorSecret) : null }
       return surface === "notifications"
         ? { ok: true, data: { ...page, unreadCount: data.unreadCount as number, unreadCountCapped: data.unreadCountCapped as boolean } }
         : { ok: true, data: page }
-    } catch { return unavailable }
+    } catch { return notFound }
   }
 
   return {

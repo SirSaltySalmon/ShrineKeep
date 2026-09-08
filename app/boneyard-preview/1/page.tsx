@@ -5,6 +5,8 @@ import ItemGrid from "@/components/item-grid"
 import BoxStatsPanel from "@/components/box-stats-panel"
 import ValueGraph from "@/components/value-graph"
 import ItemCard from "@/components/item-card"
+import { OWNER_CAPABILITIES } from "@/lib/sharing/presentation/capabilities"
+import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
 import { Skeleton } from "boneyard-js/react"
 import {
   BOX_SKELETON_FIXTURES,
@@ -66,9 +68,9 @@ export default function BoneyardPreviewPage() {
               animate="shimmer"
               color="hsl(var(--muted))"
               darkColor="hsl(var(--muted))"
-              fixture={<ItemCard item={item} variant="collection" onClick={() => {}} />}
+              fixture={<ItemCard item={presentOwnerItem(item)} variant="collection" capabilities={OWNER_CAPABILITIES} onClick={() => {}} />}
             >
-              <ItemCard item={item} variant="collection" onClick={() => {}} />
+              <ItemCard item={presentOwnerItem(item)} variant="collection" capabilities={OWNER_CAPABILITIES} onClick={() => {}} />
             </Skeleton>
           ))}
         </div>

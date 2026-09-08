@@ -16,6 +16,8 @@ import {
   COLLECTION_ITEM_SKELETON_FIXTURES,
   WISHLIST_ITEM_SKELETON_FIXTURES,
 } from "@/components/boneyard-fixtures"
+import { OWNER_CAPABILITIES, READ_ONLY_CAPABILITIES, type CollectionCapabilities } from "@/lib/sharing/presentation/capabilities"
+import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
 
 const LOADING_ROW_VISIBILITY = ["", "hidden md:block", "hidden lg:block", "hidden xl:block"] as const
 
@@ -63,8 +65,9 @@ interface ItemGridProps {
   onMarkAcquired?: (item: Item) => void
   /** Main wishlist page: ItemDialog stays in locked wishlist mode (no collection toggle). */
   wishlistDialogLocked?: boolean
-  /** Public shared view: no add, dialog, selection/marquee, or paste bar. */
+  /** Public shared view: no add, dialog, selection/marquee, or paste bar. Prefer `capabilities`. */
   readOnly?: boolean
+  capabilities?: CollectionCapabilities
 }
 
 export default function ItemGrid({
@@ -90,7 +93,9 @@ export default function ItemGrid({
   onMarkAcquired,
   wishlistDialogLocked = false,
   readOnly = false,
+  capabilities,
 }: ItemGridProps) {
+  const resolvedCapabilities = capabilities ?? (readOnly ? READ_ONLY_CAPABILITIES : OWNER_CAPABILITIES)
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const internalMarquee = useMarqueeSelection()
 
@@ -103,8 +108,8 @@ export default function ItemGrid({
   const [showItemDialog, setShowItemDialog] = useState(false)
   const [isNewItem, setIsNewItem] = useState(false)
   useEffect(() => {
-    if (!selectionProps && !readOnly) setSelectedIds(new Set())
-  }, [currentBoxId, setSelectedIds, selectionProps, readOnly])
+    if (!selectionProps && resolvedCapabilities.canSelect) setSelectedIds(new Set())
+  }, [currentBoxId, setSelectedIds, selectionProps, resolvedCapabilities.canSelect])
 
   const handleNewItem = () => {
     const atCap =
@@ -123,8 +128,8 @@ export default function ItemGrid({
   }
 
   const handleItemClick = (item: Item, e: React.MouseEvent) => {
-    if (readOnly) return
-    if (selectionMode) {
+    if (!resolvedCapabilities.canEdit && !resolvedCapabilities.canSelect) return
+    if (resolvedCapabilities.canSelect && (selectionMode || e.shiftKey)) {
       setSelectedIds((prev) => {
         const next = new Set(prev)
         if (next.has(item.id)) next.delete(item.id)
@@ -133,15 +138,7 @@ export default function ItemGrid({
       })
       return
     }
-    if (e.shiftKey) {
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        if (next.has(item.id)) next.delete(item.id)
-        else next.add(item.id)
-        return next
-      })
-      return
-    }
+    if (!resolvedCapabilities.canEdit) return
     setSelectedIds(new Set())
     setIsNewItem(false)
     setSelectedItem(item)
@@ -157,7 +154,8 @@ export default function ItemGrid({
     </Button>
   )
 
-  const showAdd = showAddButton && !readOnly
+  const showAdd = showAddButton && resolvedCapabilities.canCreate
+  const showOwnerChrome = resolvedCapabilities.canEdit || resolvedCapabilities.canDelete || resolvedCapabilities.canMove
   const skeletonItems =
     variant === "wishlist"
       ? WISHLIST_ITEM_SKELETON_FIXTURES
@@ -165,6 +163,7 @@ export default function ItemGrid({
   const displayedItems = loading ? skeletonItems.slice(0, 4) : items
   const showUsageStatus =
     variant === "collection" &&
+    resolvedCapabilities.showItemCap &&
     !isPro &&
     itemCap !== null &&
     totalItemCount !== undefined
@@ -195,18 +194,20 @@ export default function ItemGrid({
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
           {displayedItems.map((item, index) => {
+            const presented = presentOwnerItem(item)
             const fixtureCard = (
               <ItemCard
-                item={item}
+                item={presented}
                 variant={variant}
+                capabilities={resolvedCapabilities}
                 onClick={() => {}}
-                onMarkAcquired={variant === "wishlist" ? () => {} : undefined}
+                onMarkAcquired={variant === "wishlist" && resolvedCapabilities.canAcquire ? () => {} : undefined}
               />
             )
 
             const cardContent = loading ? (
               fixtureCard
-            ) : variant === "collection" ? (
+            ) : variant === "collection" && resolvedCapabilities.canDrag ? (
               <DraggableItemCard
                 item={item}
                 selected={selectedIds.has(item.id)}
@@ -216,17 +217,17 @@ export default function ItemGrid({
               />
             ) : (
               <div
-                ref={readOnly ? undefined : (el) => registerCardRef(item.id, el)}
+                ref={resolvedCapabilities.canSelect ? (el) => registerCardRef(item.id, el) : undefined}
                 data-item-id={item.id}
               >
                 <ItemCard
-                  item={item}
-                  variant="wishlist"
-                  selected={readOnly ? false : selectedIds.has(item.id)}
-                  selectionMode={readOnly ? false : (selectionMode ?? false)}
-                  onClick={handleItemClick}
-                  onMarkAcquired={readOnly ? undefined : onMarkAcquired}
-                  readOnly={readOnly}
+                  item={presented}
+                  variant={variant}
+                  capabilities={resolvedCapabilities}
+                  selected={resolvedCapabilities.canSelect && selectedIds.has(item.id)}
+                  selectionMode={resolvedCapabilities.canSelect && (selectionMode ?? false)}
+                  onClick={(_, event) => handleItemClick(item, event)}
+                  onMarkAcquired={resolvedCapabilities.canAcquire && onMarkAcquired ? () => onMarkAcquired(item) : undefined}
                 />
               </div>
             )
@@ -286,11 +287,11 @@ export default function ItemGrid({
           </div>
         )}
       </div>
-      {!loading && !selectionProps && !readOnly && <MarqueeOverlay />}
+      {!loading && !selectionProps && resolvedCapabilities.canSelect && <MarqueeOverlay />}
       {variant === "collection" &&
         !loading &&
         !selectionProps &&
-        !readOnly &&
+        showOwnerChrome &&
         (selectedItems.length > 0 ||
           !!copiedItemRefs?.itemIds?.length ||
           !!copiedBoxRefs?.rootBoxIds?.length) && (
@@ -302,7 +303,7 @@ export default function ItemGrid({
           onClearSelection={() => setSelectedIds(new Set())}
         />
       )}
-      {!loading && !readOnly && (
+      {!loading && resolvedCapabilities.canEdit && (
         <ItemDialog
           open={showItemDialog}
           onOpenChange={setShowItemDialog}

@@ -5,18 +5,27 @@ import { THEME_COLOR_KEYS } from "@/lib/theme-colors"
 import { type Theme } from "@/lib/types"
 import { decodeCursor, encodeCursor, type CursorScope } from "./cursor"
 
-/** Server-only dependency boundary. Supply the service client; never a browser client. */
+/** Server-only RPC transport. Supply the service client; never a browser client. */
 export type SharingRpc = (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>
+/** Signs a permitted photo/avatar reference into a short-lived PublicMedia URL. */
 export type PublicMediaResolver = (kind: "photo" | "avatar", referenceId: string, viewer: PublishedViewer) => Promise<OperationResult<PublicMedia>>
 type Surface = "boxes" | "items" | "wishlist"
 type Context = { revision: string; viewerCategory: CursorScope["viewerCategory"]; profile: PublicProfile; avatarReferenceId: string | null }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** Share-link token alphabet and length accepted by `sharing_resolve_wishlist_token`. */
 const tokenShape = /^[A-Za-z0-9_-]{8,128}$/
+const publicPageSize = SHARING_LIMITS.publicPageSize
+const detailPageSize = SHARING_LIMITS.detailPageSize
+const publicOverFetch = publicPageSize + 1
+const publicLastIndex = publicPageSize - 1
+const detailOverFetch = detailPageSize + 1
+const detailLastIndex = detailPageSize - 1
 const hsl = /^-?\d+(?:\.\d+)?(?:\s+-?\d+(?:\.\d+)?%){2}$/
 const fonts = new Set<string>(FONT_OPTIONS.map(option => option.value))
 const radii = new Set(["0", "0.25rem", "0.5rem", "0.75rem"])
 const themeKeys = new Set<string>(THEME_COLOR_KEYS)
 const unavailable: OperationResult<never> = { ok: false, error: { code: "temporarily_unavailable", status: 503 } }
+const notFound: OperationResult<never> = { ok: false, error: { code: "not_found", status: 404 } }
 const invalid: OperationResult<never> = { ok: false, error: { code: "invalid_input", status: 400 } }
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -151,7 +160,7 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
     const envelope = object(response.data)
     if (envelope?.ok !== true) return failure(response.data)
     const data = parseContext(envelope.data)
-    return data && data.profile.id.toLowerCase() === ownerId.toLowerCase() ? { ok: true, data } : unavailable
+    return data && data.profile.id.toLowerCase() === ownerId.toLowerCase() ? { ok: true, data } : notFound
   }
 
   async function page<T>(ownerId: string, viewer: PublishedViewer, surface: Surface, parentId: string | undefined, cursor: string | undefined, parse: (value: unknown) => T | null): Promise<OperationResult<CursorPage<T>>> {
@@ -174,17 +183,17 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
       const envelope = object(response.data)
       if (envelope?.ok !== true) return failure(response.data)
       const data = object(envelope.data)
-      if (!data || data.revision !== scope.revision || data.viewerCategory !== scope.viewerCategory || !Array.isArray(data.rows) || data.rows.length > 21) return unavailable
+      if (!data || data.revision !== scope.revision || data.viewerCategory !== scope.viewerCategory || !Array.isArray(data.rows) || data.rows.length > publicOverFetch) return notFound
       const sourceRows = data.rows
       const rows: Array<{ item: T; key: { value: string | number | null; id: string } }> = []
       for (const value of sourceRows) {
         const row = object(value)
         const item = parse(row?.item)
         const key = object(row?.key)
-        if (!item || !key || !validKey(key, surface) || object(row?.item)?.id !== key.id) return unavailable
+        if (!item || !key || !validKey(key, surface) || object(row?.item)?.id !== key.id) return notFound
         rows.push({ item, key: { value: key.value as string | number, id: key.id as string } })
       }
-      const entries = rows.slice(0, 20).map(row => row.item)
+      const entries = rows.slice(0, publicPageSize).map(row => row.item)
       // Authorize only displayed rows, never the internal lookahead. Keep signing bounded.
       if (surface !== "boxes") {
         for (let offset = 0; offset < entries.length; offset += 4) {
@@ -194,9 +203,9 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
           }))
         }
       }
-      const hasMore = rows.length > 20
-      return { ok: true, data: { entries, hasMore, nextCursor: hasMore ? encodeCursor(scope, rows[19].key, cursorSecret) : null } }
-    } catch { return unavailable }
+      const hasMore = rows.length > publicPageSize
+      return { ok: true, data: { entries, hasMore, nextCursor: hasMore ? encodeCursor(scope, rows[publicLastIndex].key, cursorSecret) : null } }
+    } catch { return notFound }
   }
 
   async function detail<T extends PublicCollectionItem | PublicWishlistItem>(ownerId: string, viewer: PublishedViewer, itemId: string,
@@ -223,24 +232,24 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
       const data = object(envelope.data)
       const item = parse(data?.item)
       if (!data || !item || item.id.toLowerCase() !== itemId.toLowerCase() || data.revision !== current.data.revision
-        || data.viewerCategory !== current.data.viewerCategory || !Array.isArray(data.photos) || data.photos.length > 21
-        || data.tags !== undefined) return unavailable
+        || data.viewerCategory !== current.data.viewerCategory || !Array.isArray(data.photos) || data.photos.length > detailOverFetch
+        || data.tags !== undefined) return notFound
       const photoRows = data.photos.map(value => {
         const row = object(value); const key = object(row?.key)
         if (!row || !identity(row.referenceId) || !key || !validDetailKey(key) || key.id !== row.referenceId) throw new Error("Invalid photo")
         return { referenceId: row.referenceId, key: { id: key.id as string, value: key.value as string } }
       })
       const photos: PublicMedia[] = []
-      for (let offset = 0; offset < Math.min(photoRows.length, 20); offset += 4) {
-        const batch = await Promise.all(photoRows.slice(offset, Math.min(offset + 4, 20)).map(row => resolveMedia("photo", row.referenceId, viewer)))
+      for (let offset = 0; offset < Math.min(photoRows.length, detailPageSize); offset += 4) {
+        const batch = await Promise.all(photoRows.slice(offset, Math.min(offset + 4, detailPageSize)).map(row => resolveMedia("photo", row.referenceId, viewer)))
         photos.push(...batch.filter((entry): entry is PublicMedia => entry !== null))
       }
       const thumbnailReferenceId = object(data.item)?.thumbnailReferenceId
       item.thumbnail = photos.find(entry => entry.referenceId === thumbnailReferenceId) ?? await resolveMedia("photo", thumbnailReferenceId, viewer)
       return { ok: true, data: { item,
-        photos: { entries: photos, hasMore: photoRows.length > 20, nextCursor: photoRows.length > 20 ? encodeCursor(scope, photoRows[19].key, cursorSecret) : null },
+        photos: { entries: photos, hasMore: photoRows.length > detailPageSize, nextCursor: photoRows.length > detailPageSize ? encodeCursor(scope, photoRows[detailLastIndex].key, cursorSecret) : null },
       } }
-    } catch { return unavailable }
+    } catch { return notFound }
   }
 
   return {
@@ -250,7 +259,7 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
         if (!result.ok) return result
         result.data.profile.avatar = await resolveMedia("avatar", result.data.avatarReferenceId, viewer)
         return { ok: true, data: result.data.profile }
-      } catch { return unavailable }
+      } catch { return notFound }
     },
     boxes: (ownerId, viewer, request) => page(ownerId, viewer, "boxes", request.parentId, request.cursor, parseBox),
     collectionItems: (ownerId, viewer, request) => page(ownerId, viewer, "items", request.boxId, request.cursor, parseCollection),
@@ -266,9 +275,9 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
         const envelope = object(response.data)
         if (envelope?.ok !== true) return failure(response.data)
         const ownerId = object(envelope.data)?.ownerId
-        if (!identity(ownerId)) return unavailable
+        if (!identity(ownerId)) return notFound
         return page(ownerId, viewer, "wishlist", undefined, request.cursor, parseWishlist)
-      } catch { return unavailable }
+      } catch { return notFound }
     },
     async stats(ownerId, viewer, request) {
       try {
@@ -285,8 +294,8 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
         const envelope = object(response.data)
         if (envelope?.ok !== true) return failure(response.data)
         const data = parseStats(envelope.data)
-        return data ? { ok: true, data } : unavailable
-      } catch { return unavailable }
+        return data ? { ok: true, data } : notFound
+      } catch { return notFound }
     },
   }
 }

@@ -21,6 +21,8 @@ import ItemCard from "@/components/item-card"
 import ItemDialog from "@/components/item-dialog"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
+import { OWNER_CAPABILITIES } from "@/lib/sharing/presentation/capabilities"
+import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ArrowLeft, ChevronLeft, ChevronRight, Filter, X } from "lucide-react"
@@ -402,15 +404,17 @@ export default function SearchResultsClient({
               }
               fixture={
                 <ItemCard
-                  item={item}
+                  item={presentOwnerItem(item)}
                   variant="collection"
+                  capabilities={OWNER_CAPABILITIES}
                   onClick={() => {}}
                 />
               }
             >
               <ItemCard
-                item={item}
+                item={presentOwnerItem(item)}
                 variant="collection"
+                capabilities={OWNER_CAPABILITIES}
                 onClick={() => {}}
               />
             </Skeleton>
@@ -424,10 +428,11 @@ export default function SearchResultsClient({
             {paginatedItems.map((item) => (
               <ItemCard
                 key={item.id}
-                item={item}
+                item={presentOwnerItem(item)}
                 variant="collection"
+                capabilities={OWNER_CAPABILITIES}
                 selected={selectedIds.has(item.id)}
-                onClick={handleItemClick}
+                onClick={(_, event) => handleItemClick(item, event)}
               />
             ))}
           </div>

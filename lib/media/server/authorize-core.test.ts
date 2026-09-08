@@ -48,7 +48,7 @@ describe("media authorize adapter", () => {
       error: null,
     })
     expect(await createMediaAuthorizeCore(rpc, vi.fn())("photo", photo, { kind: "guest" })).toEqual({
-      ok: false, error: { code: "temporarily_unavailable", status: 503 },
+      ok: false, error: { code: "not_found", status: 404 },
     })
   })
 
@@ -59,7 +59,7 @@ describe("media authorize adapter", () => {
     })
     const sign = vi.fn()
     expect(await createMediaAuthorizeCore(rpc, sign)("photo", photo, { kind: "guest" })).toEqual({
-      ok: false, error: { code: "temporarily_unavailable", status: 503 },
+      ok: false, error: { code: "not_found", status: 404 },
     })
     expect(sign).not.toHaveBeenCalled()
   })

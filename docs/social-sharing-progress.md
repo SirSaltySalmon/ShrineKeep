@@ -214,6 +214,8 @@ legacy `/api/wishlist/[token]` JSON route is deleted. Client pagination uses `/a
 - Sharing preview and save at `GET/PUT /api/boxes/[boxId]/sharing`, revision- and count-checked.
 - Social mutations, lists, and inbox under `/api/social/*`, transactional, with rate limits and idempotent receipts.
 - Public media signing at `/api/public/media/[kind]/[referenceId]`.
+- Shared presentation adapters in `lib/sharing/presentation/`. Owner grids and the token wishlist render through
+`presentOwner*` / `presentPublic*` plus `CollectionCapabilities`.
 - Nineteen social migrations of predicates, invariants, triggers, and service-only RPCs, with SQL tests that pass
 on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest: `20260908150000_audience_ceiling.sql`.
 - A fenced GC worker with proven Storage retry behaviour: `node --env-file=.env.local supabase/tests/media-gc-storage.mjs`.
@@ -246,24 +248,17 @@ were never created. Deferred by decision, so this is expected — but see the na
 ### What does not exist
 
 `app/social/*`, `app/users/[userId]/*`, `components/social/*`, `components/public-profile/*`,
-`lib/copy/*`, `supabase/functions/copy-worker/*`, and anything in `lib/sharing/presentation/` beyond
-`capabilities.ts`. T08 through T12 are unstarted as UI.
+`lib/copy/*`, `supabase/functions/copy-worker/*`. T09 through T12 UI besides the shared presentation
+extract in `lib/sharing/presentation/` and the token wishlist cards.
 
 ### Open defects, recorded so they are not rediscovered
 
 1. **Two permission models still run at once**, which plan §13.3 forbids. `is_public` and `wishlist_is_public`
   remain live columns written by settings and some box/item paths; the new audience columns are authoritative
    in the RPCs. They can still drift on a settings save. The legacy `/api/wishlist/[token]` JSON route is gone.
-2. `CopyJobState` **in** `lib/sharing/contracts.ts:163` **contradicts its own migration.** TypeScript says
-  `running | retry_wait`; the check constraint at `20260907160500_media_lifecycle.sql:34` and the plan both
-   say `planning | copying | finalizing`. The first insert a worker attempts would fail.
-3. `SHARING_LIMITS` **page sizes are hardcoded at call sites.** `read-core.ts` imports the constant and uses
-  `maxChartPoints`, but still uses the literals 20, 21, and 19 for paging. W3 replaces those together.
-4. **Adapter failures return 503, not 404.** A parse or signing failure after a successful RPC distinguishes
-  "exists but broke" from "not found", against plan §9.3.
-5. **Two storage leaks.** `lib/api/patch-item.ts:115-127` updates a photo's `storage_path` in place and
+2. **Two storage leaks.** `lib/api/patch-item.ts:115-127` updates a photo's `storage_path` in place and
   abandons the old blob; `app/api/users/me/avatar/route.ts` DELETE clears `users.avatar_url` and leaves
-   `public_profiles.avatar_asset_id` dangling.    An earlier revision of this list counted box delete in
+   `public_profiles.avatar_asset_id` dangling. An earlier revision of this list counted box delete in
    move-up mode as a third leak because `lib/api/delete-box.ts` skips the cleanup helper unless mode is
    `delete-all`. That is correct behaviour, not a leak: in that mode the items and their photo rows all
    survive the delete, so there is nothing unreferenced to collect.
@@ -720,11 +715,11 @@ backfill of existing rows reported zero remaining storage paths without `asset_i
 
 ### Done when
 
-- [ ] `CopyJobState` matches `20260907160500_media_lifecycle.sql:34`.
-- [ ] No page size literal appears outside `SHARING_LIMITS`, including the over-fetch sentinel and the
+- [x] `CopyJobState` matches `20260907160500_media_lifecycle.sql:34`.
+- [x] No page size literal appears outside `SHARING_LIMITS`, including the over-fetch sentinel and the
   last-index expression. Changing `publicPageSize` to a different number and re-running the read tests
   produces correct paging with no edit anywhere else.
-- [ ] Every term in the "not defined in the plan" list has a definition at its declaration.
+- [x] Every term in the "not defined in the plan" list has a definition at its declaration.
 - [ ] `npm run check:full` passes.
 
 ---
@@ -804,10 +799,10 @@ drag handler, and must not mount owner data hooks, AI agent context, WebMCP tool
 
 ### Done when
 
-- [ ] Owner Dashboard and Wishlist behave exactly as before, verified by their existing tests.
-- [ ] The same card, detail, and stats components render from public fixtures with read-only affordances.
-- [ ] Public mode renders with no hidden or owner-only field present in its props.
-- [ ] Keyboard, touch, and theme behaviour is covered by tests.
+- [x] Owner Dashboard and Wishlist behave exactly as before, verified by their existing tests.
+- [x] The same card, detail, and stats components render from public fixtures with read-only affordances.
+- [x] Public mode renders with no hidden or owner-only field present in its props.
+- [x] Keyboard, touch, and theme behaviour is covered by tests.
 
 ---
 

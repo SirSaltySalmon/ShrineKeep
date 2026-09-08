@@ -2,13 +2,12 @@
 
 import { useLayoutEffect, useState } from "react"
 import Link from "next/link"
-import { Image as ImageIcon, Sparkle } from "lucide-react"
+import { Sparkle } from "lucide-react"
 import { SiteLogo } from "@/components/site-logo"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CARD_HOVER_MOTION_CLASS } from "@/components/selectable"
-import ThumbnailImage from "@/components/thumbnail-image"
-import { READ_ONLY_CAPABILITIES } from "@/lib/sharing/presentation/capabilities"
+import ItemCard from "@/components/item-card"
+import { READ_ONLY_CAPABILITIES, assertPublicCapabilities } from "@/lib/sharing/presentation/capabilities"
+import { presentPublicWishlistItem } from "@/lib/sharing/presentation/adapters"
 import type { CursorPage, PublicStyle, PublicWishlistItem } from "@/lib/sharing/contracts"
 import { applyColorScheme } from "@/lib/settings"
 import {
@@ -17,9 +16,6 @@ import {
   DEFAULT_HEADER_FONT_FAMILY,
   type FontFamilyId,
 } from "@/lib/fonts"
-import { cn, formatCurrency } from "@/lib/utils"
-
-const VALUE_COLOR_STYLE = { color: "hsl(var(--acquisition-color))" } as const
 
 function fontStackForKey(key: string | null | undefined): string | undefined {
   if (!key) return undefined
@@ -44,13 +40,12 @@ export default function PublicWishlistClient({
   sharedStyle,
 }: PublicWishlistClientProps) {
   const capabilities = READ_ONLY_CAPABILITIES
-  const canMutate = capabilities.canEdit || capabilities.canDelete || capabilities.canMove
-    || capabilities.canDrag || capabilities.canAcquire || capabilities.canCopyToOwnDashboard
+  assertPublicCapabilities(capabilities)
   const [items, setItems] = useState(initialItems)
   const [nextCursor, setNextCursor] = useState(initialCursor)
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [loadingMore, setLoadingMore] = useState(false)
-  if (canMutate) throw new Error("public token wishlist must stay read-only")
+  if (capabilities.canCopyToOwnDashboard) throw new Error("public token wishlist must stay read-only")
 
   useLayoutEffect(() => {
     const root = document.documentElement
@@ -137,39 +132,12 @@ export default function PublicWishlistClient({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
               {items.map(item => (
-                <div key={item.id} className={cn(CARD_HOVER_MOTION_CLASS, "cursor-default")}>
-                  <Card className="min-h-[450px]">
-                    <div className="relative w-full h-48 bg-muted rounded-t-lg overflow-hidden">
-                      {item.thumbnail?.url ? (
-                        <ThumbnailImage src={item.thumbnail.url} alt={item.name} className="object-cover" />
-                      ) : (
-                        <div className="flex items-center justify-center h-full">
-                          <ImageIcon className="h-12 w-12 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-                    <CardHeader>
-                      <CardTitle className="text-fluid-lg">{item.name}</CardTitle>
-                      {item.description ? (
-                        <CardDescription className="line-clamp-2">{item.description}</CardDescription>
-                      ) : null}
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-1 text-fluid-sm layout-shrink-visible">
-                        {item.expectedPrice !== null && item.expectedPrice !== undefined ? (
-                          <div className="truncate" style={VALUE_COLOR_STYLE}>
-                            Expected: {formatCurrency(item.expectedPrice)}
-                          </div>
-                        ) : null}
-                        {item.visibleTarget ? (
-                          <div className="text-muted-foreground text-fluid-xs truncate">
-                            For {item.visibleTarget.name}
-                          </div>
-                        ) : null}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                <ItemCard
+                  key={item.id}
+                  item={presentPublicWishlistItem(item)}
+                  variant="wishlist"
+                  capabilities={capabilities}
+                />
               ))}
             </div>
           )}

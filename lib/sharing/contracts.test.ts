@@ -55,7 +55,12 @@ describe("identity and presentation contracts", () => {
   })
 
   it("public copy affordance cannot enable owner mutations", () => {
-    expect(publishedCapabilities(true)).toEqual({ ...READ_ONLY_CAPABILITIES, canCopyToOwnDashboard: true })
+    expect(publishedCapabilities(true)).toEqual({
+      ...READ_ONLY_CAPABILITIES,
+      canCopyToOwnDashboard: true,
+      canShowStats: true,
+      canOpenDetail: true,
+    })
     expect(Object.values(READ_ONLY_CAPABILITIES).every(value => value === false)).toBe(true)
   })
 
