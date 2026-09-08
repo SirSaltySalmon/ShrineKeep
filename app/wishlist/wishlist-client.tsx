@@ -7,7 +7,6 @@ import { normalizeItem } from "@/lib/utils"
 import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
 import { SelectionModeToggle } from "@/components/selection-mode-toggle"
 import { WishlistSharingPanel } from "@/components/wishlist-sharing-panel"
-import { ContainerAudienceFields } from "@/components/sharing/container-audience-fields"
 import { PRIVATE_SHARING_DEFAULTS, type SharingSettings } from "@/lib/sharing/contracts"
 import ItemGrid from "@/components/item-grid"
 import { SelectionActionBar } from "@/components/selection-action-bar"
@@ -227,15 +226,7 @@ export default function WishlistClient({
 
         {!loading && (
           <div className="mt-8 w-full flex justify-center">
-            <div className="mt-8 w-full max-w-2xl mx-auto space-y-6">
-              <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm p-4 sm:p-5">
-                <ContainerAudienceFields
-                  containerLabel="Items not in a box"
-                  value={root}
-                  onChange={setRoot}
-                  idPrefix="root"
-                />
-              </div>
+            <div className="mt-8 w-full max-w-2xl mx-auto">
               <WishlistSharingPanel
                 layout="card"
                 wishlistLinkEnabled={wishlistLinkEnabled}

@@ -49,6 +49,7 @@ import AgentSuggestionReviewDialog from "@/components/agent-suggestion-review-di
 import WebMcpStatusPanel from "@/components/webmcp-status-panel"
 import AgentStagingInbox from "@/components/agent-staging-inbox"
 import { type DashboardOwnerSharing } from "@/lib/sharing/box-editor"
+import { RootAudiencePanel } from "@/components/sharing/root-audience-panel"
 import {
   coachStorageKey,
   initialCoachState,
@@ -877,6 +878,13 @@ export default function DashboardClient({
               )}
             </div>
           </>
+        )}
+
+        {!loading && currentBoxId == null && ownerSharing?.available && (
+          <RootAudiencePanel
+            ownerSharing={ownerSharing}
+            onOwnerSharingChange={setOwnerSharing}
+          />
         )}
 
         <BoxDialog

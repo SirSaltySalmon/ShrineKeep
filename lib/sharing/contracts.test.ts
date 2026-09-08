@@ -44,7 +44,7 @@ describe("published privacy reference fixtures (not database authorization proof
 })
 
 describe("identity and presentation contracts", () => {
-  it("uses explicitly published nickname or neutral UUID suffix", () => {
+  it("uses the stored display name or a neutral UUID suffix", () => {
     expect(publicNickname("00000000-0000-4000-8000-0000abcdef12", null)).toBe("Collector-abcdef12")
     expect(publicNickname("id", "  Chosen name  ")).toBe("Chosen name")
     expect(isPublicNicknameValid("😀".repeat(64))).toBe(true)

@@ -36,7 +36,7 @@ describe("owner profile settings route", () => {
   })
   afterEach(() => vi.unstubAllEnvs())
 
-  it("takes actor from the session and does not derive a public nickname", async () => {
+  it("takes actor from the session", async () => {
     const result = await PUT(request({ ...body, actorId: "forged", nickname: null }))
     expect(result.status).toBe(200)
     expect(mocks.rpc).toHaveBeenCalledWith("sharing_update_owner_settings", expect.objectContaining({

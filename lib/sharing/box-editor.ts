@@ -2,17 +2,16 @@ import {
   AUDIENCES,
   PRIVATE_SHARING_DEFAULTS,
   type Audience,
+  type OwnerSharingSnapshot,
   type SharingSettings,
 } from "./contracts"
+import { isPublicBioValid, isPublicNicknameValid } from "./identity"
 
 export type DashboardOwnerSharing =
   | { available: false }
-  | {
-      available: true
-      revision: string
-      wishlistGuestVisibleCount: number
-      wishlistGuestTotalCount: number
-    }
+  | ({ available: true } & OwnerSharingSnapshot)
+
+const TOKEN_SHAPE = /^[A-Za-z0-9_-]{8,128}$/
 
 export interface BoxTreeRow {
   id: string
@@ -33,6 +32,19 @@ function asRevision(value: unknown): string | null {
   if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return String(value)
   if (typeof value === "string" && /^\d{1,19}$/.test(value)) return value
   return null
+}
+
+function sharingSettingsFromJson(value: unknown): SharingSettings | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null
+  const body = value as Record<string, unknown>
+  if (!isAudience(body.collectionVisibility) || !isAudience(body.wishlistVisibility) || typeof body.shareFinancials !== "boolean") {
+    return null
+  }
+  return {
+    collectionVisibility: body.collectionVisibility,
+    wishlistVisibility: body.wishlistVisibility,
+    shareFinancials: body.shareFinancials,
+  }
 }
 
 /** Map a boxes-table row to editor settings. Missing columns stay private. */
@@ -95,9 +107,30 @@ export function parseOwnerSharingSummary(value: unknown): Extract<DashboardOwner
   const revision = asRevision(body.revision)
   const visible = asCount(body.wishlistGuestVisibleCount)
   const total = asCount(body.wishlistGuestTotalCount)
-  if (revision === null || visible === null || total === null) return null
+  const root = sharingSettingsFromJson(body.root)
+  const nickname = body.nickname === null || body.nickname === "" ? null : body.nickname
+  const token = body.wishlistShareToken
+  if (
+    revision === null ||
+    visible === null ||
+    total === null ||
+    !root ||
+    !isPublicNicknameValid(nickname) ||
+    !isPublicBioValid(body.bio) ||
+    typeof body.profileShareStyle !== "boolean" ||
+    typeof body.wishlistLinkEnabled !== "boolean" ||
+    !(token === null || (typeof token === "string" && TOKEN_SHAPE.test(token)))
+  ) {
+    return null
+  }
   return {
     available: true,
+    nickname: typeof nickname === "string" ? nickname.trim() || null : null,
+    bio: body.bio,
+    profileShareStyle: body.profileShareStyle,
+    root,
+    wishlistLinkEnabled: body.wishlistLinkEnabled,
+    wishlistShareToken: token,
     revision,
     wishlistGuestVisibleCount: visible,
     wishlistGuestTotalCount: total,

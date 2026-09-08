@@ -21,7 +21,7 @@ Use the existing Next.js application and Supabase/Postgres deployment. Keep feat
 | R03 | Selecting a friend opens their profile. Right-click and an accessible menu expose Unfriend and Block. Include blocked-user management and Unblock. |
 | R04 | Requests and acceptances produce in-app notifications. Support accept, decline, cancel, unfriend, block, and unblock. No chat or notification emails are added. |
 | R05 | Profile URLs use the existing user UUID, under `/users/[userId]`. Guests may view public content. |
-| R06 | Public identity consists of ID, explicitly chosen nickname, profile picture, and bio. Never expose email, authentication metadata, billing, or private settings. Nicknames need not be unique. |
+| R06 | Public identity consists of ID, display name, profile picture, and bio. The display name is `users.name` and is public by design, including a Google/OAuth or signup name. Never expose email, authentication metadata, billing, username, or private settings. Display names need not be unique. JSON still publishes the label as `nickname`. |
 | R07 | Owners get a settings/edit icon on their profile. Public pages retain navigation, including a path back to Dashboard for signed-in visitors. |
 | R08 | Owner-shared theme takes precedence; otherwise use the visitor's theme, then the application default for a guest. Leaving the page restores the visitor's normal theme. |
 | R09 | Profile tabs are Wishlist and Showcase boxes. Reuse existing grids, item details, wishlist presentation, and Box Stats with explicit read-only capabilities. |
@@ -48,8 +48,8 @@ Use the existing Next.js application and Supabase/Postgres deployment. Keep feat
 
 These are engineering defaults, not additional unresolved product questions. Change them only with an explicit explanation of the impact on the requirements above.
 
-- A new public profile has `nickname = NULL`; its public label is `Collector-<short UUID suffix>` until the user explicitly saves a public nickname. Suggest an existing name only inside their private Settings UI. Do not migrate provider-derived names into public nicknames automatically.
-- Nicknames reuse the existing name-length limit; bio is plain text, at most 500 Unicode characters, with matching client/database validation. No HTML, Markdown, or automatic link previews in bio.
+- Signup stores the OAuth/signup display name in `users.name` when present; otherwise it stores `Collector-<short UUID suffix>`. That field is the public profile label. Clearing it later stores empty; public and nav surfaces fall back to Collector- without persisting the fallback. JSON still publishes the label as `nickname`.
+- Display names reuse the existing name-length limit; bio is plain text, at most 500 Unicode characters, with matching client/database validation. No HTML, Markdown, or automatic link previews in bio.
 - A new child box inherits all three saved sharing settings from its parent. **Amended 2026-09-08:** moving an existing box preserves its saved settings only where they remain legal under the new parent's ceiling; anything wider than the destination parent is clamped to it. A move that would widen a box is not a way around section 5.0.
 - Wishlist audience uses the same three audience values as collections. Individual items have no Private override; they follow their target box or root.
 - Wishlist items with no target box are associated with **root**, a container with its own audience, not an “account default.” Root uses the same three audience values and controls as a box. See the amended section 6.3.
@@ -69,7 +69,7 @@ Read these files before changing the related area. Preserve unrelated work alrea
 | Area | Existing entry points | What can be reused / what must change |
 |---|---|---|
 | Schema | `supabase/schema.sql`, `supabase/migrations/` | Existing users, boxes, items, photos, value history, settings, and a basic friendship table. Replace the boolean collection-sharing model and directional friendship/status model through migrations. |
-| Public identity | `components/settings/personal-settings.tsx`, `app/api/settings/route.ts`, signup trigger | Existing settings and avatar controls are useful. Signup currently copies provider names into `users.name`; separate public nickname publication from that field. |
+| Public identity | `components/settings/personal-settings.tsx`, `app/api/settings/route.ts`, signup trigger | Existing settings and avatar controls are useful. Signup copies provider names into `users.name`, which is the public display name. Do not keep a separate public nickname column. |
 | Public wishlist | `app/api/wishlist/[token]/route.ts`, `app/wishlist/[token]/page.tsx`, `public-wishlist-client.tsx` | Existing API selects full item/photo records and loads all wishlist items. Replace with paginated, explicit public projections. Server page currently makes a self-HTTP request without forwarding viewer context; replace with a direct shared service call. |
 | Wishlist settings | `components/wishlist-sharing-panel.tsx`, `app/wishlist/wishlist-client.tsx`, `lib/settings.ts` | Evolve the blanket public switch into clearly labelled audience controls and add guest preview. Preserve token compatibility and existing editing functionality. |
 | Collection UI | `components/box-grid.tsx`, `components/item-grid.tsx`, item detail components, dashboard client | Reuse display components and extract capabilities. Public pages must not mount owner data hooks or owner mutation paths. |
@@ -144,7 +144,7 @@ The following names form the initial contract. The database task owns exact migr
 
 | Table / change | Core columns | Constraints and access |
 |---|---|---|
-| `public_profiles` | `user_id` PK/FK, `nickname` nullable, `bio`, `avatar_asset_id` nullable or validated external avatar reference, timestamps | Contains only intentionally public profile fields; nevertheless read through the public service so blocks/rate limits apply. Owner updates only. Neutral nickname fallback is computed. |
+| `public_profiles` | `user_id` PK/FK, `bio`, `avatar_asset_id` nullable or validated external avatar reference, timestamps | Bio and avatar only. Display name lives on `users.name` and is published through the public identity helper. Read through the public service so blocks/rate limits apply. Owner updates only. Neutral Collector- fallback is computed when `users.name` is empty. |
 | Private account state | `users.public_access_disabled_at` nullable, `users.sharing_revision` bigint | Service-controlled account publication disable flag and monotonically increasing revision. Client must not clear/reduce them. Existing sandbox flags remain enforced. |
 | `boxes` | replace `is_public` with `collection_visibility`; add `share_financials` boolean and `wishlist_visibility` | Audience values `private`, `friends`, `public`; financial default false. Same-owner parent FK and cycle-safe mutations. |
 | `items` | internal `wishlist_detached_visibility` nullable audience | Detached visibility preserves the last **container** audience when a target box disappears or an item is detached to root. There is no per-item Private column. **Amended 2026-09-08:** `wishlist_is_private` was removed with R16. |
@@ -431,8 +431,8 @@ A committed block wins over a concurrent accept/copy authorization check. Define
 ### 8.3 Social UI and abuse controls
 
 - Social contains a Friendships list, incoming requests/notifications, an outgoing requests view, and access to blocked-user management. No public friendship counts/lists appear on profiles.
-- Friends search is restricted to the current user's accepted friends and public nicknames. A link/UUID input opens an exact profile for adding someone; do not search private names or email.
-- Server search is parameterized, length-bounded, debounced around 250 ms, and resets the cursor. Start with normalized nickname search within the indexed friend set; add trigram indexing only when benchmarks show it is needed.
+- Friends search is restricted to the current user's accepted friends and their display names (`users.name` or the Collector- fallback). A link/UUID input opens an exact profile for adding someone; do not search email or username.
+- Server search is parameterized, length-bounded, debounced around 250 ms, and resets the cursor. Start with normalized display-name search within the indexed friend set; add trigram indexing only when benchmarks show it is needed.
 - Friend selection opens `/users/[userId]`. Provide a context menu plus a visible menu button with keyboard focus/labels; touch users must not need a right-click or long-press.
 - After blocking, navigate away from inaccessible profile content, evict its public data, and update the friend/request lists. A simple undo is not automatic unblocking; the Unblock control is explicit.
 - Initial configurable rate limits: 10 new friend requests per minute and 50 per day per sender; at most one new request to the same recipient per 24 hours after decline/cancel/unfriend. Repeated idempotent delivery does not create notifications or consume a second new-request allowance. Tune with metrics.
@@ -468,7 +468,7 @@ Suggested route names are fixed for initial agent coordination. An equivalent ex
 | `GET /api/social/notifications?cursor=...` | 20-per-page visible notifications plus bounded unread count. |
 | `PATCH /api/social/notifications/read` | Mark specified owned IDs or owned visible history read; validate/bound input. |
 | `GET/PUT /api/boxes/[boxId]/sharing` | Read draft defaults/affected count; transactionally save explicit choices with expected revision. |
-| Existing owner item/settings routes | Add public nickname/bio/style and root wishlist audience. Do not add a per-item wishlist Private control. |
+| Existing owner item/settings routes | Add public display name/bio/style and root wishlist audience. Display name writes `users.name`. Do not add a per-item wishlist Private control. |
 | `POST /api/public/users/[userId]/boxes/[boxId]/copy` | Authenticated requester; enqueue copy to own root. Accept source identifier/idempotency key, never raw trusted source records. |
 | `GET /api/copy-jobs/[jobId]` | Requester-only progress, failure code, or created root ID. |
 | `DELETE /api/copy-jobs/[jobId]` | Requester cancellation before completion; worker cleans staging. |
@@ -492,7 +492,7 @@ interface CursorPage<T> {
 
 interface PublicProfile {
   id: string;
-  nickname: string; // chosen value or neutral fallback
+  nickname: string; // users.name, or Collector-<suffix> when that name is empty
   bio: string;
   avatar: PublicMedia | null;
   relationship: Relationship;
@@ -553,14 +553,14 @@ Do not expose storage paths, hidden parent/target IDs, tags of any kind, account
 
 - Extract reusable presentation and explicit capabilities such as `canEdit`, `canMove`, `canAcquire`, and `canCopyToOwnDashboard`. Data loaders and mutations remain in owner/public-specific adapters.
 - Reuse Box Stats panel, tabs, cards, image detail, tags, loading states, and empty states. Do not fork the full Dashboard client and maintain two implementations.
-- Profile header shows nickname/avatar/bio and the correct relationship button/menu; owner gets a Settings link. Do not show a private collection editing toolbar on this route.
+- Profile header shows display name/avatar/bio and the correct relationship button/menu; owner gets a Settings link. Do not show a private collection editing toolbar on this route.
 - **Amended 2026-09-08.** Both tabs are always present for a viewable profile, and each fetches its own data only when opened. Their empty states are neutral and identical in kind: they say nothing is visible here, and never infer the owner's settings. Do not write “this user's wishlist is not public,” “collection is private,” or any variant — those states are not representable and the message would leak a setting. A profile with an unpublished wishlist and no public boxes renders normally with two empty tabs; it is not a 404.
 - Navigation represents the viewer. Guests get a signed-out variant with login and Dashboard entry which follows the existing authentication redirect; never show the profile owner's name as the current signed-in account.
 - Keep the public view inside the existing semantic theme system. Shared style contains only whitelisted theme tokens, font keys, and radius. Do not expose the full `user_settings` object or accept arbitrary CSS/URLs from an owner theme.
 - Resolve theme once per public route. Preserve existing wishlist theme preference for token compatibility; profile pages use `profile_share_style`. Preview uses the token wishlist's guest theme contract. Align differing controls with clear labels, rather than silently enabling profile style sharing for legacy users.
 - Avoid persistent document-level theme mutations that survive navigation. Use a route-scoped provider or a coordinated save/restore mechanism which handles client transitions, browser Back, and async theme loads.
 - Public views should not bootstrap the owner's editor hooks, AI agent context, WebMCP tools, subscription information, or private tags. Audit those integrations for route/owner assumptions.
-- Page titles, Open Graph metadata, structured data, server-rendered HTML, and hydration payloads use the same safe projection. A blocked/unavailable profile cannot leak its nickname or avatar through metadata while the visible body shows not-found. A crawler without a session has guest permissions, not friend permissions.
+- Page titles, Open Graph metadata, structured data, server-rendered HTML, and hydration payloads use the same safe projection. A blocked/unavailable profile cannot leak its display name or avatar through metadata while the visible body shows not-found. A crawler without a session has guest permissions, not friend permissions.
 
 ## 10. Uploaded media, reference ownership, and revocation
 
@@ -695,7 +695,7 @@ Provide an operator runbook for stuck jobs, failed cleanup, account deletion, ra
 ### 13.2 Expand and backfill
 
 - Add new tables/columns/indexes with safe defaults; backfill in bounded, restartable batches. Validate constraints after repair/backfill to avoid avoidable long locks on large tables.
-- Keep account/provider fields private. Backfill public profiles with neutral nickname fallback, empty bio, and no silently published provider name. Owners can explicitly choose/confirm their displayed public profile details in Settings. Do not infer that `use_custom_display_name = true` proves explicit public consent: it currently defaults true.
+- Keep email, username, and other account/provider fields private. Display name (`users.name`) is public by design, including OAuth names at signup. Backfill `users.name` from the existing name, else the old `public_profiles.nickname`, else `Collector-<suffix>`. Drop `public_profiles.nickname` and `user_settings.use_custom_display_name`. Owners can edit the display name in Settings → Personal → Public profile.
 - Map `boxes.is_public = true` to collection Public, otherwise Private. Set `share_financials = false` unless an explicit new financial choice exists. Do not infer financial consent from the legacy raw read policy.
 - Map the old wishlist-public boolean to the root wishlist default. For existing target boxes, initialize wishlist audience conservatively: Public only when legacy wishlist sharing was on and the collection box was Public; otherwise Private. This may intentionally hide previously blanket-shared entries in private boxes until the owner explicitly enables the independent box wishlist setting. Explain the migration and direct owners to Public preview; never silently broaden old exposure.
 - Do not add a per-item wishlist Private flag. Container audience is the only wishlist privacy control.
@@ -803,7 +803,7 @@ T00 coordinates all contracts, T13 independently verifies all requirements, and 
 
 1. Translate the agreed rules into typed DTOs, service interfaces, audience/relationship enums, operation errors, and cursor schemas.
 2. Define one fixture with owner, friend, stranger, blocked user, guest, sandbox, and inactive account; include private box hierarchy cases. Do not add a per-item Private wishlist fixture.
-3. Fix the public list/detail DTO split, field allowlists, chart semantics, and rendering capabilities. Define neutral nickname formatting and plain-text bio validation.
+3. Fix the public list/detail DTO split, field allowlists, chart semantics, and rendering capabilities. Define display-name formatting (`users.name` or Collector- fallback; JSON field remains `nickname`) and plain-text bio validation.
 4. Specify owner/public/preview cache key factories and the source revision interface.
 5. Reserve shared integration paths and exact migration prerequisite order for following tasks.
 
@@ -938,7 +938,7 @@ T00 coordinates all contracts, T13 independently verifies all requirements, and 
 
 **Owned work:** `app/users/[userId]/*`, `components/public-profile/*`, profile hooks and route theme integration; navigation patch through integration owner.
 
-1. Build header, safe nickname/avatar/bio, relationship controls, owner Settings icon, and viewer-aware navigation.
+1. Build header, safe display name/avatar/bio, relationship controls, owner Settings icon, and viewer-aware navigation.
 2. Implement Wishlist/Showcase tabs, visible roots and nested navigation, paginated cards/details, and reusable Box Stats.
 3. Resolve approved owner/visitor/guest theme precedence and restore themes on navigation/back/refresh.
 4. Integrate “Copy to own dashboard,” guest sign-in return, job progress, success link, and safe failures.
@@ -964,12 +964,12 @@ T00 coordinates all contracts, T13 independently verifies all requirements, and 
 
 **Owned work:** `components/settings/personal-settings.tsx`, settings page/client integration, public-profile settings service/route changes, box-sharing editor component; coordinate shared API/settings types through integration owner and wishlist panel through T11.
 
-1. Add explicitly public nickname, plain-text bio, selected avatar, and profile style-sharing preference. Existing name appears only as a private suggestion until saved.
+1. Put display name, plain-text bio, selected avatar, and profile style-sharing in public profile settings. Display name is `users.name` and is the public label; OAuth/signup names are public. JSON still uses `nickname` for that label.
 2. Build the independent collection/financial/wishlist editor with before-save suggestions, persistent manual choices, propagation notice, and conflict refresh handling.
 3. Wishlist items follow their target box or root; there is no per-item Private control in the item editor. Coordinate T11's owner wishlist entry point.
 4. Explain any preserved detached-item audience after a target box is deleted, and the role of root as a container; preserve existing personal/theme/billing settings behavior.
 
-**Acceptance:** saving a provider-derived suggestion is explicit; public rendering never falls back to private fields; a user can select Public collection then turn wishlist Private before saving; reopening Private collection/Public wishlist preserves it; Cancel sends no write.
+**Acceptance:** empty signup names become Collector-; OAuth/signup names are public without a second confirmation; public rendering never falls back to email or username; a user can select Public collection then turn wishlist Private before saving; reopening Private collection/Public wishlist preserves it; Cancel sends no write.
 
 ### T13 — Cross-feature verification, privacy review, and load evidence
 
@@ -1054,7 +1054,7 @@ Completion means the implementation and its required checks satisfy these gates.
 
 Keep these extension points available without implementing their products now:
 
-- Custom unique handles can later resolve to the existing immutable UUID; nickname remains a nonunique display value.
+- Custom unique handles can later resolve to the existing immutable UUID; display name remains a nonunique public value (JSON `nickname`).
 - Chat can introduce conversations/members/messages separately and consult the existing account/block policies. Unfriending need not erase future conversation history.
 - Realtime may replace notification polling with recipient-scoped invalidation while the notification table remains authoritative.
 - Very hot profiles can gain guest-only cached projections after authorization and invalidation are proven. Friend-specific data must not enter a shared guest cache.

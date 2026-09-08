@@ -30,6 +30,7 @@ These were open questions. They are now settled and the work orders below assume
 | Copy to own dashboard (T06)         | Deferred past first release                             | R20 is not delivered in v1. `copy_jobs` and `media_asset_leases` stay as unused tables.                                                                                                                                                     |
 | Box delete, contents-surviving mode | **Move up one level**, replacing move-to-root           | Contents reparent to the deleted box's nearest surviving ancestor, preserving nesting below. See W1C.                                                                                                                                       |
 | Per-item wishlist Private (R16)     | **Removed**                                             | No `wishlist_is_private` column, UI, or veto. Wishlist privacy is only the box or root container audience.                                                                                                                                  |
+| Display name vs public nickname     | **Unified 2026-09-08**                                  | `users.name` is the public profile label. OAuth/signup names are public. Empty signup names become `Collector-<suffix>`. Drop `public_profiles.nickname` and `user_settings.use_custom_display_name`. JSON still publishes the label as `nickname`. |
 | Visibility increase on move-up      | **Notify, do not prevent**                              | Contents inherit the destination's audience and may become more visible. The owner is warned in the delete dialog; clamping, per-item prompts, and rejection are all out of scope. There is no per-item wishlist Private flag.               |
 
 
@@ -215,7 +216,7 @@ legacy `/api/wishlist/[token]` JSON route is deleted. Client pagination uses `/a
 `media_attach_photo` / `media_attach_avatar`). Item and avatar writes go through `uploadOwnedMedia`;
 `photos.asset_id` is set on insert. Direct `item-photos` writes for `authenticated` are revoked.
 - Sharing preview and save at `GET/PUT /api/boxes/[boxId]/sharing`, revision- and count-checked.
-- Owner profile, root audiences, and share-link toggle at `GET/PUT /api/settings/profile` (`sharing_read_owner_settings` / `sharing_update_owner_settings`). `user_settings.wishlist_is_public` is renamed `wishlist_link_enabled`. `boxes.is_public` is dropped (`20260908201000_drop_boxes_is_public.sql`).
+- Owner profile, root audiences, and share-link toggle at `GET/PUT /api/settings/profile` (`sharing_read_owner_settings` / `sharing_update_owner_settings`). Display name is `users.name` (JSON `nickname`); `public_profiles.nickname` and `user_settings.use_custom_display_name` are dropped (`20260908210000_unify_display_name.sql`). `user_settings.wishlist_is_public` is renamed `wishlist_link_enabled`. `boxes.is_public` is dropped (`20260908201000_drop_boxes_is_public.sql`).
 - Social mutations, lists, and inbox under `/api/social/*`, transactional, with rate limits and idempotent receipts.
 - Public media signing at `/api/public/media/[kind]/[referenceId]`.
 - Shared presentation adapters in `lib/sharing/presentation/`. Owner grids and the token wishlist render through
@@ -225,7 +226,7 @@ legacy `/api/wishlist/[token]` JSON route is deleted. Client pagination uses `/a
   block evicts `sharing-public` and `public` caches for that owner; logout calls `queryClient.clear()`.
   Friend rows still link to `/users/[id]`, which 404s until W6.
 - Social migrations of predicates, invariants, triggers, and service-only RPCs, with SQL tests that pass
-on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest: `20260908201000_drop_boxes_is_public.sql`.
+on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest: `20260908210000_unify_display_name.sql`.
 - A fenced GC worker with proven Storage retry behaviour: `node --env-file=.env.local supabase/tests/media-gc-storage.mjs`.
   Scheduled by `vercel.json` GET `/api/media/gc`; clone/dev wakeup is `instrumentation.ts` every minute.
 
@@ -285,6 +286,7 @@ shipped, the SQL name wins and TypeScript adapts.
 | A wishlist item whose target box was deleted, carrying a preserved audience | **detached wishlist item** / `wishlist_detached_visibility`                                                        | "detached" unqualified — it collides with the showcase term above                    |
 | The contents-surviving box delete mode                                      | **move up** / `move-up`                                                                                            | `move-to-root`, "flatten", "unbox", "promote to top level"                           |
 | Where move-up sends contents                                                | **the nearest surviving ancestor**                                                                                 | "the parent" alone — it is the parent only when the parent is not also being deleted |
+| The public profile label                                                    | **display name** (`users.name`); JSON field `nickname`                                                             | a separate public nickname, `use_custom_display_name`                                |
 
 
 Terms that appear in code and are **not** defined in the plan. Each needs a one-line definition where it is
@@ -721,18 +723,21 @@ backfill of existing rows reported zero remaining storage paths without `asset_i
 
 **Closes:** T12's backend. **Depends on:** W1. **Blocks:** T10 and T12 UI.
 
-`public_profiles` has no writer, so nickname and bio are unreachable, and settings still writes the legacy
-wishlist boolean. Until this exists there is nothing for the profile UI to edit.
+`public_profiles` has no writer, so bio is unreachable, and settings still writes the legacy
+wishlist boolean. Until this exists there is nothing for the profile UI to edit. **Amended 2026-09-08:**
+display name is `users.name`, not a separate public nickname.
 
 ### Steps
 
-1. Add a transactional profile-settings operation writing `public_profiles.nickname` and `bio` together with
+1. Add a transactional profile-settings operation writing `users.name` and `public_profiles.bio` together with
   `user_settings.root_wishlist_visibility` and `profile_share_style`. Plan §3.2 requires one transaction for
-   owner settings spanning account, profile, and sharing records.
-2. Validate per plan §1.2: nickname reuses the existing name length limit, bio is plain text at most 500
+  owner settings spanning account, profile, and sharing records. JSON still uses `p_nickname` for the display name.
+2. Validate per plan §1.2: display name reuses the existing name length limit, bio is plain text at most 500
   Unicode characters, matched client and server. No HTML, no Markdown, no link previews.
-3. Never derive a public nickname from `users.name` or from `use_custom_display_name`. That flag defaults
-  true and is not consent. The existing name may appear as a private suggestion in the settings form only.
+3. Public identity is `users.name`. Signup copies OAuth `name`/`full_name` when present, otherwise stores
+  `Collector-<uuid suffix>`. Empty later saves store `''` and reads fall back to Collector- without persisting it.
+  Drop `public_profiles.nickname` and `user_settings.use_custom_display_name`. Do not keep a second public-name
+  field or a "use custom display name" switch.
 4. Rename `wishlist_is_public` to `wishlist_link_enabled` and strip its authority over item visibility. It
   keeps exactly one job: gating token resolution. Do not drop the column — it is a live product control.
    Confirm the three existing legacy public wishlists on the clone already map to a public root audience
@@ -760,8 +765,8 @@ wishlist boolean. Until this exists there is nothing for the profile UI to edit.
 
 ### Done when
 
-- [x] An owner can save a nickname and bio, and they appear on the public profile read.
-- [x] A new account's public label is the neutral `Collector-<suffix>` fallback until a nickname is saved.
+- [x] An owner can save a display name and bio, and they appear on the public profile read.
+- [x] A new account without a signup/OAuth name stores `Collector-<suffix>` as `users.name`; OAuth names are public.
 - [x] `root_wishlist_visibility` is the only authority for wishlist items associated with root.
 - [x] `wishlist_link_enabled` is the only remaining job of the old boolean; `boxes.is_public` has no readers
   and is dropped.
@@ -803,7 +808,7 @@ drag handler, and must not mount owner data hooks, AI agent context, WebMCP tool
 
 **Closes:** T10 and T11's UI. **Depends on:** W1, W4, W5, and T07 (already built).
 
-Build `app/users/[userId]/*` and `components/public-profile/*`: header with nickname, avatar, bio, and the
+Build `app/users/[userId]/*` and `components/public-profile/*`: header with display name, avatar, bio, and the
 relationship control; Wishlist and Showcase tabs; visible roots and nested navigation; reused Box Stats.
 Add the "Preview public wishlist" toggle in the owned Wishlist tab against `/api/wishlist/preview`, which
 already forces the guest projection.

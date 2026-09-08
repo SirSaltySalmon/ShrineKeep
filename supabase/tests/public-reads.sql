@@ -2,7 +2,7 @@ BEGIN;
 CREATE FUNCTION pg_temp.assert_true(condition boolean,label text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN IF condition IS DISTINCT FROM true THEN RAISE EXCEPTION 'Assertion failed: %',label; END IF; END $$;
 INSERT INTO auth.users (id,email,raw_user_meta_data) VALUES
- ('41000000-0000-4000-8000-000000000001','public-owner@test.invalid','{"username":"public-owner","name":"SECRET PROVIDER NAME"}'),
+ ('41000000-0000-4000-8000-000000000001','public-owner@test.invalid','{"username":"public-owner"}'),
  ('41000000-0000-4000-8000-000000000002','public-friend@test.invalid','{"username":"public-friend"}'),
  ('41000000-0000-4000-8000-000000000003','public-blocked@test.invalid','{"username":"public-blocked"}');
 INSERT INTO public.social_friendships (user_low,user_high,requested_by,status,accepted_at) VALUES

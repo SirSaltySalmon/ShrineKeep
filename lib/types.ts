@@ -1,3 +1,5 @@
+import type { SharingSettings } from "@/lib/sharing/contracts"
+
 export interface User {
   id: string
   username: string
@@ -22,6 +24,8 @@ export interface Box {
   total_value?: number
   total_acquisition_cost?: number
   item_count?: number
+  sharing?: SharingSettings
+  descendant_count?: number
 }
 
 export interface Item {
@@ -227,13 +231,10 @@ export interface UserSettings {
   root_share_financials?: boolean
   root_wishlist_visibility?: "private" | "friends" | "public"
   profile_share_style?: boolean
-  public_nickname?: string | null
   public_bio?: string
   sharing_revision?: string
   wishlist_guest_visible_count?: number
   wishlist_guest_total_count?: number
-  /** When true, show public.users.name; when false, show provider name (e.g. Google). */
-  use_custom_display_name?: boolean
   created_at: string
   updated_at: string
 }

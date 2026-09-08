@@ -17,9 +17,7 @@ async function loadOwnerSharing(userId: string): Promise<DashboardOwnerSharing |
     if (!sharing.ok) return undefined
     return {
       available: true,
-      revision: sharing.data.revision,
-      wishlistGuestVisibleCount: sharing.data.wishlistGuestVisibleCount,
-      wishlistGuestTotalCount: sharing.data.wishlistGuestTotalCount,
+      ...sharing.data,
     }
   } catch {
     return undefined

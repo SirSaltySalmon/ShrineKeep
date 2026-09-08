@@ -144,11 +144,6 @@ FROM public.user_settings
 GROUP BY 1
 ORDER BY 1;
 
-SELECT use_custom_display_name, count(*)::bigint AS n
-FROM public.user_settings
-GROUP BY 1
-ORDER BY 1;
-
 SELECT count(*)::bigint AS settings_with_wishlist_share_token
 FROM public.user_settings
 WHERE wishlist_share_token IS NOT NULL AND btrim(wishlist_share_token) <> '';

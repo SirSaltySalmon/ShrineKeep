@@ -11,6 +11,7 @@ export function isPublicBioValid(value: unknown): value is string {
   return typeof value === "string" && Array.from(value).length <= SHARING_LIMITS.bioCharacters
 }
 
-export function publicNickname(userId: string, explicitlySavedNickname: string | null): string {
-  return explicitlySavedNickname?.trim() || `Collector-${userId.slice(-8).toLowerCase()}`
+/** Public and in-app label: stored display name, or Collector-<uuid suffix> when empty. */
+export function publicNickname(userId: string, storedDisplayName: string | null | undefined): string {
+  return storedDisplayName?.trim() || `Collector-${userId.slice(-8).toLowerCase()}`
 }

@@ -3,11 +3,10 @@ CREATE FUNCTION pg_temp.assert_true(condition boolean,label text) RETURNS void L
 BEGIN IF condition IS DISTINCT FROM true THEN RAISE EXCEPTION 'Assertion failed: %',label; END IF; END $$;
 INSERT INTO auth.users(id,email,raw_user_meta_data) SELECT
  ('b1000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,
- 'list-'||n||'@test.invalid',jsonb_build_object('username','list-'||n,'name','SECRET_PRIVATE_NAME')
+ 'list-'||n||'@test.invalid',jsonb_build_object('username','list-'||n)
  FROM generate_series(1,30) n;
-INSERT INTO public.public_profiles(user_id,nickname) VALUES
- ('b1000000-0000-4000-8000-000000000002','RemoteAlpha'),
- ('b1000000-0000-4000-8000-000000000003','100%fun');
+UPDATE public.users SET name='RemoteAlpha' WHERE id='b1000000-0000-4000-8000-000000000002';
+UPDATE public.users SET name='100%fun' WHERE id='b1000000-0000-4000-8000-000000000003';
 INSERT INTO public.social_friendships(user_low,user_high,requested_by,status,created_at,accepted_at)
  SELECT 'b1000000-0000-4000-8000-000000000001', ('b1000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,
   'b1000000-0000-4000-8000-000000000001','accepted',

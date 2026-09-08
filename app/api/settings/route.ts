@@ -43,7 +43,6 @@ export async function GET(request: NextRequest) {
         wishlist_link_enabled: false,
         wishlist_share_token: null,
         wishlist_apply_colors: false,
-        use_custom_display_name: true,
         ai_widget_visible: true,
         dashboard_demo_prompt_dismissed: false,
         ai_tutorial_reset_at: null,
@@ -88,7 +87,6 @@ export async function PUT(request: NextRequest) {
       wishlist_link_enabled,
       wishlist_apply_colors,
       regenerate_wishlist_token,
-      use_custom_display_name,
       ai_widget_visible,
       restart_ai_tutorial,
       name: displayName,
@@ -114,7 +112,6 @@ export async function PUT(request: NextRequest) {
       wishlist_link_enabled?: boolean
       wishlist_share_token?: string | null
       wishlist_apply_colors?: boolean
-      use_custom_display_name?: boolean
       ai_widget_visible?: boolean
       dashboard_demo_prompt_dismissed?: boolean
       ai_tutorial_reset_at?: string
@@ -180,10 +177,6 @@ export async function PUT(request: NextRequest) {
 
     if (wishlist_apply_colors !== undefined) {
       updateData.wishlist_apply_colors = wishlist_apply_colors
-    }
-
-    if (use_custom_display_name !== undefined) {
-      updateData.use_custom_display_name = Boolean(use_custom_display_name)
     }
 
     if (typeof displayName === "string" && displayName.trim().length > NAME_MAX_LENGTH) {
@@ -252,7 +245,6 @@ async function attachOwnerSharing(userId: string, settings: Record<string, unkno
       ...settings,
       wishlist_link_enabled: result.data.wishlistLinkEnabled,
       wishlist_share_token: result.data.wishlistShareToken,
-      public_nickname: result.data.nickname,
       public_bio: result.data.bio,
       profile_share_style: result.data.profileShareStyle,
       root_collection_visibility: result.data.root.collectionVisibility,

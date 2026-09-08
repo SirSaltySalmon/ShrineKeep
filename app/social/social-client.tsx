@@ -296,7 +296,7 @@ export default function SocialClient({ actorId, sandbox }: SocialClientProps) {
             id="social-search"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Search friends by nickname"
+            placeholder="Search friends by name"
           />
           {lookupId ? (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-card-foreground">

@@ -35,7 +35,7 @@ export function parseSharingUpdate(boxId: string, value: unknown): SharingUpdate
     expectedRevision: body.expectedRevision, expectedDescendantCount: body.expectedDescendantCount }
 }
 
-/** Client may supply profile and root values, never actor. Empty nickname becomes null. */
+/** Client may supply profile and root values, never actor. Empty display name becomes null. */
 export function parseOwnerSharingUpdate(value: unknown): OwnerSharingUpdate | null {
   const body = record(value)
   if (!body || typeof body.profileShareStyle !== "boolean" || typeof body.wishlistLinkEnabled !== "boolean" || !revision(body.expectedRevision)) return null

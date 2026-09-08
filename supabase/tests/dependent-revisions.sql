@@ -35,8 +35,8 @@ SELECT pg_temp.check_revision($action$DELETE FROM public.tags WHERE id='c3000000
 SELECT pg_temp.check_revision($action$UPDATE public.user_settings SET root_wishlist_visibility='friends' WHERE user_id='c1000000-0000-4000-8000-000000000001'$action$);
 SELECT pg_temp.check_revision($action$DELETE FROM public.user_settings WHERE user_id='c1000000-0000-4000-8000-000000000001'$action$);
 SELECT pg_temp.check_revision($action$INSERT INTO public.user_settings(user_id) VALUES ('c1000000-0000-4000-8000-000000000001')$action$);
-SELECT pg_temp.check_revision($action$INSERT INTO public.public_profiles(user_id,nickname) VALUES ('c1000000-0000-4000-8000-000000000001','Collector')$action$);
-SELECT pg_temp.check_revision($action$UPDATE public.public_profiles SET nickname='Renamed' WHERE user_id='c1000000-0000-4000-8000-000000000001'$action$);
+SELECT pg_temp.check_revision($action$INSERT INTO public.public_profiles(user_id) VALUES ('c1000000-0000-4000-8000-000000000001')$action$);
+SELECT pg_temp.check_revision($action$UPDATE public.users SET name='Renamed' WHERE id='c1000000-0000-4000-8000-000000000001'$action$);
 SELECT pg_temp.check_revision($action$DELETE FROM public.public_profiles WHERE user_id='c1000000-0000-4000-8000-000000000001'$action$);
 SELECT pg_temp.check_revision('UPDATE public.photos SET url=url WHERE false',0);
 -- Reassignment by a trusted writer invalidates both owners.

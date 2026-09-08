@@ -491,7 +491,7 @@ CREATE POLICY "Users can manage items in own wish lists"
     )
   );
 
--- Function to automatically create user profile on signup (name from Google/full_name or username)
+-- Function to automatically create user profile on signup (name from Google/full_name, else Collector-<uuid suffix>)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -503,8 +503,7 @@ BEGIN
     COALESCE(
       NULLIF(TRIM(NEW.raw_user_meta_data->>'name'), ''),
       NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''),
-      NULLIF(TRIM(NEW.raw_user_meta_data->>'username'), ''),
-      'user_' || substr(NEW.id::text, 1, 8)
+      'Collector-' || right(NEW.id::text, 8)
     )
   );
   INSERT INTO public.user_settings (user_id)

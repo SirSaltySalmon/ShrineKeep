@@ -26,6 +26,12 @@ describe("dashboard local item search", () => {
     expect(src).not.toContain("<ContainerAudienceFields")
   })
 
+  it("edits root audience at the bottom of the dashboard root", () => {
+    expect(src).toContain("<RootAudiencePanel")
+    expect(src).toContain("currentBoxId == null")
+    expect(src).toContain("ownerSharing?.available")
+  })
+
   it("opens the box editor from folder-loaded sharing instead of fetching after open", () => {
     expect(src).toContain("handleOpenEditBox")
     expect(src).toContain("openEditBox(latest)")

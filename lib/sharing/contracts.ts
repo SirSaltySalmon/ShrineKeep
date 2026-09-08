@@ -46,6 +46,7 @@ export interface PublicStyle {
 
 export interface PublicIdentity {
   id: string
+  /** Owner display name (`users.name`), or Collector-<uuid suffix> when that name is empty. */
   nickname: string
   avatar: PublicMedia | null
 }
@@ -119,6 +120,7 @@ export interface SharingUpdate extends SharingSettings {
 }
 
 export interface OwnerSharingSnapshot {
+  /** Stored display name (`users.name`); null when empty so the Collector fallback is used. */
   nickname: string | null
   bio: string
   profileShareStyle: boolean

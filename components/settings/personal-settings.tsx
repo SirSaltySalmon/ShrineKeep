@@ -2,7 +2,6 @@
 
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -79,12 +78,8 @@ function cropImageToSquare(file: File): Promise<File> {
 
 export interface PersonalSettingsProps {
   aiWidgetVisible?: boolean
-  /** Display name stored in public.users (editable). */
+  /** Display name stored in public.users; also the public profile label. */
   displayName: string
-  /** Whether to show custom display name (true) or provider name (false). */
-  useCustomDisplayName: boolean
-  /** Name from auth provider (e.g. Google); shown when useCustomDisplayName is false. */
-  providerName: string | null
   /** Current email (for display). */
   email: string
   /** True if user signed up with email/password (can change password). */
@@ -95,49 +90,40 @@ export interface PersonalSettingsProps {
   avatarVersion?: number
   /** Current user id. Avatar uploads now infer owner from the session. */
   userId: string
-  publicNickname: string
   publicBio: string
   profileShareStyle: boolean
   publicFallbackLabel: string
-  onPublicNicknameChange: (value: string) => void
+  onDisplayNameChange: (value: string) => void
   onPublicBioChange: (value: string) => void
   onProfileShareStyleChange: (value: boolean) => void
   onSavePublicProfile: () => Promise<void>
   onCancelPublicProfile: () => void
   savingPublicProfile?: boolean
   savedPublicProfile?: boolean
-  onDisplayNameChange: (value: string) => void
-  onUseCustomDisplayNameChange: (value: boolean) => void
   onAvatarChange: (url: string | null) => void
 }
 
 export function PersonalSettings({
   aiWidgetVisible = true,
   displayName,
-  useCustomDisplayName,
-  providerName,
   email,
   isEmailProvider,
   avatarUrl,
   avatarVersion,
   userId,
-  publicNickname: publicNicknameValue,
   publicBio,
   profileShareStyle,
   publicFallbackLabel,
-  onPublicNicknameChange,
+  onDisplayNameChange,
   onPublicBioChange,
   onProfileShareStyleChange,
   onSavePublicProfile,
   onCancelPublicProfile,
   savingPublicProfile = false,
   savedPublicProfile = false,
-  onDisplayNameChange,
-  onUseCustomDisplayNameChange,
   onAvatarChange,
 }: PersonalSettingsProps) {
   void userId
-  const supabase = createSupabaseClient()
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
   const [avatarUploading, setAvatarUploading] = useState(false)
@@ -153,8 +139,6 @@ export function PersonalSettings({
   const turnstileRef = useRef<TurnstileWidgetRef>(null)
 
   const router = useRouter()
-  const [savingProfile, setSavingProfile] = useState(false)
-  const [savedProfile, setSavedProfile] = useState(false)
   const [widgetVisible, setWidgetVisible] = useState(aiWidgetVisible)
   const [savingAi, setSavingAi] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
@@ -178,31 +162,6 @@ export function PersonalSettings({
       setAiError(error instanceof Error ? error.message : "Could not save AI preferences.")
     } finally {
       setSavingAi(false)
-    }
-  }
-
-  const handleSaveProfile = async () => {
-    setSavingProfile(true)
-    setSavedProfile(false)
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          use_custom_display_name: useCustomDisplayName,
-          name: displayName,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.error ?? "Failed to save profile")
-      setSavedProfile(true)
-      setTimeout(() => setSavedProfile(false), 3000)
-      router.refresh()
-    } catch (err) {
-      console.error("Error saving profile:", err)
-      alert(err instanceof Error ? err.message : "Failed to save profile. Please try again.")
-    } finally {
-      setSavingProfile(false)
     }
   }
 
@@ -412,24 +371,23 @@ export function PersonalSettings({
       <div>
         <h3 className="text-fluid-lg font-semibold mb-2">Public profile</h3>
         <p className="text-fluid-sm text-muted-foreground mb-4">
-          Nickname and bio are what other people see. They are never taken from your display name
-          unless you type them here and save.
+          Your display name and bio are what other people see on your profile. Signing in with
+          Google uses that account name unless you change it here.
         </p>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="public-nickname">Public nickname</Label>
+            <Label htmlFor="display-name">Display name</Label>
             <Input
-              id="public-nickname"
+              id="display-name"
               type="text"
-              value={publicNicknameValue}
-              onChange={(e) => onPublicNicknameChange(e.target.value)}
+              value={displayName}
+              onChange={(e) => onDisplayNameChange(e.target.value)}
               placeholder={publicFallbackLabel}
               className="max-w-sm"
               maxLength={NAME_MAX_LENGTH}
             />
             <p className="text-fluid-xs text-muted-foreground">
-              Leave blank to show {publicFallbackLabel}. Your private display name
-              {displayName.trim() ? ` (“${displayName.trim()}”)` : ""} is only a reminder, not a public label.
+              Leave blank to show {publicFallbackLabel}.
             </p>
           </div>
           <div className="space-y-2">
@@ -478,60 +436,6 @@ export function PersonalSettings({
             </Button>
           </div>
         </div>
-      </div>
-
-      <div>
-        <h3 className="text-fluid-lg font-semibold mb-2">Display name</h3>
-        {isEmailProvider ? (
-          <>
-            <p className="text-fluid-sm text-muted-foreground mb-4">
-              This is the name you set when you signed up. Change it below and click Save profile to
-              update it everywhere.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="text-fluid-sm text-muted-foreground mb-4">
-              Choose whether to show a custom name or the name from your sign-in account (e.g.
-              Google).
-            </p>
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div className="space-y-0.5">
-                <span className="text-fluid-sm font-medium">Use custom display name</span>
-                <p className="text-fluid-xs text-muted-foreground">
-                  {useCustomDisplayName
-                    ? "Showing your custom name below."
-                    : `Showing provider name${providerName ? `: ${providerName}` : ""}.`}
-                </p>
-              </div>
-              <Switch
-                checked={useCustomDisplayName}
-                onCheckedChange={onUseCustomDisplayNameChange}
-                aria-label="Use custom display name"
-              />
-            </div>
-          </>
-        )}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="display-name">Display name</Label>
-        <Input
-          id="display-name"
-          type="text"
-          value={displayName}
-          onChange={(e) => onDisplayNameChange(e.target.value)}
-          placeholder={providerName || "Your name"}
-          className="max-w-sm"
-          maxLength={NAME_MAX_LENGTH}
-        />
-      </div>
-      <div className="flex gap-2">
-        {savedProfile && (
-          <span className="text-fluid-sm text-muted-foreground self-center">Profile saved!</span>
-        )}
-        <Button type="button" onClick={handleSaveProfile} disabled={savingProfile}>
-          {savingProfile ? "Saving..." : "Save profile"}
-        </Button>
       </div>
 
       {isEmailProvider && (

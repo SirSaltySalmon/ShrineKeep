@@ -13,7 +13,9 @@ INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
  ('10000000-0000-4000-8000-000000000004', 'blocked@test.invalid', '{"username":"fixture-blocked"}');
 
 INSERT INTO public.public_profiles (user_id) SELECT id FROM public.users;
-SELECT pg_temp.assert_true((SELECT bool_and(nickname IS NULL AND bio = '') FROM public.public_profiles), 'no provider publication');
+SELECT pg_temp.assert_true((SELECT bool_and(bio = '') FROM public.public_profiles), 'bio empty at signup');
+SELECT pg_temp.assert_true((SELECT name FROM public.users WHERE id='10000000-0000-4000-8000-000000000001')='PRIVATE PROVIDER NAME', 'signup copies provider name into users.name');
+SELECT pg_temp.assert_true((SELECT name FROM public.users WHERE id='10000000-0000-4000-8000-000000000002')='Collector-00000002', 'empty signup name stores Collector- suffix');
 
 INSERT INTO public.boxes (id, user_id, name) VALUES
  ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'private collection');

@@ -70,22 +70,31 @@ describe("normalizeBox", () => {
 })
 
 describe("parseOwnerSharingSummary", () => {
+  const snapshot = {
+    revision: "9007199254740993",
+    wishlistGuestVisibleCount: 2,
+    wishlistGuestTotalCount: 4,
+    nickname: "Shown",
+    bio: "plain",
+    profileShareStyle: false,
+    wishlistLinkEnabled: true,
+    wishlistShareToken: "share-token-value",
+    root: {
+      collectionVisibility: "private",
+      wishlistVisibility: "public",
+      shareFinancials: false,
+    },
+  }
+
   it("keeps bigint revisions as strings", () => {
-    expect(
-      parseOwnerSharingSummary({
-        revision: "9007199254740993",
-        wishlistGuestVisibleCount: 2,
-        wishlistGuestTotalCount: 4,
-      }),
-    ).toEqual({
+    expect(parseOwnerSharingSummary(snapshot)).toEqual({
       available: true,
-      revision: "9007199254740993",
-      wishlistGuestVisibleCount: 2,
-      wishlistGuestTotalCount: 4,
+      ...snapshot,
     })
   })
 
   it("rejects incomplete payloads", () => {
     expect(parseOwnerSharingSummary({ revision: "1" })).toBeNull()
+    expect(parseOwnerSharingSummary({ ...snapshot, root: { collectionVisibility: "private" } })).toBeNull()
   })
 })

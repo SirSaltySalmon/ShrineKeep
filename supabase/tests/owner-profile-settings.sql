@@ -29,7 +29,7 @@ DECLARE actor uuid := 'f1000000-0000-4000-8000-000000000001';
 BEGIN
   read := public.sharing_read_owner_settings(actor);
   PERFORM pg_temp.assert_true((read->>'ok')::boolean, 'owner settings readable');
-  PERFORM pg_temp.assert_true(read->'data'->>'nickname' IS NULL, 'unset nickname is null');
+  PERFORM pg_temp.assert_true(read->'data'->>'nickname'='Collector-00000001', 'signup without a name stores Collector- suffix');
   PERFORM pg_temp.assert_true((read->'data'->>'wishlistGuestVisibleCount')::bigint=3, 'guest-visible count');
   PERFORM pg_temp.assert_true((read->'data'->>'wishlistGuestTotalCount')::bigint=3, 'guest-total count');
   rev := (read->'data'->>'revision')::bigint;
@@ -39,8 +39,8 @@ BEGIN
     'private', false, 'public', true, NULL, rev);
   PERFORM pg_temp.assert_true((written->>'ok')::boolean, 'owner settings save');
   PERFORM pg_temp.assert_true(
-    (SELECT nickname FROM public.public_profiles WHERE user_id=actor)='Displayed',
-    'nickname trimmed and stored');
+    (SELECT name FROM public.users WHERE id=actor)='Displayed',
+    'display name trimmed and stored');
   PERFORM pg_temp.assert_true(
     (SELECT bio FROM public.public_profiles WHERE user_id=actor)='plain bio',
     'bio stored as plain text');
@@ -93,7 +93,7 @@ BEGIN
       actor, '😀' || repeat('x', 64), 'plain bio', false,
       'private', false, 'private', false, NULL, (SELECT sharing_revision FROM public.users WHERE id=actor)
     )->'error'->>'code'='invalid_input',
-    'overlong nickname rejected');
+    'overlong display name rejected');
 
   PERFORM pg_temp.assert_true(
     public.sharing_update_owner_settings(
@@ -104,7 +104,7 @@ BEGIN
 
   PERFORM pg_temp.assert_true(
     public.sharing_read_context(actor, NULL)->'data'->'profile'->>'nickname'='Displayed',
-    'public profile read uses saved nickname');
+    'public profile read uses saved display name');
 END $$;
 RESET ROLE;
 

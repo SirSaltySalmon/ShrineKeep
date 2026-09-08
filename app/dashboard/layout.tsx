@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { redirectIfSandboxRowExpired } from "@/lib/judge/redirect-if-expired"
+import { publicNickname } from "@/lib/sharing/identity"
 import AppNav from "@/components/app-nav"
 import { CopiedItemProvider } from "@/lib/copied-item-context"
 
@@ -18,27 +19,15 @@ export default async function DashboardLayout({
     redirect("/auth/login")
   }
 
-  const [{ data: user }, { data: settings }] = await Promise.all([
-    supabase
-      .from("users")
-      .select("name, username, is_sandbox, sandbox_expires_at")
-      .eq("id", authUser.id)
-      .single(),
-    supabase.from("user_settings").select("use_custom_display_name").eq("user_id", authUser.id).single(),
-  ])
+  const { data: user } = await supabase
+    .from("users")
+    .select("name, is_sandbox, sandbox_expires_at")
+    .eq("id", authUser.id)
+    .single()
 
   redirectIfSandboxRowExpired(user)
 
-  const providerName =
-    (authUser.user_metadata?.name as string | undefined) ??
-    (authUser.user_metadata?.full_name as string | undefined) ??
-    null
-  const customName = user?.name && user.name.trim() !== "" ? user.name : null
-  const useCustom = settings?.use_custom_display_name ?? true
-
-  const displayName = useCustom
-    ? (customName ?? providerName ?? user?.username ?? authUser.email ?? null)
-    : (providerName ?? user?.username ?? authUser.email ?? null)
+  const displayName = publicNickname(authUser.id, user?.name ?? null)
 
   return (
     <div className="min-h-screen bg-background">

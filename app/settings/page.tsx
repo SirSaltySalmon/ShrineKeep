@@ -44,10 +44,6 @@ export default async function SettingsPage() {
     authUser.identities?.[0]?.provider ??
     "email"
   const isEmailProvider = provider === "email"
-  const providerName =
-    (authUser.user_metadata?.name as string) ||
-    (authUser.user_metadata?.full_name as string) ||
-    null
   const providerAvatarUrl = (authUser.user_metadata?.avatar_url as string) || null
   const avatarUrl = profile?.avatar_url ?? providerAvatarUrl ?? null
 
@@ -59,7 +55,6 @@ export default async function SettingsPage() {
       if (sharing.ok) {
         settings = {
           ...settings,
-          public_nickname: sharing.data.nickname,
           public_bio: sharing.data.bio,
           profile_share_style: sharing.data.profileShareStyle,
           root_collection_visibility: sharing.data.root.collectionVisibility,
@@ -82,8 +77,6 @@ export default async function SettingsPage() {
       initialSettings={settings}
       initialProfile={{
         displayName: profile?.name ?? "",
-        useCustomDisplayName: isEmailProvider ? true : (settings?.use_custom_display_name ?? true),
-        providerName,
         email: authUser.email ?? "",
         isEmailProvider,
         avatarUrl,

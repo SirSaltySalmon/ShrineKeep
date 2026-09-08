@@ -118,7 +118,8 @@ export function WishlistSharingPanel({
         <div>
           <h2 className="text-fluid-lg font-semibold">Wishlist settings</h2>
           <p className="text-fluid-sm text-muted-foreground mt-0.5">
-            The share link only controls whether this URL works.
+            The share link only controls whether this URL works. Change visibility on Wishlist by
+            editing individual boxes and the root (items not in a box).
           </p>
         </div>
       )}

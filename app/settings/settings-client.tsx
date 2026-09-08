@@ -45,8 +45,6 @@ function isSettingsTab(value: string | null): value is (typeof SETTINGS_TABS)[nu
 
 export interface InitialProfile {
   displayName: string
-  useCustomDisplayName: boolean
-  providerName: string | null
   email: string
   isEmailProvider: boolean
   avatarUrl: string | null
@@ -98,7 +96,6 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   const [wishlistApplyColors, setWishlistApplyColors] = useState(
     initialSettings?.wishlist_apply_colors || false
   )
-  const [publicNicknameValue, setPublicNicknameValue] = useState(initialSettings?.public_nickname ?? "")
   const [publicBio, setPublicBio] = useState(initialSettings?.public_bio ?? "")
   const [profileShareStyle, setProfileShareStyle] = useState(initialSettings?.profile_share_style ?? false)
   const [root, setRoot] = useState<SharingSettings>({
@@ -112,7 +109,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   const [savingSharing, setSavingSharing] = useState(false)
   const [savedSharing, setSavedSharing] = useState(false)
   const sharingSnapshot = {
-    publicNicknameValue: initialSettings?.public_nickname ?? "",
+    displayName: initialProfile.displayName,
     publicBio: initialSettings?.public_bio ?? "",
     profileShareStyle: initialSettings?.profile_share_style ?? false,
     root: {
@@ -122,9 +119,6 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     },
     wishlistLinkEnabled: initialSettings?.wishlist_link_enabled || false,
   }
-  const [useCustomDisplayName, setUseCustomDisplayName] = useState(
-    initialProfile.useCustomDisplayName
-  )
   const [displayName, setDisplayName] = useState(initialProfile.displayName)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(initialProfile.avatarUrl)
   const [avatarVersion, setAvatarVersion] = useState(0)
@@ -224,7 +218,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   }
 
   const restoreSharing = () => {
-    setPublicNicknameValue(sharingSnapshot.publicNicknameValue)
+    setDisplayName(sharingSnapshot.displayName)
     setPublicBio(sharingSnapshot.publicBio)
     setProfileShareStyle(sharingSnapshot.profileShareStyle)
     setRoot(sharingSnapshot.root)
@@ -239,7 +233,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          nickname: publicNicknameValue.trim() || null,
+          nickname: displayName.trim() || null,
           bio: publicBio,
           profileShareStyle,
           root,
@@ -305,26 +299,21 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
             <PersonalSettings
               aiWidgetVisible={initialSettings?.ai_widget_visible ?? true}
               displayName={displayName}
-              useCustomDisplayName={useCustomDisplayName}
-              providerName={initialProfile.providerName}
               email={initialProfile.email}
               isEmailProvider={initialProfile.isEmailProvider}
               avatarUrl={avatarUrl}
               avatarVersion={avatarVersion}
               userId={initialProfile.userId}
-              publicNickname={publicNicknameValue}
               publicBio={publicBio}
               profileShareStyle={profileShareStyle}
               publicFallbackLabel={publicNickname(initialProfile.userId, null)}
-              onPublicNicknameChange={setPublicNicknameValue}
+              onDisplayNameChange={setDisplayName}
               onPublicBioChange={setPublicBio}
               onProfileShareStyleChange={setProfileShareStyle}
               onSavePublicProfile={saveOwnerSharing}
               onCancelPublicProfile={restoreSharing}
               savingPublicProfile={savingSharing}
               savedPublicProfile={savedSharing}
-              onDisplayNameChange={setDisplayName}
-              onUseCustomDisplayNameChange={setUseCustomDisplayName}
               onAvatarChange={(url) => {
                 setAvatarUrl(url)
                 setAvatarVersion((v) => v + 1)
