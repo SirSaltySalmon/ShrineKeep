@@ -1,3 +1,4 @@
+import { countDescendantsById, normalizeBox } from "@/lib/sharing/box-editor"
 import { normalizeItem, sortTagsByColorThenName } from "@/lib/utils"
 import type { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { Box, Item, Tag } from "@/lib/types"
@@ -8,8 +9,9 @@ export async function loadDashboardRootData(supabase: Supabase, userId: string):
   initialBoxes: Box[]
   initialItems: Item[]
   initialTags: Tag[]
+  descendantCounts: Record<string, number>
 }> {
-  const [{ data: initialBoxes }, { data: initialItems }, { data: initialTags }] = await Promise.all([
+  const [{ data: initialBoxes }, { data: initialItems }, { data: initialTags }, { data: tree }] = await Promise.all([
     supabase
       .from("boxes")
       .select("*")
@@ -30,11 +32,15 @@ export async function loadDashboardRootData(supabase: Supabase, userId: string):
       .is("box_id", null)
       .order("position", { ascending: true }),
     supabase.from("tags").select("*").eq("user_id", userId),
+    supabase.from("boxes").select("id, parent_box_id").eq("user_id", userId),
   ])
 
+  const descendantCounts = countDescendantsById(tree ?? [])
+
   return {
-    initialBoxes: initialBoxes ?? [],
+    initialBoxes: (initialBoxes ?? []).map((box) => normalizeBox(box, descendantCounts)),
     initialItems: (initialItems ?? []).map(normalizeItem),
     initialTags: sortTagsByColorThenName(initialTags ?? []),
+    descendantCounts,
   }
 }

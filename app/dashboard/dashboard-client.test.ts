@@ -20,8 +20,16 @@ describe("dashboard local item search", () => {
     expect(src).toContain("No wishlist items in this box match your search.")
   })
 
-  it("uses the same container audience control as root", () => {
-    expect(src).toContain('from "@/components/sharing/container-audience-fields"')
-    expect(src).toContain("<ContainerAudienceFields")
+  it("uses the shared box dialog for rename and sharing", () => {
+    expect(src).toContain('from "@/components/box-dialog"')
+    expect(src).toContain("<BoxDialog")
+    expect(src).not.toContain("<ContainerAudienceFields")
+  })
+
+  it("opens the box editor from folder-loaded sharing instead of fetching after open", () => {
+    expect(src).toContain("handleOpenEditBox")
+    expect(src).toContain("openEditBox(latest)")
+    expect(src).not.toContain("setBoxSharingLoaded")
+    expect(src).not.toMatch(/showEditBoxDialog[\s\S]*\/api\/boxes\/\$\{boxId\}\/sharing/)
   })
 })

@@ -4,6 +4,12 @@ import { useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { Box, Item, Tag } from "@/lib/types"
 import { normalizeItem, sortTagsByColorThenName } from "@/lib/utils"
+import {
+  countDescendantsById,
+  normalizeBox,
+  parseOwnerSharingSummary,
+  type DashboardOwnerSharing,
+} from "@/lib/sharing/box-editor"
 
 interface UseDashboardDataParams {
   userId: string | undefined
@@ -13,9 +19,16 @@ interface UseDashboardDataParams {
   initialBoxes: Box[]
   initialItems: Item[]
   initialUserTags: Tag[]
+  initialDescendantCounts?: Record<string, number>
+  initialOwnerSharing?: DashboardOwnerSharing
 }
 
 type AffectedBoxInput = string | null | Array<string | null> | undefined
+
+interface BoxesQueryData {
+  boxes: Box[]
+  descendantCounts: Record<string, number>
+}
 
 export function useDashboardData({
   userId,
@@ -25,6 +38,8 @@ export function useDashboardData({
   initialBoxes,
   initialItems,
   initialUserTags,
+  initialDescendantCounts = {},
+  initialOwnerSharing,
 }: UseDashboardDataParams) {
   const queryClient = useQueryClient()
   const trimmedSearch = searchQuery.trim()
@@ -39,6 +54,7 @@ export function useDashboardData({
   ] as const
   const unacquiredKey = ["dashboard", "unacquired", userId, currentBoxId ?? "root"] as const
   const tagsKey = ["dashboard", "tags", userId] as const
+  const ownerSharingKey = ["dashboard", "owner-sharing", userId] as const
   const toScopeId = (boxId: string | null) => boxId ?? "root"
 
   const normalizeAffectedBoxes = (affected: AffectedBoxInput): Array<string | null> => {
@@ -56,17 +72,27 @@ export function useDashboardData({
   const boxesQuery = useQuery({
     queryKey: boxesKey,
     enabled: queryEnabled,
-    initialData: !currentBoxId && !trimmedSearch ? initialBoxes : undefined,
-    queryFn: async (): Promise<Box[]> => {
+    initialData: !currentBoxId && !trimmedSearch
+      ? { boxes: initialBoxes, descendantCounts: initialDescendantCounts }
+      : undefined,
+    queryFn: async (): Promise<BoxesQueryData> => {
       let query = supabase.from("boxes").select("*").eq("user_id", userId)
       if (currentBoxId) {
         query = query.eq("parent_box_id", currentBoxId)
       } else {
         query = query.is("parent_box_id", null)
       }
-      const { data, error } = await query.order("position", { ascending: true })
-      if (error) throw error
-      return data ?? []
+      const [folder, tree] = await Promise.all([
+        query.order("position", { ascending: true }),
+        supabase.from("boxes").select("id, parent_box_id").eq("user_id", userId),
+      ])
+      if (folder.error) throw folder.error
+      if (tree.error) throw tree.error
+      const descendantCounts = countDescendantsById(tree.data ?? [])
+      return {
+        boxes: (folder.data ?? []).map((row: Box) => normalizeBox(row, descendantCounts)),
+        descendantCounts,
+      }
     },
   })
 
@@ -134,8 +160,26 @@ export function useDashboardData({
     },
   })
 
+  const ownerSharingQuery = useQuery({
+    queryKey: ownerSharingKey,
+    enabled: queryEnabled,
+    initialData: initialOwnerSharing,
+    queryFn: async (): Promise<DashboardOwnerSharing> => {
+      const res = await fetch("/api/settings/profile")
+      if (res.status === 404) return { available: false }
+      if (!res.ok) throw new Error("Failed to load sharing profile")
+      const parsed = parseOwnerSharingSummary(await res.json())
+      if (!parsed) throw new Error("Failed to load sharing profile")
+      return parsed
+    },
+  })
+
   const loading = boxesQuery.isLoading || itemsQuery.isLoading
-  const folderLoading = boxesQuery.isFetching || itemsQuery.isFetching || unacquiredQuery.isFetching
+  const folderLoading =
+    boxesQuery.isFetching ||
+    itemsQuery.isFetching ||
+    unacquiredQuery.isFetching ||
+    ownerSharingQuery.isPending
 
   const setUserTags = (tags: Tag[]) => {
     queryClient.setQueryData(tagsKey, sortTagsByColorThenName(tags))
@@ -195,8 +239,25 @@ export function useDashboardData({
     queryClient.setQueryData(unacquiredKey, next)
   }
 
+  const refreshOwnerSharing = async () => {
+    await queryClient.invalidateQueries({ queryKey: ownerSharingKey })
+  }
+
+  const setOwnerSharing = (next: DashboardOwnerSharing) => {
+    queryClient.setQueryData(ownerSharingKey, next)
+  }
+
+  const descendantCounts = boxesQuery.data?.descendantCounts ?? initialDescendantCounts
+
+  const boxes = useMemo(
+    () => boxesQuery.data?.boxes ?? [],
+    [boxesQuery.data?.boxes],
+  )
+
   return {
-    boxes: boxesQuery.data ?? [],
+    boxes,
+    descendantCounts,
+    ownerSharing: ownerSharingQuery.data,
     items: itemsQuery.data ?? [],
     unacquiredItems: currentBoxId ? unacquiredQuery.data ?? [] : [],
     setUnacquiredItems,
@@ -206,5 +267,7 @@ export function useDashboardData({
     folderLoading,
     loadBoxes,
     loadItems,
+    refreshOwnerSharing,
+    setOwnerSharing,
   }
 }

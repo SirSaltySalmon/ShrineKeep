@@ -19,13 +19,13 @@ import {
 import AdvancedSearchFilters from "@/components/advanced-search-filters"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Search, Trash2, Sword, Filter, Sparkle } from "lucide-react"
+import { Search, Sword, Filter, Sparkle } from "lucide-react"
 import { DndContext } from "@dnd-kit/core"
 import { dashboardDndCollisionDetection } from "@/lib/dashboard-dnd-collision"
 import { getItemDragId } from "@/components/draggable-item-card"
 import BoxGrid from "@/components/box-grid"
+import BoxDialog from "@/components/box-dialog"
 import BoxStatsDialog from "@/components/box-stats-dialog"
 import BoxStatsPanel from "@/components/box-stats-panel"
 import ItemGrid from "@/components/item-grid"
@@ -48,9 +48,7 @@ import { useAgentSuggestions } from "@/lib/hooks/use-agent-suggestions"
 import AgentSuggestionReviewDialog from "@/components/agent-suggestion-review-dialog"
 import WebMcpStatusPanel from "@/components/webmcp-status-panel"
 import AgentStagingInbox from "@/components/agent-staging-inbox"
-import { ContainerAudienceFields } from "@/components/sharing/container-audience-fields"
-import { WishlistVisibilitySummary } from "@/components/sharing/wishlist-visibility-summary"
-import { PRIVATE_SHARING_DEFAULTS, type SharingSettings } from "@/lib/sharing/contracts"
+import { type DashboardOwnerSharing } from "@/lib/sharing/box-editor"
 import {
   coachStorageKey,
   initialCoachState,
@@ -84,6 +82,8 @@ interface DashboardClientProps {
   initialBoxes?: Box[]
   initialItems?: Item[]
   initialUserTags?: Tag[]
+  initialDescendantCounts?: Record<string, number>
+  initialOwnerSharing?: DashboardOwnerSharing
 }
 
 export default function DashboardClient({
@@ -102,6 +102,8 @@ export default function DashboardClient({
   initialBoxes = [],
   initialItems = [],
   initialUserTags = [],
+  initialDescendantCounts = {},
+  initialOwnerSharing,
 }: DashboardClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -116,6 +118,8 @@ export default function DashboardClient({
   const [searchQuery, setSearchQuery] = useState("")
   const {
     boxes,
+    descendantCounts,
+    ownerSharing,
     items,
     unacquiredItems,
     userTags,
@@ -124,6 +128,7 @@ export default function DashboardClient({
     loadBoxes,
     loadItems,
     setUserTags,
+    setOwnerSharing,
   } = useDashboardData({
     userId: user?.id,
     supabase,
@@ -132,25 +137,15 @@ export default function DashboardClient({
     initialBoxes,
     initialItems,
     initialUserTags,
+    initialDescendantCounts,
+    initialOwnerSharing,
   })
   const [activeItemsTab, setActiveItemsTab] = useState<"items" | "unacquired">("items")
   const {
     editBox,
     setEditBox,
-    editBoxName,
-    setEditBoxName,
-    editBoxDescription,
-    setEditBoxDescription,
     showEditBoxDialog,
     setShowEditBoxDialog,
-    savingEditBox,
-    setSavingEditBox,
-    deleteMode,
-    setDeleteMode,
-    deleteConfirmName,
-    setDeleteConfirmName,
-    deletingBox,
-    setDeletingBox,
     showDemoOfferDialog,
     setShowDemoOfferDialog,
     demoSeedLoading,
@@ -165,12 +160,6 @@ export default function DashboardClient({
     setShowItemCapUpsell,
     openEditBox,
   } = useDashboardDialogs()
-  const [boxSharing, setBoxSharing] = useState<SharingSettings>(PRIVATE_SHARING_DEFAULTS)
-  const [boxSharingRevision, setBoxSharingRevision] = useState("0")
-  const [boxDescendantCount, setBoxDescendantCount] = useState(0)
-  const [boxSharingLoaded, setBoxSharingLoaded] = useState(false)
-  const [wishlistVisibleCount, setWishlistVisibleCount] = useState<number | null>(null)
-  const [wishlistTotalCount, setWishlistTotalCount] = useState<number | null>(null)
   const [statsBoxId, setStatsBoxId] = useState<string>("root")
   const [statsBoxName, setStatsBoxName] = useState<string>("Root")
   const [showStatsDialog, setShowStatsDialog] = useState(false)
@@ -463,143 +452,9 @@ export default function DashboardClient({
     setCurrentBox(box)
   }
 
-  useEffect(() => {
-    if (!showEditBoxDialog || !editBox) {
-      setBoxSharingLoaded(false)
-      return
-    }
-    let cancelled = false
-    const boxId = editBox.id
-    setBoxSharingLoaded(false)
-    void (async () => {
-      try {
-        const [shareRes, ownerRes] = await Promise.all([
-          fetch(`/api/boxes/${boxId}/sharing`),
-          fetch("/api/settings/profile"),
-        ])
-        if (cancelled) return
-        if (shareRes.ok) {
-          const data = await shareRes.json() as {
-            settings?: SharingSettings
-            revision?: string
-            descendantCount?: number
-          }
-          const settings = data.settings ?? PRIVATE_SHARING_DEFAULTS
-          setBoxSharing(settings)
-          setBoxSharingRevision(data.revision ?? "0")
-          setBoxDescendantCount(data.descendantCount ?? 0)
-          setBoxSharingLoaded(true)
-        }
-        if (ownerRes.ok) {
-          const owner = await ownerRes.json() as {
-            wishlistGuestVisibleCount?: number
-            wishlistGuestTotalCount?: number
-          }
-          if (typeof owner.wishlistGuestVisibleCount === "number") setWishlistVisibleCount(owner.wishlistGuestVisibleCount)
-          if (typeof owner.wishlistGuestTotalCount === "number") setWishlistTotalCount(owner.wishlistGuestTotalCount)
-        }
-      } catch (error) {
-        console.error("Error loading box sharing:", error)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [showEditBoxDialog, editBox])
-
-  const saveEditBox = async () => {
-    if (!editBox || !editBoxName.trim()) return
-    setSavingEditBox(true)
-    try {
-      if (boxSharingLoaded) {
-        const shareRes = await fetch(`/api/boxes/${editBox.id}/sharing`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            collectionVisibility: boxSharing.collectionVisibility,
-            wishlistVisibility: boxSharing.wishlistVisibility,
-            shareFinancials: boxSharing.shareFinancials,
-            applyToDescendants: true,
-            expectedRevision: boxSharingRevision,
-            expectedDescendantCount: boxDescendantCount,
-          }),
-        })
-        const shareData = await shareRes.json().catch(() => ({}))
-        if (!shareRes.ok) {
-          const code = (shareData as { error?: { code?: string } })?.error?.code
-          throw new Error(code === "revision_conflict"
-            ? "Sharing settings changed in another tab. Reload and try again."
-            : "Failed to save sharing settings")
-        }
-        const next = shareData as { revision?: string }
-        if (next.revision) setBoxSharingRevision(next.revision)
-        const ownerRes = await fetch("/api/settings/profile")
-        if (ownerRes.ok) {
-          const owner = await ownerRes.json() as {
-            wishlistGuestVisibleCount?: number
-            wishlistGuestTotalCount?: number
-          }
-          if (typeof owner.wishlistGuestVisibleCount === "number") setWishlistVisibleCount(owner.wishlistGuestVisibleCount)
-          if (typeof owner.wishlistGuestTotalCount === "number") setWishlistTotalCount(owner.wishlistGuestTotalCount)
-        }
-      }
-
-      const { error } = await supabase
-        .from("boxes")
-        .update({
-          name: editBoxName.trim(),
-          description: editBoxDescription.trim() || null,
-        })
-        .eq("id", editBox.id)
-        .eq("user_id", user.id)
-
-      if (error) throw error
-      if (currentBox?.id === editBox.id) {
-        setCurrentBox({
-          ...currentBox,
-          name: editBoxName.trim(),
-          description: editBoxDescription.trim() || undefined,
-        })
-      }
-      setShowEditBoxDialog(false)
-      setEditBox(null)
-      loadBoxes()
-    } catch (error) {
-      console.error("Error saving box:", error)
-      alert(error instanceof Error ? error.message : "Failed to save box. Please try again.")
-    } finally {
-      setSavingEditBox(false)
-    }
-  }
-
-  const deleteBox = async () => {
-    if (!editBox || !deleteMode || deleteConfirmName.trim() !== editBox.name) return
-    setDeletingBox(true)
-    try {
-      const res = await fetch("/api/boxes/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ boxId: editBox.id, mode: deleteMode }),
-      })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? "Failed to delete box")
-      }
-      if (currentBoxId === editBox.id) {
-        setCurrentBoxId(editBox.parent_box_id ?? null)
-        setCurrentBox(null)
-      }
-      setShowEditBoxDialog(false)
-      setEditBox(null)
-      setDeleteMode(null)
-      setDeleteConfirmName("")
-      loadBoxes()
-      loadItems(currentBoxId === editBox.id ? (editBox.parent_box_id ?? null) : currentBoxId)
-    } catch (e) {
-      console.error("Error deleting box:", e)
-    } finally {
-      setDeletingBox(false)
-    }
+  const handleOpenEditBox = (box: Box) => {
+    const latest = boxes.find((entry) => entry.id === box.id) ?? box
+    openEditBox(latest)
   }
 
   const ActiveItemsIcon = activeItemsTab === "unacquired" ? Sparkle : Sword
@@ -836,159 +691,6 @@ export default function DashboardClient({
                 className="w-full min-w-0"
               />
             )}
-            <Dialog
-              open={showEditBoxDialog}
-              onOpenChange={(open) => {
-                setShowEditBoxDialog(open)
-                if (!open) {
-                  setEditBox(null)
-                  setDeleteMode(null)
-                  setDeleteConfirmName("")
-                }
-              }}
-            >
-              <DialogContent className="sm:max-w-[500px] min-w-0">
-                <DialogHeader className="min-w-0">
-                  <DialogTitle>Edit box</DialogTitle>
-                  <DialogDescription>
-                    Change the name, description, and sharing of this box, or delete it.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4 layout-shrink-visible">
-                  <div className="min-w-0">
-                    <Label>Name</Label>
-                    <Input
-                      value={editBoxName}
-                      onChange={(e) => setEditBoxName(e.target.value)}
-                      placeholder="My Collection"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <Label>Description (optional)</Label>
-                    <Input
-                      value={editBoxDescription}
-                      onChange={(e) => setEditBoxDescription(e.target.value)}
-                      placeholder="A brief description..."
-                    />
-                  </div>
-
-                  {boxSharingLoaded && editBox && (
-                    <div className="border-t pt-4 space-y-4 layout-shrink-visible">
-                      <ContainerAudienceFields
-                        containerLabel={editBoxName.trim() || editBox.name}
-                        value={boxSharing}
-                        onChange={setBoxSharing}
-                        idPrefix={`box-${editBox.id}`}
-                      />
-                      {wishlistVisibleCount != null && wishlistTotalCount != null && (
-                        <WishlistVisibilitySummary
-                          visibleCount={wishlistVisibleCount}
-                          totalCount={wishlistTotalCount}
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  <div className="border-t pt-4 space-y-3 layout-shrink-visible">
-                    <div className="flex items-center gap-2 text-fluid-sm font-medium text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                      Delete box
-                    </div>
-                    {deleteMode == null ? (
-                      <div className="flex flex-col gap-2 layout-shrink-visible">
-                        <p className="text-fluid-sm text-muted-foreground">
-                          Choose how to handle contents:
-                        </p>
-                        <div className="flex flex-col gap-2 layout-shrink-visible">
-                          <Label htmlFor="delete-mode-delete-all" className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
-                            <input
-                              id="delete-mode-delete-all"
-                              type="radio"
-                              name="delete-mode"
-                              checked={deleteMode === "delete-all"}
-                              onChange={() => setDeleteMode("delete-all")}
-                              className="mt-1"
-                            />
-                            <span className="layout-shrink-visible">
-                              <strong>Delete all:</strong> Permanently delete this box and all child items, sub-boxes, and their data (value history, photos, etc.).
-                            </span>
-                          </Label>
-                          <Label htmlFor="delete-mode-move-up" className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
-                            <input
-                              id="delete-mode-move-up"
-                              type="radio"
-                              name="delete-mode"
-                              checked={deleteMode === "move-up"}
-                              onChange={() => setDeleteMode("move-up")}
-                              className="mt-1"
-                            />
-                            <span className="layout-shrink-visible">
-                              <strong>Move contents up:</strong> Move this box&apos;s items and sub-boxes {editBox?.parent_box_id ? "into the box above it" : "to the top level"}, then delete this box. Anything inside will follow the parent&apos;s sharing settings, which may make it visible to more people.
-                            </span>
-                          </Label>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3 layout-shrink-visible">
-                        <p className="text-fluid-sm text-muted-foreground">
-                          {deleteMode === "delete-all"
-                            ? "All contents will be permanently deleted. This cannot be undone."
-                            : `Move this box's items and sub-boxes ${editBox?.parent_box_id ? "into the box above it" : "to the top level"}, then delete this box. Anything inside will follow the parent's sharing settings, which may make it visible to more people.`}
-                        </p>
-                        <div className="layout-shrink-visible">
-                          <Label className="text-fluid-sm font-medium min-w-0">
-                            Type the box name to confirm: <strong className="break-all">{editBox?.name}</strong>
-                          </Label>
-                          <Input
-                            value={deleteConfirmName}
-                            onChange={(e) => setDeleteConfirmName(e.target.value)}
-                            placeholder="Box name"
-                            className="mt-1"
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setDeleteMode(null)
-                              setDeleteConfirmName("")
-                            }}
-                          >
-                            Back
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={deleteBox}
-                            disabled={
-                              deletingBox ||
-                              deleteConfirmName.trim() !== (editBox?.name ?? "")
-                            }
-                          >
-                            {deletingBox ? "Deleting..." : "Confirm delete"}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowEditBoxDialog(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={saveEditBox}
-                    disabled={savingEditBox || !editBoxName.trim() || deleteMode != null}
-                  >
-                    {savingEditBox ? "Saving..." : "Save"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </div>
         </div>
 
@@ -1033,7 +735,7 @@ export default function DashboardClient({
               boxes={[]}
               currentBoxId={currentBoxId}
               onBoxClick={handleBoxClick}
-              onRename={openEditBox}
+              onRename={handleOpenEditBox}
               onShowStats={() => {}}
               onCreateBox={createBox}
               isBoxSelected={isBoxSelected}
@@ -1075,7 +777,7 @@ export default function DashboardClient({
               loading={contentSkeletonLoading}
               currentBoxId={currentBoxId}
               onBoxClick={handleBoxClick}
-              onRename={openEditBox}
+              onRename={handleOpenEditBox}
               onShowStats={(box) => {
                 setStatsBoxId(box.id)
                 setStatsBoxName(box.name)
@@ -1177,6 +879,40 @@ export default function DashboardClient({
           </>
         )}
 
+        <BoxDialog
+          open={showEditBoxDialog}
+          onOpenChange={(open) => {
+            setShowEditBoxDialog(open)
+            if (!open) setEditBox(null)
+          }}
+          box={editBox}
+          ownerSharing={ownerSharing}
+          descendantCount={
+            editBox
+              ? descendantCounts[editBox.id] ?? editBox.descendant_count ?? 0
+              : 0
+          }
+          onSave={(updated) => {
+            if (currentBox?.id === updated.id) {
+              setCurrentBox({
+                ...currentBox,
+                name: updated.name,
+                description: updated.description || undefined,
+                sharing: updated.sharing,
+              })
+            }
+            loadBoxes()
+          }}
+          onDeleted={(box) => {
+            if (currentBoxId === box.id) {
+              setCurrentBoxId(box.parent_box_id ?? null)
+              setCurrentBox(null)
+            }
+            loadBoxes()
+            loadItems(currentBoxId === box.id ? (box.parent_box_id ?? null) : currentBoxId)
+          }}
+          onOwnerSharingChange={setOwnerSharing}
+        />
         <BoxStatsDialog
           boxId={statsBoxId}
           boxName={statsBoxName}

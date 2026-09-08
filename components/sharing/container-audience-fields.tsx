@@ -20,7 +20,7 @@ const AUDIENCE_LABELS: Record<Audience, string> = {
 
 export interface ContainerAudienceFieldsProps {
   /** Name of this container. Root uses “items not in a box”; boxes use the box name. */
-  containerLabel: string
+  containerLabel?: string
   value: SharingSettings
   onChange: (next: SharingSettings) => void
   disabled?: boolean
@@ -37,18 +37,19 @@ export function ContainerAudienceFields({
   const draft = { ...value, wishlistEdited: true, applyToDescendants: true }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-fluid-sm font-medium">{containerLabel}</h3>
-        <p className="text-fluid-xs text-muted-foreground mt-0.5">
-          Collection and wishlist audiences are independent. A child cannot be wider than this container
-          in the same audience. Restricting narrows wider descendants; widening does not change them.
-        </p>
-      </div>
+    <div className="space-y-4 min-w-0">
+      <p className="text-fluid-xs text-muted-foreground break-words">
+        {containerLabel
+          ? `Collection and wishlist visibility for ${containerLabel} are independent.`
+          : "Collection and wishlist visibility are independent."}
+        {" "}
+        A child cannot be wider than this container in the same audience. Restricting narrows wider
+        descendants; widening does not change them.
+      </p>
 
       <AudienceSelect
         id={`${idPrefix}-collection-audience`}
-        label="Collection"
+        label="Collection visibility"
         hint="Who can see items filed in this container"
         value={value.collectionVisibility}
         disabled={disabled}
@@ -64,7 +65,7 @@ export function ContainerAudienceFields({
 
       <AudienceSelect
         id={`${idPrefix}-wishlist-audience`}
-        label="Wishlist"
+        label="Wishlist visibility"
         hint="Who can see wishes associated with this container"
         value={value.wishlistVisibility}
         disabled={disabled}
@@ -113,10 +114,10 @@ function AudienceSelect({
   onValueChange: (audience: Audience) => void
 }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 min-w-0">
       <Label htmlFor={id}>{label}</Label>
       <Select value={value} disabled={disabled} onValueChange={(next) => onValueChange(next as Audience)}>
-        <SelectTrigger id={id} className="max-w-sm">
+        <SelectTrigger id={id} className="w-full min-w-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -127,7 +128,7 @@ function AudienceSelect({
           ))}
         </SelectContent>
       </Select>
-      <p className="text-fluid-xs text-muted-foreground">{hint}</p>
+      <p className="text-fluid-xs text-muted-foreground break-words">{hint}</p>
     </div>
   )
 }
