@@ -1,9 +1,11 @@
-import type { CursorPage, OperationError, OperationResult, PublicBox, PublicCollectionItem, PublicProfile, PublicReadService, PublicWishlistItem, PublishedViewer } from "../contracts"
+import type { CursorPage, OperationError, OperationResult, PublicBox, PublicCollectionItem, PublicDetailRequest, PublicItemDetail, PublicMedia, PublicProfile, PublicReadService, PublicWishlistItem, PublishedViewer } from "../contracts"
 import { GUEST_VIEWER } from "../contracts"
+import { TAG_COLORS, type TagColor } from "@/lib/types"
 import { decodeCursor, encodeCursor, type CursorScope } from "./cursor"
 
 /** Server-only dependency boundary. Supply the service client; never a browser client. */
 export type SharingRpc = (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>
+export type PublicMediaResolver = (kind: "photo" | "avatar", referenceId: string, viewer: PublishedViewer) => Promise<OperationResult<PublicMedia>>
 type Surface = "boxes" | "items" | "wishlist"
 type Context = { revision: string; viewerCategory: CursorScope["viewerCategory"]; profile: PublicProfile }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -63,8 +65,19 @@ function failure(value: unknown): OperationResult<never> {
   return unavailable
 }
 
-/** Partial T02 implementation. Media, style, details, stats and token resolution follow. */
-export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string): Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "wishlist" | "previewWishlist"> {
+/** T02 safe projections. Stats, styles and token resolution remain separate work. */
+export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, media?: PublicMediaResolver): Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "collectionItem" | "wishlistItem" | "wishlist" | "previewWishlist"> {
+  async function photo(referenceId: unknown, viewer: PublishedViewer): Promise<PublicMedia | null> {
+    if (referenceId === null || referenceId === undefined) return null
+    if (!identity(referenceId) || !media) throw new Error("Invalid media reference")
+    const result = await media("photo", referenceId, viewer)
+    if (!result.ok) {
+      if (result.error.code === "not_found") return null
+      throw new Error("Media unavailable")
+    }
+    if (result.data.referenceId !== referenceId) throw new Error("Mismatched media reference")
+    return { referenceId, url: result.data.url, expiresAt: result.data.expiresAt }
+  }
   async function context(ownerId: string, viewer: PublishedViewer): Promise<OperationResult<Context>> {
     if (!identity(ownerId) || (viewer.kind === "authenticated" && !identity(viewer.userId))) return invalid
     const response = await rpc("sharing_read_context", { p_owner_id: ownerId, p_viewer_id: viewer.kind === "guest" ? null : viewer.userId })
@@ -105,8 +118,69 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string): Pic
         rows.push({ item, key: { value: key.value as string | number, id: key.id as string } })
       }
       const entries = rows.slice(0, 20).map(row => row.item)
+      // Authorize only displayed rows, never the internal lookahead. Keep signing bounded.
+      if (surface !== "boxes") {
+        for (let offset = 0; offset < entries.length; offset += 4) {
+          await Promise.all(entries.slice(offset, offset + 4).map(async (entry, localIndex) => {
+            const item = entry as PublicCollectionItem | PublicWishlistItem
+            item.thumbnail = await photo(object(object(data.rows[offset + localIndex])?.item)?.thumbnailReferenceId, viewer)
+          }))
+        }
+      }
       const hasMore = rows.length > 20
       return { ok: true, data: { entries, hasMore, nextCursor: hasMore ? encodeCursor(scope, rows[19].key, cursorSecret) : null } }
+    } catch { return unavailable }
+  }
+
+  async function detail<T extends PublicCollectionItem | PublicWishlistItem>(ownerId: string, viewer: PublishedViewer, itemId: string,
+    surface: "items" | "wishlist", request: PublicDetailRequest, parse: (value: unknown) => T | null): Promise<OperationResult<PublicItemDetail<T>>> {
+    try {
+      if (!identity(itemId)) return invalid
+      const current = await context(ownerId, viewer)
+      if (!current.ok) return current
+      const scope = (resource: "photos" | "tags"): CursorScope => ({ ownerId, viewer, viewerCategory: current.data.viewerCategory,
+        surface: resource, sort: resource === "photos" ? "uploaded_at,id:asc" : "id:asc", search: "",
+        filters: JSON.stringify({ itemId, surface }), revision: current.data.revision })
+      const keys: Record<"photos" | "tags", { value: string | number | null; id: string } | null> = { photos: null, tags: null }
+      for (const resource of ["photos", "tags"] as const) {
+        const cursor = resource === "photos" ? request.photosCursor : request.tagsCursor
+        if (cursor === undefined) continue
+        const decoded = decodeCursor(cursor, scope(resource), cursorSecret)
+        if (!decoded.ok) return decoded.code === "cursor_reset" ? { ok: false, error: { code: "cursor_reset", status: 409 } } : invalid
+        if (!validDetailKey(decoded.cursor.lastKey, resource)) return invalid
+        keys[resource] = decoded.cursor.lastKey
+      }
+      const response = await rpc("sharing_read_item_detail", { p_owner_id: ownerId, p_viewer_id: viewer.kind === "guest" ? null : viewer.userId,
+        p_item_id: itemId, p_surface: surface, p_photos_after_key: keys.photos, p_tags_after_key: keys.tags, p_expected_revision: current.data.revision })
+      if (response.error) return unavailable
+      const envelope = object(response.data)
+      if (envelope?.ok !== true) return failure(response.data)
+      const data = object(envelope.data)
+      const item = parse(data?.item)
+      if (!data || !item || item.id.toLowerCase() !== itemId.toLowerCase() || data.revision !== current.data.revision
+        || data.viewerCategory !== current.data.viewerCategory || !Array.isArray(data.photos) || data.photos.length > 21
+        || !Array.isArray(data.tags) || data.tags.length > 21) return unavailable
+      const photoRows = data.photos.map(value => {
+        const row = object(value); const key = object(row?.key)
+        if (!row || !identity(row.referenceId) || !key || !validDetailKey(key, "photos") || key.id !== row.referenceId) throw new Error("Invalid photo")
+        return { referenceId: row.referenceId, key: { id: key.id as string, value: key.value as string } }
+      })
+      const tagRows = data.tags.map(value => {
+        const row = object(value); const key = object(row?.key)
+        if (!row || typeof row.name !== "string" || !TAG_COLORS.includes(row.color as TagColor) || !key || !validDetailKey(key, "tags")) throw new Error("Invalid tag")
+        return { item: { name: row.name, color: row.color as TagColor }, key: { id: key.id as string, value: null } }
+      })
+      const photos: PublicMedia[] = []
+      for (let offset = 0; offset < Math.min(photoRows.length, 20); offset += 4) {
+        const batch = await Promise.all(photoRows.slice(offset, Math.min(offset + 4, 20)).map(row => photo(row.referenceId, viewer)))
+        photos.push(...batch.filter((entry): entry is PublicMedia => entry !== null))
+      }
+      const thumbnailReferenceId = object(data.item)?.thumbnailReferenceId
+      item.thumbnail = photos.find(entry => entry.referenceId === thumbnailReferenceId) ?? await photo(thumbnailReferenceId, viewer)
+      return { ok: true, data: { item,
+        photos: { entries: photos, hasMore: photoRows.length > 20, nextCursor: photoRows.length > 20 ? encodeCursor(scope("photos"), photoRows[19].key, cursorSecret) : null },
+        tags: { entries: tagRows.slice(0, 20).map(row => row.item), hasMore: tagRows.length > 20, nextCursor: tagRows.length > 20 ? encodeCursor(scope("tags"), tagRows[19].key, cursorSecret) : null },
+      } }
     } catch { return unavailable }
   }
 
@@ -119,9 +193,15 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string): Pic
     },
     boxes: (ownerId, viewer, request) => page(ownerId, viewer, "boxes", request.parentId, request.cursor, parseBox),
     collectionItems: (ownerId, viewer, request) => page(ownerId, viewer, "items", request.boxId, request.cursor, parseCollection),
+    collectionItem: (ownerId, viewer, itemId, request) => detail(ownerId, viewer, itemId, "items", request, parseCollection),
+    wishlistItem: (ownerId, viewer, itemId, request) => detail(ownerId, viewer, itemId, "wishlist", request, parseWishlist),
     wishlist: (ownerId, viewer, request) => page(ownerId, viewer, "wishlist", undefined, request.cursor, parseWishlist),
     previewWishlist: (sessionOwnerId, request) => page(sessionOwnerId, GUEST_VIEWER, "wishlist", undefined, request.cursor, parseWishlist),
   }
+}
+
+function validDetailKey(key: Record<string, unknown>, resource: "photos" | "tags"): boolean {
+  return resource === "photos" ? validKey(key, "wishlist") : identity(key.id) && key.value === null
 }
 
 function validKey(key: Record<string, unknown>, surface: Surface): boolean {

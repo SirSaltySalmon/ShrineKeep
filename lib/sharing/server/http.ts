@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { createPublicReadCore } from "./read-core"
+import { createMediaAuthorizeCore } from "@/lib/media/server/authorize-core"
 import { resolvePublishedViewer } from "./viewer"
 import type { OperationResult, PublicReadService, PublishedViewer } from "../contracts"
 
-type ReadCore = Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "wishlist" | "previewWishlist">
+type ReadCore = Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "collectionItem" | "wishlistItem" | "wishlist" | "previewWishlist">
 type Handler = (core: ReadCore, viewer: PublishedViewer) => Promise<OperationResult<unknown>>
 const headers = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie, Authorization" }
 
@@ -23,7 +24,12 @@ export async function publicReadResponse(request: NextRequest, run: Handler, req
     const secret = process.env.SHARING_CURSOR_SECRET
     if (!secret || Buffer.byteLength(secret) < 32) throw new Error("Missing cursor configuration")
     const service = createSupabaseServiceClient()
-    const core = createPublicReadCore((name, args) => service.rpc(name, args), secret)
+    const rpc = (name: string, args: Record<string, unknown>) => service.rpc(name, args)
+    const authorize = createMediaAuthorizeCore(rpc, async (bucket, path, lifetime) => {
+      const signed = await service.storage.from(bucket).createSignedUrl(path, lifetime)
+      return signed.error || !signed.data?.signedUrl ? null : { url: signed.data.signedUrl }
+    })
+    const core = createPublicReadCore(rpc, secret, authorize)
     const result = await run(core, viewer.data)
     return result.ok ? NextResponse.json(result.data, { headers }) : NextResponse.json({ error: result.error }, { status: result.error.status, headers })
   } catch {
