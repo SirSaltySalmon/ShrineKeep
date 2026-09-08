@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { createPublicReadCore } from "./read-core"
 import { createMediaAuthorizeCore } from "@/lib/media/server/authorize-core"
+import { publicNickname } from "../identity"
 import { resolvePublishedViewer } from "./viewer"
 import type {
   CursorPage,
@@ -75,6 +76,56 @@ async function resolveViewer(authorization: string | null): Promise<OperationRes
 export type TokenWishlistPage =
   | { ok: false }
   | { ok: true; viewer: PublishedViewer; page: CursorPage<PublicWishlistItem>; profile: PublicProfile }
+
+export type PublicProfilePage =
+  | { ok: false; reason: "not_found" | "disabled" | "authentication_required" }
+  | {
+    ok: true
+    viewer: PublishedViewer
+    profile: PublicProfile
+    /** Signed-in viewer's public label for AppNav. Never the profile owner's name unless the viewer is the owner. */
+    viewerName: string | null
+    sandbox: boolean
+    socialMutationsEnabled: boolean
+  }
+
+/** In-process public profile shell. Same flag, viewer, and core as the JSON routes. */
+export async function loadPublicProfilePage(ownerId: string): Promise<PublicProfilePage> {
+  try {
+    if (!uuid.test(ownerId)) return { ok: false, reason: "not_found" }
+    if (!publicReadsAreEnabled()) return { ok: false, reason: "disabled" }
+    const viewer = await resolveViewer((await requestHeaders()).get("authorization"))
+    if (!viewer.ok) {
+      return { ok: false, reason: viewer.error.code === "authentication_required" ? "authentication_required" : "not_found" }
+    }
+    const wired = await wirePublishedReadCore()
+    if (!wired.ok) return { ok: false, reason: "disabled" }
+    const profile = await wired.core.profile(ownerId, viewer.data)
+    if (!profile.ok) return { ok: false, reason: "not_found" }
+    let viewerName: string | null = null
+    let sandbox = false
+    if (viewer.data.kind === "authenticated") {
+      const supabase = await createSupabaseServerClient()
+      const { data: row } = await supabase
+        .from("users")
+        .select("name, is_sandbox")
+        .eq("id", viewer.data.userId)
+        .maybeSingle()
+      viewerName = publicNickname(viewer.data.userId, row?.name ?? null)
+      sandbox = row?.is_sandbox === true
+    }
+    return {
+      ok: true,
+      viewer: viewer.data,
+      profile: profile.data,
+      viewerName,
+      sandbox,
+      socialMutationsEnabled: process.env.SOCIAL_MUTATIONS_ENABLED === "true",
+    }
+  } catch {
+    return { ok: false, reason: "not_found" }
+  }
+}
 
 /** In-process token surface. Same flag, viewer, and core as the JSON routes. */
 export async function loadTokenWishlistPage(token: string): Promise<TokenWishlistPage> {

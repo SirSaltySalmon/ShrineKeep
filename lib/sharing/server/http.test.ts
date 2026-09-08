@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
-import { createPublishedReadCore, loadTokenWishlistPage, publicReadResponse } from "./http"
+import { createPublishedReadCore, loadPublicProfilePage, loadTokenWishlistPage, publicReadResponse } from "./http"
 import { GET as preview } from "@/app/api/wishlist/preview/route"
 import { GET as collectionDetail } from "@/app/api/public/users/[userId]/items/[itemId]/route"
 import { GET as wishlistDetail } from "@/app/api/public/users/[userId]/wishlist/[itemId]/route"
@@ -10,7 +10,18 @@ import { GET as stats } from "@/app/api/public/users/[userId]/stats/route"
 
 const mocks = vi.hoisted(() => ({ cookies: vi.fn(), headers: vi.fn(), getUser: vi.fn(), rpc: vi.fn(), service: vi.fn() }))
 vi.mock("next/headers", () => ({ cookies: mocks.cookies, headers: mocks.headers }))
-vi.mock("@/lib/supabase/server", () => ({ createSupabaseServerClient: async () => ({ auth: { getUser: mocks.getUser } }) }))
+vi.mock("@/lib/supabase/server", () => ({
+  createSupabaseServerClient: async () => ({
+    auth: { getUser: mocks.getUser },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: { name: "Friend", is_sandbox: false }, error: null }),
+        }),
+      }),
+    }),
+  }),
+}))
 vi.mock("@/lib/supabase/service", () => ({ createSupabaseServiceClient: mocks.service }))
 const owner = "61000000-0000-4000-8000-000000000001"
 const friend = "61000000-0000-4000-8000-000000000003"
@@ -210,5 +221,53 @@ describe("public HTTP boundaries", () => {
     expect(await loadTokenWishlistPage(token)).toEqual({ ok: false })
     expect(mocks.rpc.mock.calls[0]).toEqual(["sharing_resolve_wishlist_token", { p_token: token, p_viewer_id: blocked }])
     expect(mocks.rpc.mock.calls.every(call => call[1].p_viewer_id !== null)).toBe(true)
+  })
+
+  it("404s the public profile page when public reads are disabled without touching the service", async () => {
+    vi.stubEnv("SOCIAL_PUBLIC_READS_ENABLED", "false")
+    expect(await loadPublicProfilePage(owner)).toEqual({ ok: false, reason: "disabled" })
+    expect(mocks.service).not.toHaveBeenCalled()
+  })
+
+  it("rejects a non-uuid profile id before constructing a core", async () => {
+    expect(await loadPublicProfilePage("not-a-uuid")).toEqual({ ok: false, reason: "not_found" })
+    expect(mocks.service).not.toHaveBeenCalled()
+  })
+
+  it("loads a guest profile in-process and keeps owner editor fields out of the payload", async () => {
+    const publicProfile = { id: owner, nickname: "Collector", bio: "Hi", avatar: null, sharedStyle: null, relationship: "none" }
+    mocks.rpc.mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "guest", profile: publicProfile } }, error: null })
+    const result = await loadPublicProfilePage(owner)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.viewer).toEqual({ kind: "guest" })
+    expect(result.viewerName).toBeNull()
+    expect(result.profile.nickname).toBe("Collector")
+    expect(result.profile.bio).toBe("Hi")
+    expect(JSON.stringify(result)).not.toMatch(/email|wishlist_share_token|acquisition_price/)
+    expect(mocks.rpc.mock.calls[0][0]).toBe("sharing_read_context")
+    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_owner_id: owner, p_viewer_id: null })
+  })
+
+  it("labels navigation with the signed-in viewer, not the profile owner", async () => {
+    mocks.cookies.mockResolvedValue({ getAll: () => [{ name: "sb-project-auth-token", value: "ok" }] })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: friend } }, error: null })
+    const publicProfile = { id: owner, nickname: "Collector", bio: "", avatar: null, sharedStyle: null, relationship: "friends" }
+    mocks.rpc.mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "friend", profile: publicProfile } }, error: null })
+    const result = await loadPublicProfilePage(owner)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.viewer).toEqual({ kind: "authenticated", userId: friend })
+    expect(result.viewerName).toBe("Friend")
+    expect(result.profile.nickname).toBe("Collector")
+    expect(result.viewerName).not.toBe(result.profile.nickname)
+  })
+
+  it("denies a blocked signed-in visitor on the profile page", async () => {
+    mocks.cookies.mockResolvedValue({ getAll: () => [{ name: "sb-project-auth-token", value: "ok" }] })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: blocked } }, error: null })
+    mocks.rpc.mockResolvedValue({ data: { ok: false, error: { code: "not_found", status: 404 } }, error: null })
+    expect(await loadPublicProfilePage(owner)).toEqual({ ok: false, reason: "not_found" })
+    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_owner_id: owner, p_viewer_id: blocked })
   })
 })
