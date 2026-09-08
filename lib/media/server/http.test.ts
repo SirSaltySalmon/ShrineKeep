@@ -51,12 +51,17 @@ describe("public media HTTP boundaries", () => {
     expect(mocks.signed).toHaveBeenCalledWith(`${owner}/items/a.jpg`, 60)
   })
 
-  it("rejects expired auth cookies without guest fallback", async () => {
+  it("treats expired auth cookies as guests on public media", async () => {
     mocks.cookies.mockResolvedValue({ getAll: () => [{ name: "sb-project-auth-token.0", value: "expired" }] })
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: new Error("expired") })
+    mocks.rpc.mockResolvedValue({
+      data: { ok: true, data: { kind: "uploaded", referenceId: photo, bucket: "item-photos", objectPath: `${owner}/items/a.jpg`, mime: "image/jpeg", externalUrl: null } },
+      error: null,
+    })
+    mocks.signed.mockResolvedValue({ data: { signedUrl: "https://signed.example.test/a" }, error: null })
     const result = await publicMediaResponse(new NextRequest("http://localhost/api/public/media/photo/" + photo), "photo", photo)
-    expect(result.status).toBe(401)
-    expect(mocks.service).not.toHaveBeenCalled()
+    expect(result.status).toBe(200)
+    expect(mocks.rpc.mock.calls[0][1].p_viewer_id).toBeNull()
   })
 
   it("returns generic unavailable errors without leaking infrastructure failures", async () => {

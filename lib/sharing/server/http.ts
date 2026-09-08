@@ -5,7 +5,7 @@ import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { createPublicReadCore } from "./read-core"
 import { createMediaAuthorizeCore } from "@/lib/media/server/authorize-core"
 import { publicNickname } from "../identity"
-import { resolvePublishedViewer } from "./viewer"
+import { publishedViewerOrGuest, resolvePublishedViewer } from "./viewer"
 import type {
   CursorPage,
   OperationResult,
@@ -78,7 +78,7 @@ export type TokenWishlistPage =
   | { ok: true; viewer: PublishedViewer; page: CursorPage<PublicWishlistItem>; profile: PublicProfile }
 
 export type PublicProfilePage =
-  | { ok: false; reason: "not_found" | "disabled" | "authentication_required" }
+  | { ok: false; reason: "not_found" | "disabled" }
   | {
     ok: true
     viewer: PublishedViewer
@@ -94,29 +94,26 @@ export async function loadPublicProfilePage(ownerId: string): Promise<PublicProf
   try {
     if (!uuid.test(ownerId)) return { ok: false, reason: "not_found" }
     if (!publicReadsAreEnabled()) return { ok: false, reason: "disabled" }
-    const viewer = await resolveViewer((await requestHeaders()).get("authorization"))
-    if (!viewer.ok) {
-      return { ok: false, reason: viewer.error.code === "authentication_required" ? "authentication_required" : "not_found" }
-    }
+    const viewer = publishedViewerOrGuest(await resolveViewer((await requestHeaders()).get("authorization")))
     const wired = await wirePublishedReadCore()
     if (!wired.ok) return { ok: false, reason: "disabled" }
-    const profile = await wired.core.profile(ownerId, viewer.data)
+    const profile = await wired.core.profile(ownerId, viewer)
     if (!profile.ok) return { ok: false, reason: "not_found" }
     let viewerName: string | null = null
     let sandbox = false
-    if (viewer.data.kind === "authenticated") {
+    if (viewer.kind === "authenticated") {
       const supabase = await createSupabaseServerClient()
       const { data: row } = await supabase
         .from("users")
         .select("name, is_sandbox")
-        .eq("id", viewer.data.userId)
+        .eq("id", viewer.userId)
         .maybeSingle()
-      viewerName = publicNickname(viewer.data.userId, row?.name ?? null)
+      viewerName = publicNickname(viewer.userId, row?.name ?? null)
       sandbox = row?.is_sandbox === true
     }
     return {
       ok: true,
-      viewer: viewer.data,
+      viewer,
       profile: profile.data,
       viewerName,
       sandbox,
@@ -131,17 +128,16 @@ export async function loadPublicProfilePage(ownerId: string): Promise<PublicProf
 export async function loadTokenWishlistPage(token: string): Promise<TokenWishlistPage> {
   try {
     if (!publicReadsAreEnabled()) return { ok: false }
-    const viewer = await resolveViewer((await requestHeaders()).get("authorization"))
-    if (!viewer.ok) return { ok: false }
+    const viewer = publishedViewerOrGuest(await resolveViewer((await requestHeaders()).get("authorization")))
     const wired = await wirePublishedReadCore()
     if (!wired.ok) return { ok: false }
-    const page = await wired.core.tokenWishlist(token, viewer.data, {})
+    const page = await wired.core.tokenWishlist(token, viewer, {})
     if (!page.ok) return { ok: false }
-    const ownerId = await wired.resolveTokenOwner(token, viewer.data)
+    const ownerId = await wired.resolveTokenOwner(token, viewer)
     if (!ownerId) return { ok: false }
-    const profile = await wired.core.profile(ownerId, viewer.data)
+    const profile = await wired.core.profile(ownerId, viewer)
     if (!profile.ok) return { ok: false }
-    return { ok: true, viewer: viewer.data, page: page.data, profile: profile.data }
+    return { ok: true, viewer, page: page.data, profile: profile.data }
   } catch {
     return { ok: false }
   }

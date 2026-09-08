@@ -26,6 +26,16 @@ test("guest profile keeps both tabs and fetches each surface only when opened", 
   await expect.poll(() => wishlist.length).toBeGreaterThan(0)
 })
 
+test("stale auth cookie still renders the public profile", async ({ context, page }) => {
+  await context.addCookies([
+    { name: "sb-project-auth-token", value: "expired", domain: "localhost", path: "/" },
+  ])
+  await page.goto(profilePath)
+  await expect(page).not.toHaveURL(/\/auth\/login/)
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible()
+  await expect(page.getByRole("tab", { name: "Showcase" })).toBeVisible()
+})
+
 test("visiting a profile does not mutate the document theme", async ({ page }) => {
   const mutations: string[] = []
   page.on("request", (request) => {

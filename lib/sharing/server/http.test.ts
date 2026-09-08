@@ -55,28 +55,20 @@ describe("public HTTP boundaries", () => {
   })
 
   it("hydrates profile avatar and style through the verified guest viewer", async () => {
+    const avatarUrl = `http://127.0.0.1:54321/storage/v1/object/public/avatars/${owner}/avatar.jpg`
     mocks.rpc.mockResolvedValueOnce({
       data: { ok: true, data: { revision: "0", viewerCategory: "guest", profile: {
-        id: owner, nickname: "Collector", bio: "", avatar: null, avatarReferenceId: owner, relationship: "none",
+        id: owner, nickname: "Collector", bio: "", avatar: null, avatarUrl, relationship: "none",
         sharedStyle: { colorScheme: { background: "0 0% 100%" }, headerFontFamily: "Lora", bodyFontFamily: "Inter", borderRadius: "0.5rem" },
       } } }, error: null,
-    }).mockResolvedValueOnce({
-      data: { ok: true, data: { kind: "uploaded", referenceId: owner, bucket: "avatars", objectPath: `${owner}/avatars/v1.png` } }, error: null,
-    })
-    mocks.service.mockReturnValue({
-      rpc: mocks.rpc,
-      storage: { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: "https://signed.test/avatar" }, error: null }) }) },
     })
     const result = await profile(new NextRequest(`http://localhost/api/public/users/${owner}?viewerId=${owner}`), { params: Promise.resolve({ userId: owner }) })
     expect(result.status).toBe(200)
     const body = await result.json()
-    expect(body.avatar).toEqual({ referenceId: owner, url: "https://signed.test/avatar", expiresAt: expect.any(String) })
+    expect(body.avatar).toEqual({ referenceId: owner, url: avatarUrl, expiresAt: null })
     expect(body.sharedStyle.headerFontFamily).toBe("Lora")
-    expect(JSON.stringify(body)).not.toContain("objectPath")
-    expect(mocks.rpc.mock.calls[0][0]).toBe("sharing_read_context")
-    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_owner_id: owner, p_viewer_id: null })
-    expect(mocks.rpc.mock.calls[1][0]).toBe("media_authorize_reference")
-    expect(mocks.rpc.mock.calls[1][1]).toMatchObject({ p_kind: "avatar", p_reference_id: owner, p_viewer_id: null })
+    expect(JSON.stringify(body)).not.toMatch(/objectPath|avatarUrl/)
+    expect(mocks.rpc.mock.calls).toEqual([["sharing_read_context", expect.objectContaining({ p_owner_id: owner, p_viewer_id: null })]])
   })
 
   it("aliases a wishlist token through verified guest resolution", async () => {
@@ -134,15 +126,13 @@ describe("public HTTP boundaries", () => {
     expect(run.mock.calls[0][1]).toEqual({ kind: "guest" })
   })
 
-  it("rejects expired auth cookies without guest fallback", async () => {
+  it("treats expired auth cookies as guests on published JSON reads", async () => {
     mocks.cookies.mockResolvedValue({ getAll: () => [{ name: "sb-project-auth-token.0", value: "expired" }] })
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: new Error("expired") })
-    const run = vi.fn()
+    const run = vi.fn().mockResolvedValue({ ok: true, data: { entries: [] } })
     const result = await publicReadResponse(new NextRequest("http://localhost/api/public/users/x"), run)
-    expect(result.status).toBe(401)
-    expect(run).not.toHaveBeenCalled()
-    expect(mocks.service).not.toHaveBeenCalled()
-    expect(result.headers.get("cache-control")).toContain("no-store")
+    expect(result.status).toBe(200)
+    expect(run.mock.calls[0][1]).toEqual({ kind: "guest" })
   })
 
   it("requires authentication for public preview", async () => {
@@ -246,6 +236,19 @@ describe("public HTTP boundaries", () => {
     expect(result.profile.bio).toBe("Hi")
     expect(JSON.stringify(result)).not.toMatch(/email|wishlist_share_token|acquisition_price/)
     expect(mocks.rpc.mock.calls[0][0]).toBe("sharing_read_context")
+    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_owner_id: owner, p_viewer_id: null })
+  })
+
+  it("loads a public profile as guest when the cookie session cannot be verified", async () => {
+    mocks.cookies.mockResolvedValue({ getAll: () => [{ name: "sb-project-auth-token.0", value: "expired" }] })
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: new Error("expired") })
+    const publicProfile = { id: owner, nickname: "Collector", bio: "Hi", avatar: null, sharedStyle: null, relationship: "none" }
+    mocks.rpc.mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "guest", profile: publicProfile } }, error: null })
+    const result = await loadPublicProfilePage(owner)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.viewer).toEqual({ kind: "guest" })
+    expect(result.viewerName).toBeNull()
     expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_owner_id: owner, p_viewer_id: null })
   })
 

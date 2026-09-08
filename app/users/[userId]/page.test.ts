@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest"
 import PublicProfilePage, { generateMetadata } from "./page"
 import PublicProfileClient from "./public-profile-client"
 
-const mocks = vi.hoisted(() => ({ load: vi.fn(), redirect: vi.fn(), notFound: vi.fn() }))
+const mocks = vi.hoisted(() => ({ load: vi.fn(), notFound: vi.fn() }))
 vi.mock("@/lib/sharing/server/http", () => ({ loadPublicProfilePage: mocks.load }))
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect, notFound: mocks.notFound }))
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound }))
 vi.mock("./public-profile-client", () => ({ default: (props: unknown) => props }))
 
 const owner = "61000000-0000-4000-8000-000000000001"
@@ -29,15 +29,6 @@ describe("public profile page", () => {
     const metadata = await generateMetadata({ params: Promise.resolve({ userId: owner }) })
     expect(metadata.title).toBe("ShrineKeep")
     expect(JSON.stringify(metadata)).not.toContain("Ada")
-  })
-
-  it("sends a broken session to login instead of rendering the owner's identity as the viewer", async () => {
-    mocks.redirect.mockImplementation((href: string) => {
-      throw new Error(href)
-    })
-    mocks.load.mockResolvedValue({ ok: false, reason: "authentication_required" })
-    await expect(PublicProfilePage({ params: Promise.resolve({ userId: owner }) })).rejects.toThrow("/auth/login?next=")
-    expect(mocks.redirect).toHaveBeenCalledWith(`/auth/login?next=${encodeURIComponent(`/users/${owner}`)}`)
   })
 
   it("hydrates the client with the safe profile and the viewer's name", async () => {

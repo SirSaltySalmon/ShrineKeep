@@ -1,6 +1,6 @@
 import { Suspense } from "react"
 import type { Metadata } from "next"
-import { notFound, redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import { loadPublicProfilePage } from "@/lib/sharing/server/http"
 import { publicProfileMetadata } from "@/lib/sharing/public-metadata"
 import PublicProfileClient from "./public-profile-client"
@@ -21,12 +21,7 @@ export default async function PublicProfilePage(props: PublicProfilePageProps) {
   if (!userId) notFound()
 
   const loaded = await loadPublicProfilePage(userId)
-  if (!loaded.ok) {
-    if (loaded.reason === "authentication_required") {
-      redirect(`/auth/login?next=${encodeURIComponent(`/users/${userId}`)}`)
-    }
-    notFound()
-  }
+  if (!loaded.ok) notFound()
 
   return (
     <Suspense fallback={null}>
