@@ -1,38 +1,115 @@
-import { cookies } from "next/headers"
+import { cookies, headers as requestHeaders } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { createPublicReadCore } from "./read-core"
 import { createMediaAuthorizeCore } from "@/lib/media/server/authorize-core"
 import { resolvePublishedViewer } from "./viewer"
-import type { OperationResult, PublicReadService, PublishedViewer } from "../contracts"
+import type {
+  CursorPage,
+  OperationResult,
+  PublicProfile,
+  PublicReadService,
+  PublicWishlistItem,
+  PublishedViewer,
+} from "../contracts"
 
 type ReadCore = Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "collectionItem" | "wishlistItem" | "wishlist" | "previewWishlist" | "tokenWishlist" | "stats">
 type Handler = (core: ReadCore, viewer: PublishedViewer) => Promise<OperationResult<unknown>>
-const headers = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie, Authorization" }
+const responseHeaders = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie, Authorization" }
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function publicReadsAreEnabled() {
+  return process.env.SOCIAL_PUBLIC_READS_ENABLED === "true"
+}
+
+type WiredCore =
+  | { ok: false; reason: "disabled" }
+  | { ok: true; core: ReadCore; resolveTokenOwner: (token: string, viewer: PublishedViewer) => Promise<string | null> }
+
+function ownerIdFromResolve(data: unknown): string | null {
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return null
+  const envelope = data as Record<string, unknown>
+  if (envelope.ok !== true || envelope.data === null || typeof envelope.data !== "object" || Array.isArray(envelope.data)) return null
+  const ownerId = (envelope.data as Record<string, unknown>).ownerId
+  return typeof ownerId === "string" && uuid.test(ownerId) ? ownerId : null
+}
+
+/** Single construction of the public read core, signer, and cursor secret. Honour the kill switch here. */
+async function wirePublishedReadCore(): Promise<WiredCore> {
+  if (!publicReadsAreEnabled()) return { ok: false, reason: "disabled" }
+  const secret = process.env.SHARING_CURSOR_SECRET
+  if (!secret || Buffer.byteLength(secret) < 32) throw new Error("Missing cursor configuration")
+  const service = createSupabaseServiceClient()
+  const rpc = (name: string, args: Record<string, unknown>) => service.rpc(name, args)
+  const authorize = createMediaAuthorizeCore(rpc, async (bucket, path, lifetime) => {
+    const signed = await service.storage.from(bucket).createSignedUrl(path, lifetime)
+    return signed.error || !signed.data?.signedUrl ? null : { url: signed.data.signedUrl }
+  })
+  return {
+    ok: true,
+    core: createPublicReadCore(rpc, secret, authorize),
+    resolveTokenOwner: async (token, viewer) => {
+      const response = await rpc("sharing_resolve_wishlist_token", {
+        p_token: token,
+        p_viewer_id: viewer.kind === "guest" ? null : viewer.userId,
+      })
+      return response.error ? null : ownerIdFromResolve(response.data)
+    },
+  }
+}
+
+export async function createPublishedReadCore(): Promise<{ ok: false; reason: "disabled" } | { ok: true; core: ReadCore }> {
+  const wired = await wirePublishedReadCore()
+  if (!wired.ok) return wired
+  return { ok: true, core: wired.core }
+}
+
+async function resolveViewer(authorization: string | null): Promise<OperationResult<PublishedViewer>> {
+  const cookieStore = await cookies()
+  const hasAuthCookie = cookieStore.getAll().some(cookie => /^sb-.+-auth-token(?:\.\d+)?$/.test(cookie.name))
+  const supabase = await createSupabaseServerClient()
+  return resolvePublishedViewer(supabase.auth, authorization, hasAuthCookie)
+}
+
+export type TokenWishlistPage =
+  | { ok: false }
+  | { ok: true; viewer: PublishedViewer; page: CursorPage<PublicWishlistItem>; profile: PublicProfile }
+
+/** In-process token surface. Same flag, viewer, and core as the JSON routes. */
+export async function loadTokenWishlistPage(token: string): Promise<TokenWishlistPage> {
+  try {
+    if (!publicReadsAreEnabled()) return { ok: false }
+    const viewer = await resolveViewer((await requestHeaders()).get("authorization"))
+    if (!viewer.ok) return { ok: false }
+    const wired = await wirePublishedReadCore()
+    if (!wired.ok) return { ok: false }
+    const page = await wired.core.tokenWishlist(token, viewer.data, {})
+    if (!page.ok) return { ok: false }
+    const ownerId = await wired.resolveTokenOwner(token, viewer.data)
+    if (!ownerId) return { ok: false }
+    const profile = await wired.core.profile(ownerId, viewer.data)
+    if (!profile.ok) return { ok: false }
+    return { ok: true, viewer: viewer.data, page: page.data, profile: profile.data }
+  } catch {
+    return { ok: false }
+  }
+}
 
 /** Keep disabled until canonical media/legacy policy cutover passes the privacy gate. */
 export async function publicReadResponse(request: NextRequest, run: Handler, requireOwner = false): Promise<NextResponse> {
-  if (process.env.SOCIAL_PUBLIC_READS_ENABLED !== "true") return NextResponse.json({ error: { code: "not_found" } }, { status: 404, headers })
+  if (!publicReadsAreEnabled()) return NextResponse.json({ error: { code: "not_found" } }, { status: 404, headers: responseHeaders })
   try {
-    const cookieStore = await cookies()
-    const hasAuthCookie = cookieStore.getAll().some(cookie => /^sb-.+-auth-token(?:\.\d+)?$/.test(cookie.name))
-    const supabase = await createSupabaseServerClient()
-    const viewer = await resolvePublishedViewer(supabase.auth, request.headers.get("authorization"), hasAuthCookie)
-    if (!viewer.ok) return NextResponse.json({ error: viewer.error }, { status: viewer.error.status, headers })
-    if (requireOwner && viewer.data.kind === "guest") return NextResponse.json({ error: { code: "authentication_required" } }, { status: 401, headers })
-    const secret = process.env.SHARING_CURSOR_SECRET
-    if (!secret || Buffer.byteLength(secret) < 32) throw new Error("Missing cursor configuration")
-    const service = createSupabaseServiceClient()
-    const rpc = (name: string, args: Record<string, unknown>) => service.rpc(name, args)
-    const authorize = createMediaAuthorizeCore(rpc, async (bucket, path, lifetime) => {
-      const signed = await service.storage.from(bucket).createSignedUrl(path, lifetime)
-      return signed.error || !signed.data?.signedUrl ? null : { url: signed.data.signedUrl }
-    })
-    const core = createPublicReadCore(rpc, secret, authorize)
-    const result = await run(core, viewer.data)
-    return result.ok ? NextResponse.json(result.data, { headers }) : NextResponse.json({ error: result.error }, { status: result.error.status, headers })
+    const viewer = await resolveViewer(request.headers.get("authorization"))
+    if (!viewer.ok) return NextResponse.json({ error: viewer.error }, { status: viewer.error.status, headers: responseHeaders })
+    if (requireOwner && viewer.data.kind === "guest") return NextResponse.json({ error: { code: "authentication_required" } }, { status: 401, headers: responseHeaders })
+    const wired = await wirePublishedReadCore()
+    if (!wired.ok) return NextResponse.json({ error: { code: "not_found" } }, { status: 404, headers: responseHeaders })
+    const result = await run(wired.core, viewer.data)
+    return result.ok
+      ? NextResponse.json(result.data, { headers: responseHeaders })
+      : NextResponse.json({ error: result.error }, { status: result.error.status, headers: responseHeaders })
   } catch {
-    return NextResponse.json({ error: { code: "temporarily_unavailable" } }, { status: 503, headers })
+    return NextResponse.json({ error: { code: "temporarily_unavailable" } }, { status: 503, headers: responseHeaders })
   }
 }

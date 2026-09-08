@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
-import { publicReadResponse } from "./http"
+import { createPublishedReadCore, loadTokenWishlistPage, publicReadResponse } from "./http"
 import { GET as preview } from "@/app/api/wishlist/preview/route"
 import { GET as collectionDetail } from "@/app/api/public/users/[userId]/items/[itemId]/route"
 import { GET as wishlistDetail } from "@/app/api/public/users/[userId]/wishlist/[itemId]/route"
@@ -8,11 +8,14 @@ import { GET as tokenWishlist } from "@/app/api/public/wishlist/[token]/route"
 import { GET as profile } from "@/app/api/public/users/[userId]/route"
 import { GET as stats } from "@/app/api/public/users/[userId]/stats/route"
 
-const mocks = vi.hoisted(() => ({ cookies: vi.fn(), getUser: vi.fn(), rpc: vi.fn(), service: vi.fn() }))
-vi.mock("next/headers", () => ({ cookies: mocks.cookies }))
+const mocks = vi.hoisted(() => ({ cookies: vi.fn(), headers: vi.fn(), getUser: vi.fn(), rpc: vi.fn(), service: vi.fn() }))
+vi.mock("next/headers", () => ({ cookies: mocks.cookies, headers: mocks.headers }))
 vi.mock("@/lib/supabase/server", () => ({ createSupabaseServerClient: async () => ({ auth: { getUser: mocks.getUser } }) }))
 vi.mock("@/lib/supabase/service", () => ({ createSupabaseServiceClient: mocks.service }))
 const owner = "61000000-0000-4000-8000-000000000001"
+const friend = "61000000-0000-4000-8000-000000000003"
+const blocked = "61000000-0000-4000-8000-000000000004"
+const token = "c4000000-0000-4000-8000-000000000001"
 
 describe("public HTTP boundaries", () => {
   beforeEach(() => {
@@ -20,6 +23,7 @@ describe("public HTTP boundaries", () => {
     vi.stubEnv("SOCIAL_PUBLIC_READS_ENABLED", "true")
     vi.stubEnv("SHARING_CURSOR_SECRET", "test-only-secret-longer-than-thirty-two-bytes")
     mocks.cookies.mockResolvedValue({ getAll: () => [] })
+    mocks.headers.mockResolvedValue({ get: () => null })
     mocks.service.mockReturnValue({ rpc: mocks.rpc })
   })
   afterEach(() => vi.unstubAllEnvs())
@@ -150,5 +154,61 @@ describe("public HTTP boundaries", () => {
     const result = await publicReadResponse(new NextRequest("http://localhost/api/public/users/x"), vi.fn())
     expect(result.status).toBe(503)
     expect(await result.text()).not.toContain("PRIVATE")
+  })
+
+  it("404s the token page when public reads are disabled without touching auth or service", async () => {
+    vi.stubEnv("SOCIAL_PUBLIC_READS_ENABLED", "false")
+    expect(await loadTokenWishlistPage(token)).toEqual({ ok: false })
+    expect(await createPublishedReadCore()).toEqual({ ok: false, reason: "disabled" })
+    expect(mocks.service).not.toHaveBeenCalled()
+    expect(mocks.cookies).not.toHaveBeenCalled()
+  })
+
+  it("loads a guest token wishlist in-process with the verified guest viewer", async () => {
+    const publicProfile = { id: owner, nickname: "Collector", bio: "", avatar: null, sharedStyle: null, relationship: "none" }
+    const wish = { id: "61000000-0000-4000-8000-000000000005", name: "root public wish", description: null, thumbnail: null, expectedPrice: 0, visibleTarget: null }
+    mocks.rpc
+      .mockResolvedValueOnce({ data: { ok: true, data: { ownerId: owner } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "guest", profile: publicProfile } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "guest", rows: [{ item: wish, key: { value: "2026-01-01T00:00:00.000Z", id: wish.id } }] } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { ownerId: owner } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "guest", profile: publicProfile } }, error: null })
+    const result = await loadTokenWishlistPage(token)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.viewer).toEqual({ kind: "guest" })
+    expect(result.page.entries).toEqual([wish])
+    expect(result.profile.nickname).toBe("Collector")
+    expect(mocks.rpc.mock.calls[0]).toEqual(["sharing_resolve_wishlist_token", { p_token: token, p_viewer_id: null }])
+    expect(mocks.rpc.mock.calls[2][1]).toMatchObject({ p_owner_id: owner, p_surface: "wishlist", p_viewer_id: null })
+  })
+
+  it("passes a signed-in friend through to friends-only token entries", async () => {
+    mocks.cookies.mockResolvedValue({ getAll: () => [{ name: "sb-project-auth-token", value: "ok" }] })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: friend } }, error: null })
+    const publicProfile = { id: owner, nickname: "Collector", bio: "", avatar: null, sharedStyle: null, relationship: "friends" }
+    const friendsWish = { id: "61000000-0000-4000-8000-000000000006", name: "friends wish", description: null, thumbnail: null, expectedPrice: 1, visibleTarget: null }
+    mocks.rpc
+      .mockResolvedValueOnce({ data: { ok: true, data: { ownerId: owner } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "friend", profile: publicProfile } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "friend", rows: [{ item: friendsWish, key: { value: "2026-01-01T00:00:00.000Z", id: friendsWish.id } }] } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { ownerId: owner } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "friend", profile: publicProfile } }, error: null })
+    const result = await loadTokenWishlistPage(token)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.viewer).toEqual({ kind: "authenticated", userId: friend })
+    expect(result.page.entries.map(item => item.name)).toContain("friends wish")
+    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_token: token, p_viewer_id: friend })
+    expect(mocks.rpc.mock.calls[2][1]).toMatchObject({ p_owner_id: owner, p_viewer_id: friend, p_surface: "wishlist" })
+  })
+
+  it("denies a blocked signed-in visitor on the token page without guest fallback", async () => {
+    mocks.cookies.mockResolvedValue({ getAll: () => [{ name: "sb-project-auth-token", value: "ok" }] })
+    mocks.getUser.mockResolvedValue({ data: { user: { id: blocked } }, error: null })
+    mocks.rpc.mockResolvedValue({ data: { ok: false, error: { code: "not_found", status: 404 } }, error: null })
+    expect(await loadTokenWishlistPage(token)).toEqual({ ok: false })
+    expect(mocks.rpc.mock.calls[0]).toEqual(["sharing_resolve_wishlist_token", { p_token: token, p_viewer_id: blocked }])
+    expect(mocks.rpc.mock.calls.every(call => call[1].p_viewer_id !== null)).toBe(true)
   })
 })

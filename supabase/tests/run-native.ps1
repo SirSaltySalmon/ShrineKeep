@@ -39,6 +39,7 @@ try {
     'supabase/migrations/20260908093000_public_profile_avatar_style.sql',
     'supabase/migrations/20260908094600_public_wishlist_token.sql',
     'supabase/migrations/20260908120000_public_stats.sql',
+    'supabase/migrations/20260908140000_revoke_legacy_public_reads.sql',
     'supabase/tests/social-foundation.sql',
     'supabase/tests/social-transactions.sql',
     'supabase/tests/public-reads.sql',
@@ -56,7 +57,8 @@ try {
     'supabase/tests/media-gc-worker.sql',
     'supabase/tests/box-delete.sql',
     'supabase/tests/owner-media.sql',
-    'supabase/tests/box-paste-inheritance.sql'
+    'supabase/tests/box-paste-inheritance.sql',
+    'supabase/tests/legacy-revocation.sql'
   )
   foreach ($relativePath in $sqlFiles) {
     & (Join-Path $pgBin 'psql.exe') -X -h 127.0.0.1 -p $testPort -U postgres -v ON_ERROR_STOP=1 -f (Join-Path $repoRoot $relativePath) | Out-Null

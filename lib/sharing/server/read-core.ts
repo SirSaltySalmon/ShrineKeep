@@ -175,8 +175,9 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
       if (envelope?.ok !== true) return failure(response.data)
       const data = object(envelope.data)
       if (!data || data.revision !== scope.revision || data.viewerCategory !== scope.viewerCategory || !Array.isArray(data.rows) || data.rows.length > 21) return unavailable
+      const sourceRows = data.rows
       const rows: Array<{ item: T; key: { value: string | number | null; id: string } }> = []
-      for (const value of data.rows) {
+      for (const value of sourceRows) {
         const row = object(value)
         const item = parse(row?.item)
         const key = object(row?.key)
@@ -189,7 +190,7 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
         for (let offset = 0; offset < entries.length; offset += 4) {
           await Promise.all(entries.slice(offset, offset + 4).map(async (entry, localIndex) => {
             const item = entry as PublicCollectionItem | PublicWishlistItem
-            item.thumbnail = await resolveMedia("photo", object(object(data.rows[offset + localIndex])?.item)?.thumbnailReferenceId, viewer)
+            item.thumbnail = await resolveMedia("photo", object(object(sourceRows[offset + localIndex])?.item)?.thumbnailReferenceId, viewer)
           }))
         }
       }
