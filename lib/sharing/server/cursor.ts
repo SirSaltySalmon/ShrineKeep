@@ -5,7 +5,7 @@ export interface CursorScope {
   ownerId: string
   viewer: PublishedViewer
   viewerCategory: "guest" | "owner" | "friend" | "stranger"
-  surface: "friends" | "requests" | "notifications" | "blocks" | "boxes" | "items" | "wishlist" | "photos" | "tags"
+  surface: "friends" | "requests" | "notifications" | "blocks" | "boxes" | "items" | "wishlist" | "photos"
   sort: string
   search: string
   /** Canonical serialized allowlisted filters, including parent/item/direction scope. */

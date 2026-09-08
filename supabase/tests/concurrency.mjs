@@ -103,6 +103,7 @@ try {
 
   const box = "92000000-0000-4000-8000-000000000001"
   await observer.query(`INSERT INTO public.boxes(id,user_id,name) VALUES ('${box}','${uuid(7)}','Concurrent box')`)
+  await observer.query(`UPDATE public.user_settings SET root_collection_visibility='public', root_wishlist_visibility='public' WHERE user_id='${uuid(7)}'`)
   const revision = (await observer.query(`SELECT sharing_revision FROM public.users WHERE id='${uuid(7)}'`)).at(-1)
   assert.match(revision, /^\d+$/)
   const staleSave = await contend(

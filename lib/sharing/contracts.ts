@@ -1,5 +1,5 @@
 import type { FontFamilyId } from "@/lib/fonts"
-import type { Theme, TagColor } from "@/lib/types"
+import type { Theme } from "@/lib/types"
 import type { Relationship } from "@/lib/social/contracts"
 
 /** v1 is additive. These DTOs must never be cast to owner database types. */
@@ -59,7 +59,7 @@ export interface PublicBox {
   id: string
   name: string
   description: string | null
-  /** Visible immediate parent only; null across any private gap. */
+  /** Null for top-level boxes. */
   displayParentId: string | null
   hasVisibleChildren: boolean
 }
@@ -87,7 +87,6 @@ export interface PublicWishlistItem {
 export interface PublicItemDetail<T> {
   item: T
   photos: CursorPage<PublicMedia>
-  tags: CursorPage<{ name: string; color: TagColor }>
 }
 
 /** Bounded aggregate series; opening balances included, totals window-independent. */
@@ -136,14 +135,13 @@ export interface PublicPageRequest {
 
 export interface PublicDetailRequest {
   photosCursor?: string
-  tagsCursor?: string
 }
 
 /** Implement only in server modules. Viewer comes from verified session, never input JSON. */
 export interface PublicReadService {
   profile(ownerId: string, viewer: PublishedViewer): Promise<OperationResult<PublicProfile>>
   boxes(ownerId: string, viewer: PublishedViewer, request: PublicPageRequest & { parentId?: string }): Promise<OperationResult<CursorPage<PublicBox>>>
-  collectionItems(ownerId: string, viewer: PublishedViewer, request: PublicPageRequest & { boxId: string }): Promise<OperationResult<CursorPage<PublicCollectionItem>>>
+  collectionItems(ownerId: string, viewer: PublishedViewer, request: PublicPageRequest & { boxId?: string }): Promise<OperationResult<CursorPage<PublicCollectionItem>>>
   collectionItem(ownerId: string, viewer: PublishedViewer, itemId: string, request: PublicDetailRequest): Promise<OperationResult<PublicItemDetail<PublicCollectionItem>>>
   wishlist(ownerId: string, viewer: PublishedViewer, request: PublicPageRequest): Promise<OperationResult<CursorPage<PublicWishlistItem>>>
   wishlistItem(ownerId: string, viewer: PublishedViewer, itemId: string, request: PublicDetailRequest): Promise<OperationResult<PublicItemDetail<PublicWishlistItem>>>

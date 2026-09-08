@@ -12,10 +12,12 @@ INSERT INTO public.user_blocks (blocker_id,blocked_id) VALUES
 INSERT INTO public.boxes (id,user_id,parent_box_id,name,collection_visibility,wishlist_visibility) VALUES
  ('42000000-0000-4000-8000-000000000001','41000000-0000-4000-8000-000000000001',NULL,'A','public','public'),
  ('42000000-0000-4000-8000-000000000002','41000000-0000-4000-8000-000000000001','42000000-0000-4000-8000-000000000001','SECRET B','private','public'),
- ('42000000-0000-4000-8000-000000000003','41000000-0000-4000-8000-000000000001','42000000-0000-4000-8000-000000000002','C','public','friends'),
- ('42000000-0000-4000-8000-000000000004','41000000-0000-4000-8000-000000000001','42000000-0000-4000-8000-000000000003','D','friends','private');
--- Creation always inherits; explicit owner publication follows creation.
-UPDATE public.boxes SET collection_visibility = CASE name WHEN 'SECRET B' THEN 'private'::public.sharing_audience WHEN 'D' THEN 'friends'::public.sharing_audience ELSE 'public'::public.sharing_audience END,
+ ('42000000-0000-4000-8000-000000000003','41000000-0000-4000-8000-000000000001','42000000-0000-4000-8000-000000000002','C','private','friends'),
+ ('42000000-0000-4000-8000-000000000004','41000000-0000-4000-8000-000000000001','42000000-0000-4000-8000-000000000003','D','private','private');
+UPDATE public.user_settings SET root_collection_visibility='public', root_wishlist_visibility='public'
+ WHERE user_id='41000000-0000-4000-8000-000000000001';
+-- Creation always inherits; explicit owner publication follows creation and must stay dominated.
+UPDATE public.boxes SET collection_visibility = CASE name WHEN 'SECRET B' THEN 'private'::public.sharing_audience WHEN 'C' THEN 'private'::public.sharing_audience WHEN 'D' THEN 'private'::public.sharing_audience ELSE 'public'::public.sharing_audience END,
   wishlist_visibility = CASE name WHEN 'C' THEN 'friends'::public.sharing_audience WHEN 'D' THEN 'private'::public.sharing_audience ELSE 'public'::public.sharing_audience END;
 INSERT INTO public.boxes (user_id,parent_box_id,name,collection_visibility)
  SELECT '41000000-0000-4000-8000-000000000001','42000000-0000-4000-8000-000000000001','visible child ' || n,'public' FROM generate_series(1,25) n;
@@ -33,10 +35,16 @@ BEGIN
   PERFORM pg_temp.assert_true(response->'data'->'profile'->>'nickname' = 'Collector-00000001','neutral profile');
   PERFORM pg_temp.assert_true(response::text NOT LIKE '%SECRET%' AND response::text NOT LIKE '%email%', 'identity allowlist');
   response := public.sharing_read_page(owner_id,NULL,'boxes');
-  PERFORM pg_temp.assert_true(jsonb_array_length(response->'data'->'rows') = 2,'root grouping before pagination');
-  PERFORM pg_temp.assert_true(response->'data'->'rows'->1->'item'->>'name' = 'C','private gap detached root');
-  PERFORM pg_temp.assert_true(response->'data'->'rows'->1->'item'->'displayParentId' = 'null'::jsonb,'no hidden parent');
+  PERFORM pg_temp.assert_true(jsonb_array_length(response->'data'->'rows') = 1,'root grouping before pagination');
+  PERFORM pg_temp.assert_true(response->'data'->'rows'->0->'item'->>'name' = 'A','top-level public box');
+  PERFORM pg_temp.assert_true(response->'data'->'rows'->0->'item'->'displayParentId' = 'null'::jsonb,'top-level parent is null');
   PERFORM pg_temp.assert_true(response::text NOT LIKE '%SECRET B%', 'no hidden title');
+  BEGIN
+    UPDATE public.boxes SET collection_visibility='public' WHERE id='42000000-0000-4000-8000-000000000003';
+    RAISE EXCEPTION 'widening write under private parent allowed';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM <> 'privacy_conflict' THEN RAISE; END IF;
+  END;
   response := public.sharing_read_page(owner_id,NULL,'boxes','42000000-0000-4000-8000-000000000001');
   PERFORM pg_temp.assert_true(jsonb_array_length(response->'data'->'rows') = 21,'bounded direct children');
   response := public.sharing_read_page(owner_id,NULL,'items','42000000-0000-4000-8000-000000000001');

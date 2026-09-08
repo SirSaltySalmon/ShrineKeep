@@ -8,6 +8,8 @@ INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
 INSERT INTO public.boxes(id,user_id,name) VALUES
  ('a2000000-0000-4000-8000-000000000001','a1000000-0000-4000-8000-000000000001','public box'),
  ('a2000000-0000-4000-8000-000000000002','a1000000-0000-4000-8000-000000000001','PRIVATE target');
+UPDATE public.user_settings SET root_collection_visibility='public', root_wishlist_visibility='public'
+ WHERE user_id='a1000000-0000-4000-8000-000000000001';
 UPDATE public.boxes SET collection_visibility='public' WHERE id='a2000000-0000-4000-8000-000000000001';
 UPDATE public.boxes SET wishlist_visibility='public' WHERE id='a2000000-0000-4000-8000-000000000002';
 INSERT INTO public.items(id,user_id,box_id,name,current_value,acquisition_price,acquisition_date) VALUES
@@ -28,21 +30,20 @@ DO $$
 DECLARE owner_id uuid := 'a1000000-0000-4000-8000-000000000001';
  item_id uuid := 'a3000000-0000-4000-8000-000000000001';
  wish_id uuid := 'a3000000-0000-4000-8000-000000000002';
- response jsonb; photo_key jsonb; tag_key jsonb; rev bigint;
+ response jsonb; photo_key jsonb; rev bigint;
 BEGIN
  response := public.sharing_read_item_detail(owner_id,NULL,item_id,'items');
  PERFORM pg_temp.assert_true((response->>'ok')::boolean,'guest collection detail');
  PERFORM pg_temp.assert_true(response->'data'->'item'->'currentValue'='null'::jsonb AND response->'data'->'item'->'acquisitionPrice'='null'::jsonb,'hidden finances masked');
  PERFORM pg_temp.assert_true(response->'data'->'item'->>'thumbnailReferenceId'='a4000000-0000-4000-8000-000000000002','explicit thumbnail wins');
- PERFORM pg_temp.assert_true(jsonb_array_length(response->'data'->'photos')=21 AND jsonb_array_length(response->'data'->'tags')=21,'bounded lookahead');
+ PERFORM pg_temp.assert_true(jsonb_array_length(response->'data'->'photos')=21,'bounded photo lookahead');
+ PERFORM pg_temp.assert_true(NOT (response->'data' ? 'tags'),'public detail omits tags');
  PERFORM pg_temp.assert_true(position('PRIVATE' IN response::text)=0,'no paths or foreign tags');
- photo_key := response->'data'->'photos'->19->'key'; tag_key := response->'data'->'tags'->19->'key';
- response := public.sharing_read_item_detail(owner_id,NULL,item_id,'items',photo_key,tag_key);
- PERFORM pg_temp.assert_true(jsonb_array_length(response->'data'->'photos')=3 AND jsonb_array_length(response->'data'->'tags')=3,'independent keyset tails');
+ photo_key := response->'data'->'photos'->19->'key';
+ response := public.sharing_read_item_detail(owner_id,NULL,item_id,'items',photo_key);
+ PERFORM pg_temp.assert_true(jsonb_array_length(response->'data'->'photos')=3,'photo keyset tail');
  PERFORM pg_temp.assert_true(response->'data'->'photos'->0->>'referenceId'='a4000000-0000-4000-8000-000000000021','timestamp precision and UUID tie-breaker');
- response := public.sharing_read_item_detail(owner_id,NULL,item_id,'items',NULL,'{"id":"a5000000-0000-4000-8000-000000000001","value":"bad"}');
- PERFORM pg_temp.assert_true(response->'error'->>'code'='invalid_input','malformed tag key rejected');
- response := public.sharing_read_item_detail(owner_id,NULL,item_id,'items','{"id":null,"value":null}',NULL);
+ response := public.sharing_read_item_detail(owner_id,NULL,item_id,'items','{"id":null,"value":null}');
  PERFORM pg_temp.assert_true(response->'error'->>'code'='invalid_input','null photo key rejected');
  response := public.sharing_read_item_detail(owner_id,NULL,wish_id,'wishlist');
  PERFORM pg_temp.assert_true((response->'data'->'item'->>'expectedPrice')::numeric=0 AND response->'data'->'item'->'visibleTarget'='null'::jsonb,'independent wishlist with zero price and hidden target');
@@ -54,7 +55,7 @@ BEGIN
  PERFORM pg_temp.assert_true((response->'data'->'item'->>'currentValue')::numeric=0 AND (response->'data'->'item'->>'acquisitionPrice')::numeric=123,'financial consent preserves zero');
  rev := (response->'data'->>'revision')::bigint;
  UPDATE public.boxes SET collection_visibility='friends' WHERE id='a2000000-0000-4000-8000-000000000001';
- PERFORM pg_temp.assert_true(public.sharing_read_item_detail(owner_id,NULL,item_id,'items',NULL,NULL,rev)->'error'->>'code'='cursor_reset','revision rechecked');
+ PERFORM pg_temp.assert_true(public.sharing_read_item_detail(owner_id,NULL,item_id,'items',NULL,rev)->'error'->>'code'='cursor_reset','revision rechecked');
  PERFORM pg_temp.assert_true(public.sharing_read_item_detail(owner_id,NULL,item_id,'items')->'error'->>'code'='not_found','guest denied friends item');
  PERFORM pg_temp.assert_true((public.sharing_read_item_detail(owner_id,'a1000000-0000-4000-8000-000000000002',item_id,'items')->>'ok')::boolean,'friend allowed');
  UPDATE public.items SET wishlist_is_private=true WHERE id=wish_id;

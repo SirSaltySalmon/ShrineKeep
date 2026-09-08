@@ -8,8 +8,8 @@ INSERT INTO public.boxes(id,user_id,name) VALUES
  ('b2000000-0000-4000-8000-000000000001','b1000000-0000-4000-8000-000000000001','Private target'),
  ('b2000000-0000-4000-8000-000000000002','b1000000-0000-4000-8000-000000000001','Public target'),
  ('b2000000-0000-4000-8000-000000000003','b1000000-0000-4000-8000-000000000002','Other target');
-UPDATE public.boxes SET wishlist_visibility='public' WHERE id='b2000000-0000-4000-8000-000000000002';
 UPDATE public.user_settings SET root_wishlist_visibility='public' WHERE user_id='b1000000-0000-4000-8000-000000000001';
+UPDATE public.boxes SET wishlist_visibility='public' WHERE id='b2000000-0000-4000-8000-000000000002';
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claim.sub='b1000000-0000-4000-8000-000000000001';
 INSERT INTO public.items(id,user_id,name,is_wishlist,wishlist_target_box_id) VALUES

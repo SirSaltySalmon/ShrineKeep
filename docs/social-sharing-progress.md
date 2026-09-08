@@ -194,7 +194,7 @@ where these get exercised.
 - Clone tables are owned by `supabase_admin`. Apply DDL with
 `docker exec -i supabase_db_db-clones psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1`.
 - The clone was built from `supabase/schema.sql` plus `data.sql`, then the social migrations
-through `20260908140000_revoke_legacy_public_reads.sql`. This is not a proof of a historical migration replay, and it
+through `20260908150000_audience_ceiling.sql`. This is not a proof of a historical migration replay, and it
 cannot be: twelve pre-social migrations `ALTER` tables that no migration creates, so `supabase/migrations/`
 alone will not build a database from empty. `schema.sql` is the bootstrap and must stay that way until
 someone deliberately rewrites history.
@@ -213,8 +213,8 @@ legacy `/api/wishlist/[token]` JSON route is deleted. Client pagination uses `/a
 - Sharing preview and save at `GET/PUT /api/boxes/[boxId]/sharing`, revision- and count-checked.
 - Social mutations, lists, and inbox under `/api/social/*`, transactional, with rate limits and idempotent receipts.
 - Public media signing at `/api/public/media/[kind]/[referenceId]`.
-- Eighteen social migrations of predicates, invariants, triggers, and service-only RPCs, with SQL tests that pass
-on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest: `20260908140000_revoke_legacy_public_reads.sql`.
+- Nineteen social migrations of predicates, invariants, triggers, and service-only RPCs, with SQL tests that pass
+on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest: `20260908150000_audience_ceiling.sql`.
 - A fenced GC worker with proven Storage retry behaviour: `node --env-file=.env.local supabase/tests/media-gc-storage.mjs`.
 
 
@@ -231,8 +231,9 @@ registered lazily, on the first owner GET of `/api/media/photo/:id`. An asset no
 registered and can never be garbage collected.
 - `public_profiles`**.** The table exists and has a row per user on the clone. **No application code writes
 it.** There is no path to set a nickname or a bio. `app/api/settings/route.ts` does not touch it.
-- `root_wishlist_visibility` **and** `profile_share_style`**.** Read by SQL predicates, written by nothing.
-`app/api/settings/route.ts:173` still writes the legacy `wishlist_is_public`.
+- `root_collection_visibility`, `root_share_financials`, `root_wishlist_visibility` **and** `profile_share_style`**.**
+Audiences are read only through `sharing_private.container_audience` (financials through `container_share_financials`).
+No application code writes them yet. `app/api/settings/route.ts:173` still writes the legacy `wishlist_is_public`.
 - **The GC worker trigger.** The worker and its Edge entry exist. There is no `vercel.json` anywhere in the
 repo and no cron declaration. `supabase/operations/schedule-media-gc.sql` is a script for a cluster that
 does not yet have `pg_cron` or `pg_net` installed. Nothing wakes the worker.
@@ -521,37 +522,37 @@ by the items read surface once loose items publish. Keep it a separate function 
 
 ### Done when
 
-- [ ] `sharing_private.container_audience` is the only thing in the schema that reads
+- [x] `sharing_private.container_audience` is the only thing in the schema that reads
   `root_collection_visibility` or `root_wishlist_visibility`, and the only thing that branches on a box
   id being null to locate an audience. Grep both column names and the phrase `wishlist_target_box_id IS
   NULL`; every surviving hit must be about item detachment, not about where an audience lives.
-- [ ] No rank function, rank table, or hand-written meet exists. The guard compares audiences with `<=` and
+- [x] No rank function, rank table, or hand-written meet exists. The guard compares audiences with `<=` and
   the clamp uses `least`, relying on the `sharing_audience` enum's declaration order.
-- [ ] Root's ceiling and a parent box's ceiling are enforced by the same predicate, with no branch for
+- [x] Root's ceiling and a parent box's ceiling are enforced by the same predicate, with no branch for
   top-level boxes.
-- [ ] A widening write is rejected through every entry point: editor, create, move, box paste, item paste,
+- [x] A widening write is rejected through every entry point: editor, create, move, box paste, item paste,
   import. Test each one; a route that bypasses the guard is the failure this work order exists to prevent.
-- [ ] Restricting a parent clamps only strictly-wider descendants, in one transaction, and the preview count
+- [x] Restricting a parent clamps only strictly-wider descendants, in one transaction, and the preview count
   matches the number actually changed.
-- [ ] Widening a parent changes no descendant.
-- [ ] Root set Private hides the entire account regardless of box settings; root set Public with a Private
+- [x] Widening a parent changes no descendant.
+- [x] Root set Private hides the entire account regardless of box settings; root set Public with a Private
   box still hides that box. Root wishlist set Private hides every box wishlist.
-- [ ] A Private collection box with a Public box wishlist still shows its wishlist entries — the dimensions
+- [x] A Private collection box with a Public box wishlist still shows its wishlist entries — the dimensions
   must not have been accidentally coupled while adding the ceiling.
-- [ ] Mixed-financials totals from plan §7.1 still work: a parent with finances hidden still aggregates from
+- [x] Mixed-financials totals from plan §7.1 still work: a parent with finances hidden still aggregates from
   children that share theirs. The ceiling must not have leaked onto `share_financials`.
-- [ ] Deleting a top-level box leaves its detached wishlist items at the deleted box's audience, and that
+- [x] Deleting a top-level box leaves its detached wishlist items at the deleted box's audience, and that
   audience is provably never wider than root's — assert the invariant rather than a clamp.
-- [ ] Loose owned items not in any box publish according to the root's audience.
-- [ ] Backfill ran, the constraint is validated, and no box is wider than its parent.
-- [ ] Detached **showcase root** and private-gap code and tests are deleted, not disabled — the two
+- [x] Loose owned items not in any box publish according to the root's audience.
+- [x] Backfill ran, the constraint is validated, and no box is wider than its parent.
+- [x] Detached **showcase root** and private-gap code and tests are deleted, not disabled — the two
   assertions named in step 6, and the reader branches that produce them.
-- [ ] The detached **wishlist item** mechanism still works. `wishlist_detached_visibility`, the `detached`
+- [x] The detached **wishlist item** mechanism still works. `wishlist_detached_visibility`, the `detached`
   field in `privacy-fixtures.ts`, and their tests in `contracts.test.ts`, `item-invariants.sql`,
   `social-foundation.sql`, and `box-delete.sql` are untouched and still passing. Do not `rg detached`
   and delete what it finds; the word names two unrelated things and only one of them is going away.
-- [ ] No public response contains a tag field, and no public cursor has a `tags` surface.
-- [ ] `npm run test:db:native`, `npm run check:full`, and `npm run build` pass.
+- [x] No public response contains a tag field, and no public cursor has a `tags` surface.
+- [x] `npm run test:db:native`, `npm run check:full`, and `npm run build` pass.
 
 ---
 

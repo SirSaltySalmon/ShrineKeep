@@ -2,7 +2,7 @@ import type { CursorPage, OperationError, OperationResult, PublicBox, PublicBoxS
 import { GUEST_VIEWER, SHARING_LIMITS } from "../contracts"
 import { FONT_OPTIONS, type FontFamilyId } from "@/lib/fonts"
 import { THEME_COLOR_KEYS } from "@/lib/theme-colors"
-import { TAG_COLORS, type TagColor, type Theme } from "@/lib/types"
+import { type Theme } from "@/lib/types"
 import { decodeCursor, encodeCursor, type CursorScope } from "./cursor"
 
 /** Server-only dependency boundary. Supply the service client; never a browser client. */
@@ -205,20 +205,18 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
       if (!identity(itemId)) return invalid
       const current = await context(ownerId, viewer)
       if (!current.ok) return current
-      const scope = (resource: "photos" | "tags"): CursorScope => ({ ownerId, viewer, viewerCategory: current.data.viewerCategory,
-        surface: resource, sort: resource === "photos" ? "uploaded_at,id:asc" : "id:asc", search: "",
-        filters: JSON.stringify({ itemId, surface }), revision: current.data.revision })
-      const keys: Record<"photos" | "tags", { value: string | number | null; id: string } | null> = { photos: null, tags: null }
-      for (const resource of ["photos", "tags"] as const) {
-        const cursor = resource === "photos" ? request.photosCursor : request.tagsCursor
-        if (cursor === undefined) continue
-        const decoded = decodeCursor(cursor, scope(resource), cursorSecret)
+      const scope: CursorScope = { ownerId, viewer, viewerCategory: current.data.viewerCategory,
+        surface: "photos", sort: "uploaded_at,id:asc", search: "",
+        filters: JSON.stringify({ itemId, surface }), revision: current.data.revision }
+      let photosAfterKey: { value: string | number | null; id: string } | null = null
+      if (request.photosCursor !== undefined) {
+        const decoded = decodeCursor(request.photosCursor, scope, cursorSecret)
         if (!decoded.ok) return decoded.code === "cursor_reset" ? { ok: false, error: { code: "cursor_reset", status: 409 } } : invalid
-        if (!validDetailKey(decoded.cursor.lastKey, resource)) return invalid
-        keys[resource] = decoded.cursor.lastKey
+        if (!validDetailKey(decoded.cursor.lastKey)) return invalid
+        photosAfterKey = decoded.cursor.lastKey
       }
       const response = await rpc("sharing_read_item_detail", { p_owner_id: ownerId, p_viewer_id: viewer.kind === "guest" ? null : viewer.userId,
-        p_item_id: itemId, p_surface: surface, p_photos_after_key: keys.photos, p_tags_after_key: keys.tags, p_expected_revision: current.data.revision })
+        p_item_id: itemId, p_surface: surface, p_photos_after_key: photosAfterKey, p_expected_revision: current.data.revision })
       if (response.error) return unavailable
       const envelope = object(response.data)
       if (envelope?.ok !== true) return failure(response.data)
@@ -226,16 +224,11 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
       const item = parse(data?.item)
       if (!data || !item || item.id.toLowerCase() !== itemId.toLowerCase() || data.revision !== current.data.revision
         || data.viewerCategory !== current.data.viewerCategory || !Array.isArray(data.photos) || data.photos.length > 21
-        || !Array.isArray(data.tags) || data.tags.length > 21) return unavailable
+        || data.tags !== undefined) return unavailable
       const photoRows = data.photos.map(value => {
         const row = object(value); const key = object(row?.key)
-        if (!row || !identity(row.referenceId) || !key || !validDetailKey(key, "photos") || key.id !== row.referenceId) throw new Error("Invalid photo")
+        if (!row || !identity(row.referenceId) || !key || !validDetailKey(key) || key.id !== row.referenceId) throw new Error("Invalid photo")
         return { referenceId: row.referenceId, key: { id: key.id as string, value: key.value as string } }
-      })
-      const tagRows = data.tags.map(value => {
-        const row = object(value); const key = object(row?.key)
-        if (!row || typeof row.name !== "string" || !TAG_COLORS.includes(row.color as TagColor) || !key || !validDetailKey(key, "tags")) throw new Error("Invalid tag")
-        return { item: { name: row.name, color: row.color as TagColor }, key: { id: key.id as string, value: null } }
       })
       const photos: PublicMedia[] = []
       for (let offset = 0; offset < Math.min(photoRows.length, 20); offset += 4) {
@@ -245,8 +238,7 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
       const thumbnailReferenceId = object(data.item)?.thumbnailReferenceId
       item.thumbnail = photos.find(entry => entry.referenceId === thumbnailReferenceId) ?? await resolveMedia("photo", thumbnailReferenceId, viewer)
       return { ok: true, data: { item,
-        photos: { entries: photos, hasMore: photoRows.length > 20, nextCursor: photoRows.length > 20 ? encodeCursor(scope("photos"), photoRows[19].key, cursorSecret) : null },
-        tags: { entries: tagRows.slice(0, 20).map(row => row.item), hasMore: tagRows.length > 20, nextCursor: tagRows.length > 20 ? encodeCursor(scope("tags"), tagRows[19].key, cursorSecret) : null },
+        photos: { entries: photos, hasMore: photoRows.length > 20, nextCursor: photoRows.length > 20 ? encodeCursor(scope, photoRows[19].key, cursorSecret) : null },
       } }
     } catch { return unavailable }
   }
@@ -299,8 +291,8 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
   }
 }
 
-function validDetailKey(key: Record<string, unknown>, resource: "photos" | "tags"): boolean {
-  return resource === "photos" ? validKey(key, "wishlist") : identity(key.id) && key.value === null
+function validDetailKey(key: Record<string, unknown>): boolean {
+  return validKey(key, "wishlist")
 }
 
 function validKey(key: Record<string, unknown>, surface: Surface): boolean {

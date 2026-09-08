@@ -23,6 +23,8 @@ INSERT INTO public.social_friendships (user_low, user_high, requested_by, status
  ('10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', 'accepted', now());
 INSERT INTO public.user_blocks (blocker_id, blocked_id) VALUES
  ('10000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000001');
+UPDATE public.user_settings SET root_collection_visibility = 'public', root_wishlist_visibility = 'public'
+ WHERE user_id = '10000000-0000-4000-8000-000000000001';
 
 DO $$
 DECLARE audience public.sharing_audience; viewer uuid; expected boolean; owner_id uuid := '10000000-0000-4000-8000-000000000001';

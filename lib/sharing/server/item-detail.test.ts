@@ -7,9 +7,8 @@ const secret = "test-only-secret-at-least-thirty-two-bytes"
 const context = { revision: "7", viewerCategory: "guest", profile: { id: owner, nickname: "Collector", bio: "", avatar: null, sharedStyle: null, relationship: "none" } }
 const item = { id: itemId, name: "Item", description: null, thumbnail: null, thumbnailReferenceId: id(1), currentValue: null, acquisitionPrice: null, acquisitionDate: null, storage_path: "PRIVATE" }
 const photos = Array.from({ length: 21 }, (_, n) => ({ referenceId: id(n + 1), key: { id: id(n + 1), value: "2026-01-01T00:00:00.123456Z" }, url: "PRIVATE" }))
-const tags = Array.from({ length: 21 }, (_, n) => ({ name: `Tag ${n}`, color: "blue", key: { id: id(n + 1), value: null }, user_id: "PRIVATE" }))
 const response = (data: unknown) => ({ data: { ok: true, data }, error: null })
-const detail = { revision: "7", viewerCategory: "guest", item, photos, tags }
+const detail = { revision: "7", viewerCategory: "guest", item, photos }
 const media = () => vi.fn(async (_kind, referenceId, _viewer) => ({ ok: true as const, data: { referenceId, url: `https://signed.test/${referenceId}`, expiresAt: "2026-09-08T00:01:00Z" } }))
 function setup(data: unknown = detail) {
   const rpc = vi.fn().mockResolvedValueOnce(response(context)).mockResolvedValueOnce(response(data))
@@ -18,25 +17,23 @@ function setup(data: unknown = detail) {
 }
 
 describe("public item detail boundaries", () => {
-  it("projects bounded photos and tags, signs references and strips internal fields", async () => {
+  it("projects bounded photos, signs references and strips internal fields", async () => {
     const { core, resolve } = setup()
     const result = await core.collectionItem(owner, { kind: "guest" }, itemId, {})
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.data.photos.entries).toHaveLength(20)
-    expect(result.data.tags.entries).toHaveLength(20)
-    expect(result.data.photos.nextCursor).not.toBe(result.data.tags.nextCursor)
+    expect(result.data).not.toHaveProperty("tags")
     expect(result.data.item.thumbnail?.referenceId).toBe(id(1))
     expect(JSON.stringify(result.data)).not.toMatch(/PRIVATE|thumbnailReferenceId|"key"|user_id/)
     expect(resolve.mock.calls.every(call => call[2].kind === "guest")).toBe(true)
     expect(resolve.mock.calls.some(call => call[1] === id(21))).toBe(false)
   })
-  it("binds photo and tag cursors to resource, item, viewer and surface", async () => {
+  it("binds photo cursors to resource, item, viewer and surface", async () => {
     const { core, rpc } = setup()
     const first = await core.collectionItem(owner, { kind: "guest" }, itemId, {})
     if (!first.ok) throw new Error("fixture failed")
     for (const attempt of [
-      () => core.collectionItem(owner, { kind: "guest" }, itemId, { tagsCursor: first.data.photos.nextCursor! }),
       () => core.collectionItem(owner, { kind: "guest" }, id(99), { photosCursor: first.data.photos.nextCursor! }),
       () => core.wishlistItem(owner, { kind: "guest" }, itemId, { photosCursor: first.data.photos.nextCursor! }),
       () => core.collectionItem(owner, { kind: "authenticated", userId: owner }, itemId, { photosCursor: first.data.photos.nextCursor! }),
@@ -46,14 +43,14 @@ describe("public item detail boundaries", () => {
     }
     expect(rpc.mock.calls.filter(call => call[0] === "sharing_read_item_detail")).toHaveLength(1)
   })
-  it("passes independent continuation keys without losing timestamp precision", async () => {
+  it("passes continuation keys without losing timestamp precision", async () => {
     const { core, rpc } = setup()
     const first = await core.collectionItem(owner, { kind: "guest" }, itemId, {})
     if (!first.ok) throw new Error("fixture failed")
-    rpc.mockResolvedValueOnce(response(context)).mockResolvedValueOnce(response({ ...detail, photos: [], tags: [] }))
-    await core.collectionItem(owner, { kind: "guest" }, itemId, { photosCursor: first.data.photos.nextCursor!, tagsCursor: first.data.tags.nextCursor! })
+    rpc.mockResolvedValueOnce(response(context)).mockResolvedValueOnce(response({ ...detail, photos: [] }))
+    await core.collectionItem(owner, { kind: "guest" }, itemId, { photosCursor: first.data.photos.nextCursor! })
     expect(rpc.mock.calls[3][1].p_photos_after_key).toEqual(photos[19].key)
-    expect(rpc.mock.calls[3][1].p_tags_after_key).toEqual(tags[19].key)
+    expect(rpc.mock.calls[3][1]).not.toHaveProperty("p_tags_after_key")
   })
   it("rejects stale cursors before detail reads", async () => {
     const { core, rpc } = setup()
@@ -66,7 +63,7 @@ describe("public item detail boundaries", () => {
   })
   it.each([
     { ...detail, photos: [...photos, photos[0]] },
-    { ...detail, tags: [{ ...tags[0], color: "arbitrary-css" }] },
+    { ...detail, tags: [{ name: "Tag 0", color: "blue" }] },
     { ...detail, photos: [{ ...photos[0], referenceId: id(99) }] },
     { ...detail, item: { ...item, id: id(99) } },
     { ...detail, revision: "8" },

@@ -30,9 +30,9 @@ describe("published privacy reference fixtures (not database authorization proof
     }
   })
 
-  it("private gaps detach roots without revealing hidden parents", () => {
-    expect(expectedHierarchy("guest")).toEqual([{ id: "A", displayParentId: null }, { id: "C", displayParentId: null }])
-    expect(expectedHierarchy("friend")).toEqual([{ id: "A", displayParentId: null }, { id: "C", displayParentId: null }, { id: "D", displayParentId: "C" }])
+  it("visible boxes keep their real parent; top-level is null", () => {
+    expect(expectedHierarchy("guest")).toEqual([{ id: "A", displayParentId: null }])
+    expect(expectedHierarchy("friend")).toEqual([{ id: "A", displayParentId: null }, { id: "B", displayParentId: "A" }])
     expect(expectedHierarchy("blocked")).toEqual([])
   })
 

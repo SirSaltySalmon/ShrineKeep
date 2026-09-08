@@ -17,6 +17,8 @@ INSERT INTO public.boxes (id, user_id, parent_box_id, name) VALUES
  ('c2000000-0000-4000-8000-000000000005', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000004', 'Delete-all child'),
  ('c2000000-0000-4000-8000-000000000006', 'c1000000-0000-4000-8000-000000000002', NULL, 'Other owner');
 
+UPDATE public.user_settings SET root_wishlist_visibility='public'
+ WHERE user_id='c1000000-0000-4000-8000-000000000001';
 UPDATE public.boxes SET collection_visibility='private', wishlist_visibility='friends'
  WHERE id='c2000000-0000-4000-8000-000000000001';
 UPDATE public.boxes SET collection_visibility='private', wishlist_visibility='private'

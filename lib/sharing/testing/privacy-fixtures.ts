@@ -29,17 +29,15 @@ export function expectedWishlist(item: WishlistFixture, viewer: FixtureViewer, a
   return item.isWishlist && !item.explicitlyPrivate && expectedAudience(item.target?.wishlist ?? item.detached ?? item.root, viewer, account)
 }
 
-export const PRIVATE_GAP = [
+export const NARROWING_TREE = [
   { id: "A", parentId: null, audience: "public" },
-  { id: "B", parentId: "A", audience: "private" },
-  { id: "C", parentId: "B", audience: "public" },
-  { id: "D", parentId: "C", audience: "friends" },
+  { id: "B", parentId: "A", audience: "friends" },
+  { id: "C", parentId: "B", audience: "private" },
 ] as const
 
 export function expectedHierarchy(viewer: FixtureViewer) {
-  const visible = PRIVATE_GAP.filter(box => expectedAudience(box.audience, viewer))
-  return visible.map(box => ({
+  return NARROWING_TREE.filter(box => expectedAudience(box.audience, viewer)).map(box => ({
     id: box.id,
-    displayParentId: visible.some(parent => parent.id === box.parentId) ? box.parentId : null,
+    displayParentId: box.parentId,
   }))
 }

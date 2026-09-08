@@ -11,15 +11,15 @@ INSERT INTO public.user_blocks(blocker_id,blocked_id) VALUES
  ('d1000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000003');
 INSERT INTO public.boxes(id,user_id,name) VALUES
  ('d2000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001','friends box');
-UPDATE public.boxes SET wishlist_visibility='friends' WHERE id='d2000000-0000-4000-8000-000000000001';
-INSERT INTO public.items(id,user_id,is_wishlist,wishlist_target_box_id,name,expected_price) VALUES
- ('d3000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001',true,NULL,'root public wish',0),
- ('d3000000-0000-4000-8000-000000000002','d1000000-0000-4000-8000-000000000001',true,'d2000000-0000-4000-8000-000000000001','friends wish',1);
 UPDATE public.user_settings SET
   wishlist_share_token='d4000000-0000-4000-8000-000000000001',
   wishlist_is_public=false,
   root_wishlist_visibility='public'
  WHERE user_id='d1000000-0000-4000-8000-000000000001';
+UPDATE public.boxes SET wishlist_visibility='friends' WHERE id='d2000000-0000-4000-8000-000000000001';
+INSERT INTO public.items(id,user_id,is_wishlist,wishlist_target_box_id,name,expected_price) VALUES
+ ('d3000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000001',true,NULL,'root public wish',0),
+ ('d3000000-0000-4000-8000-000000000002','d1000000-0000-4000-8000-000000000001',true,'d2000000-0000-4000-8000-000000000001','friends wish',1);
 SET LOCAL ROLE service_role;
 DO $$
 DECLARE owner_id uuid := 'd1000000-0000-4000-8000-000000000001';

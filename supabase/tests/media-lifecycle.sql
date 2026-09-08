@@ -14,6 +14,8 @@ INSERT INTO public.user_blocks (blocker_id, blocked_id) VALUES
  ('71000000-0000-4000-8000-000000000003', '71000000-0000-4000-8000-000000000001');
 INSERT INTO public.boxes (id, user_id, name) VALUES
  ('72000000-0000-4000-8000-000000000001', '71000000-0000-4000-8000-000000000001', 'media box');
+UPDATE public.user_settings SET root_collection_visibility = 'public', root_wishlist_visibility = 'public'
+ WHERE user_id = '71000000-0000-4000-8000-000000000001';
 UPDATE public.boxes SET collection_visibility = 'public', wishlist_visibility = 'public'
   WHERE id = '72000000-0000-4000-8000-000000000001';
 INSERT INTO public.items (id, user_id, name, box_id) VALUES

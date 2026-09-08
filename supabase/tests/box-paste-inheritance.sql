@@ -6,6 +6,9 @@ INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES
  ('e1000000-0000-4000-8000-000000000001', 'paste-inherit@test.invalid', '{"username":"paste-inherit"}');
 INSERT INTO public.boxes (id, user_id, name) VALUES
  ('e2000000-0000-4000-8000-000000000001', 'e1000000-0000-4000-8000-000000000001', 'Published parent');
+UPDATE public.user_settings
+  SET root_collection_visibility = 'public', root_wishlist_visibility = 'public', root_share_financials = true
+ WHERE user_id = 'e1000000-0000-4000-8000-000000000001';
 UPDATE public.boxes
   SET collection_visibility = 'friends', share_financials = true, wishlist_visibility = 'public'
  WHERE id = 'e2000000-0000-4000-8000-000000000001';

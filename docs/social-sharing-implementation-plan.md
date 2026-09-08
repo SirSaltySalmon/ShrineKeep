@@ -26,10 +26,13 @@ Use the existing Next.js application and Supabase/Postgres deployment. Keep feat
 | R08 | Owner-shared theme takes precedence; otherwise use the visitor's theme, then the application default for a guest. Leaving the page restores the visitor's normal theme. |
 | R09 | Profile tabs are Wishlist and Showcase boxes. Reuse existing grids, item details, wishlist presentation, and Box Stats with explicit read-only capabilities. |
 | R10 | Box collection visibility is Private, Friends only, or Public. Collection financial sharing is an independent boolean. New root boxes start Private with finances hidden. |
-| R11 | By default, applying a parent's sharing settings applies the selected settings to all descendants. Explain that existing descendant box overrides will change; owners may edit children afterwards. |
-| R12 | A visible box is a showcase root when its immediate parent is absent or invisible to that visitor. Visible direct children appear within their visible parent, not again at root. |
-| R13 | A private intermediate box breaks the public tree. Public grandparent → Private parent → Public child produces two showcase roots: grandparent and child. Do not attach the child to the grandparent. |
-| R14 | Wishlist visibility is independent of collection visibility. A private collection box may have public wishlist items. |
+| R11 | **Amended 2026-09-08.** A box's audience is a ceiling for its descendants in the same dimension: a child may be as narrow as it likes and never wider. This governs collection audience and wishlist audience independently, and does not govern `share_financials`. Restricting a parent clamps every wider descendant in one transaction; widening a parent changes no descendant. The editor states the direction-appropriate consequence and the count actually affected. Supersedes the original overwrite-all-descendants behaviour. See section 5.0. |
+| R12 | **Amended 2026-09-08.** A visible box is a showcase root when its parent is the collection root. Visible direct children appear within their visible parent, not again at root. Because the ceiling in R11 makes the visible set ancestor-closed, a visible box can no longer have an invisible parent. |
+| R13 | **Superseded 2026-09-08 by R11.** A private intermediate box with a visible descendant is now an unrepresentable state, so there is no private gap to split into two roots. Do not implement detached-root handling. Retained as a numbered row so the requirement map and existing references stay stable. |
+| R25 | The collection root has the same three-audience control as a box. Loose owned items not filed in any box follow it, and because every top-level box is a child of the root, the root is the ceiling for the whole account: setting it Private hides everything. Added 2026-09-08; reverses the earlier "unboxed items stay private" rule in section 5.2. |
+| R26 | Tags are out of scope for all public surfaces: no public response exposes tag names, colors, IDs, or counts, and no public surface offers tag filtering or sorting. Copying creates no tags for the copier; whether it ever should is deferred until after copy is implemented. Added 2026-09-08. |
+| R27 | Deleting a box while keeping its contents moves them up one level, to the nearest ancestor that is not also being deleted, preserving nesting below. Contents adopt the destination's audience and may become more visible; the owner is warned before confirming and the operation is not otherwise restricted. Explicitly Private wishlist items are exempt. Added 2026-09-08; replaces the move-to-root behavior. |
+| R14 | Wishlist visibility is independent of collection visibility. A private collection box may have public wishlist items. **Clarified 2026-09-08:** this independence is between the two dimensions, not within one. A box's wishlist audience is still ceilinged by its parent's wishlist audience under R11; it is simply unaffected by any box's collection audience. |
 | R15 | In the box editor, collection Private/Friends only/Public suggests the matching wishlist audience before saving. The owner can change that suggestion. Reopening the editor preserves saved combinations. |
 | R16 | An explicitly private wishlist item stays private regardless of box publicity, wishlist publicity, or parent propagation. |
 | R17 | Profiles, existing wishlist links, public item/media reads, and copying apply the same wishlist privacy rules. An old link cannot bypass them. |
@@ -38,6 +41,8 @@ Use the existing Next.js application and Supabase/Postgres deployment. Keep feat
 | R20 | “Copy to own dashboard” copies the permitted showcase subtree into the copier's root. Uploaded media gets independent objects under the copier's ownership; external links remain links. Copies start Private. |
 | R21 | Blocking removes friendship and requests and denies the known signed-in account access to public identity/content. Guests remain allowed: blocking cannot identify someone after logout or through another account. |
 | R22 | Add request rate limits, profile-link/UUID lookup, and menus usable by mouse, touch, and keyboard. Do not add a global user directory. |
+| R23 | The wishlist share link is a permanent surface alongside the profile Wishlist tab. A user may share only their wishlist without publishing their collection, and a visitor may follow the link through to the owner's profile. Added 2026-09-08. |
+| R24 | Wishlist items with no target box belong to a root container with its own audience. A single owner toggle governs whether the share link resolves and nothing else; there is no state in which a surface reports that a wishlist is unpublished. Added 2026-09-08. |
 
 ### 1.2 Implementation defaults that make the requirements concrete
 
@@ -45,15 +50,17 @@ These are engineering defaults, not additional unresolved product questions. Cha
 
 - A new public profile has `nickname = NULL`; its public label is `Collector-<short UUID suffix>` until the user explicitly saves a public nickname. Suggest an existing name only inside their private Settings UI. Do not migrate provider-derived names into public nicknames automatically.
 - Nicknames reuse the existing name-length limit; bio is plain text, at most 500 Unicode characters, with matching client/database validation. No HTML, Markdown, or automatic link previews in bio.
-- A new child box inherits all three saved sharing settings from its parent. Moving an existing box preserves its saved settings.
+- A new child box inherits all three saved sharing settings from its parent. **Amended 2026-09-08:** moving an existing box preserves its saved settings only where they remain legal under the new parent's ceiling; anything wider than the destination parent is clamped to it. A move that would widen a box is not a way around section 5.0.
 - Wishlist audience uses the same three audience values as collections. Individual wishlist items initially offer “Use box wishlist visibility” and “Private.”
-- Unassigned wishlist items use an account-level default audience. This is explicitly labelled “Wishlist items outside boxes”; it is not a second gate that silently disables an explicitly public box wishlist.
+- Wishlist items with no target box are associated with **root**, a container with its own audience, not an “account default.” Root uses the same three audience values and controls as a box. See the amended section 6.3.
+- The retained “share my wishlist by link” toggle governs only whether `/wishlist/[token]` resolves. It never affects what any surface displays. See the amended section 6.3.
 - A normal owner visit to their profile uses the published public-plus-friends presentation, without private collection rows or suppressed financial fields. Their ordinary Dashboard/Wishlist remains the editing surface. Public wishlist preview always uses the guest presentation.
 - The other party must explicitly accept a request. Opposite-direction simultaneous requests do not silently establish friendship.
 - Blocking denies ordinary profile/content access in both directions. The blocker can still manage the block by user ID in their private blocked-users list; that list does not bypass public-profile denial.
 - Social notifications initially refresh on page focus and every 30 seconds while Social is visible. Persist them in the database; transport can later become Realtime without changing their storage or meaning.
 - Newly issued media links have a maximum 60-second lifetime. New application reads deny revoked access immediately; previously issued bearer URLs, browser caches, downloaded files, and completed independent copies cannot be recalled.
-- Existing token links remain compatible aliases to the wishlist projection. A token is not an additional access grant, and rotating a token cannot make content private while it is publicly visible through a UUID profile.
+- Share links are a permanent product surface, not a compatibility alias. `/wishlist/[token]` and the profile Wishlist tab are two intended entry points to the same projection, and a user may share only their wishlist without publishing their collection. A token is not an additional access grant, and rotating or disabling a token cannot make content private while it is publicly visible through a UUID profile.
+- A visitor on a share link can follow through to the owner's profile, where both tabs are available. Profile tabs load independently: opening one tab must not fetch the other's data.
 
 ## 2. Current implementation and required adaptations
 
@@ -173,33 +180,97 @@ Use UUID FKs to account records with deliberate deletion behavior. Job cleanup r
 
 ## 5. Collection hierarchy and bulk sharing
 
+### 5.0 The audience ceiling
+
+**Added 2026-09-08. This supersedes the arbitrary-combination model in the original 5.1, R11, R12, and R13.**
+
+Audiences are **totally ordered by breadth**: `public` is widest, `friends` is narrower, `private` is narrowest. Write the order as `public > friends > private`.
+
+**The invariant.** A container's audience is the **ceiling** for everything inside it. A child's audience must be **dominated by** its parent's — that is, equal to it or narrower. Equivalently, audience is **non-increasing along every root-to-leaf path**. This property has a name worth using in code comments and reviews: the tree is **monotonically narrowing**.
+
+| Parent | Permitted child audiences |
+|---|---|
+| Public | Public, Friends only, Private |
+| Friends only | Friends only, Private |
+| Private | Private |
+
+A public box inside a private box is not a state the system can hold. It is rejected at write time, not filtered at read time.
+
+**Propagation is a clamp, not a copy.** Saving a parent's audience applies the *constraint* to descendants rather than overwriting their values. Formally the operation is a **meet** (greatest lower bound): `child := min(child, parent)` in the breadth order. Its two directions are deliberately asymmetric, and the asymmetry is the point:
+
+- **Restricting cascades.** Narrowing a parent narrows every descendant that was wider. Setting a parent Private makes its whole subtree Private. Setting it Friends only converts Public descendants to Friends only and leaves Private ones Private.
+- **Widening does not cascade.** Broadening a parent leaves descendants exactly as they were, because their narrower values are still legal. The owner opts each one in deliberately.
+
+This is the same "inherit, then restrict — never expand" model used by Notion, Google Drive, and Dropbox for nested permissions, and describing it that way to reviewers is more useful than inventing project-specific vocabulary.
+
+**The consequence that removes most of the old complexity.** Under this invariant the visible set is **ancestor-closed**: if a box is visible to a viewer, every one of its ancestors is visible to that viewer too, because each ancestor is at least as wide. Therefore:
+
+- A private or otherwise hidden intermediate box can never have a visible descendant. **Detached showcase roots cannot occur.**
+- `displayParentId` is null only for a genuine top-level box, never because of a hidden gap.
+- Visible roots are simply the visible boxes whose parent is the collection root.
+- "Connected visible subtree" and "visible subtree" are the same set. Traversal still stops at a hidden child; it just can never resume below one.
+
+The original 5.1 table's rows for `Private A → Public B` and `Public A → Private B → Public C` describe unrepresentable states and are removed. Do not write read-side logic, tests, or DTO fields to handle them. Enforce the invariant in the database and assert that violations are rejected, rather than carrying reader code for a state that cannot exist.
+
+**Which settings this governs.** The ceiling applies to the two audience dimensions, **independently of each other**:
+
+- Collection audience ceilings collection audience, down the box tree and up to the collection root.
+- Wishlist audience ceilings wishlist audience, down the box tree and up to the root wishlist audience.
+
+The two dimensions do not constrain each other, so R14 survives intact: a Private collection box may still carry a Public box wishlist. What the ceiling forbids is a box being wider than its parent *in the same dimension*. Two independent orders, each monotonic.
+
+**`share_financials` is deliberately exempt.** It is a boolean about field masking, not an audience, and section 7.1's behaviour is intentional: a parent with its own finances hidden may still show totals aggregated from descendants that share theirs. Do not "complete" the ceiling by extending it to this flag.
+
+**A useful corollary: moving content upward is always safe.** Any destination that is an ancestor of the content's current parent is wider than or equal to it, so content promoted upward arrives already dominated by its new parent. Box deletion in move-up mode (section 6.4) and detaching a wishlist item to root both rely on this, and neither needs a ceiling guard. Only *downward* or *sideways* moves can violate the invariant, so that is where the write-time check belongs.
+
+**Why this trade is worth making.** A public parent with a private child is a niche arrangement with an easy workaround: keep the private material in a separate top-level box. Buying a design a user can predict from one sentence is worth more than that arrangement.
+
+**User-facing copy.** Use plain consequence-first wording, not lattice vocabulary:
+
+- Principle: "A box can never be more visible than the box it's in."
+- Or, on the audience control: "Sub-boxes can be more private than this box, never more public."
+- Before a restricting save: "Making this box Private will also make everything inside it Private." Name the count of affected sub-boxes, as in 5.3.
+- Before a widening save: "Making this box Public won't change what's inside. You can open up sub-boxes individually."
+- Never describe this as "inheriting" alone. Inheritance implies children copy the parent, which is what widening deliberately does not do.
+
 ### 5.1 Displayed hierarchy
 
-Let `V` be the set of boxes visible to the current visitor. A visible box `b` is a showcase root exactly when `b.parent_box_id IS NULL` or its immediate parent is not in `V`.
+Let `V` be the set of boxes visible to the current visitor. Because `V` is ancestor-closed under 5.0, a visible box `b` is a showcase root exactly when its parent is the collection root.
 
-Within a visible box, list only its visible direct children. Do not display hidden ancestors, placeholder private boxes, hidden-parent IDs, or breadcrumbs through a private gap. Return `displayParentId = NULL` for a detached showcase root even if the stored parent exists.
+Within a visible box, list only its visible direct children. Do not display hidden descendants' metadata or IDs.
 
 | Stored tree | Guest showcase roots | Inside visible boxes |
 |---|---|---|
 | Public A → Public B → Public C | A | A contains B; B contains C |
-| Private A → Public B → Public C | B | B contains C; no A metadata |
-| Public A → Private B → Public C | A, C | A does not reveal B; C is independent |
-| Friends A → Public B | B | Friend visitor instead sees A containing B |
-| Public A → Friends B → Public C | A, C | Friend visitor sees A containing B containing C |
+| Public A → Friends B → (B's children ≤ Friends) | A | Guest sees A with no B; a friend sees A containing B and its subtree |
+| Friends A → Friends B | none for a guest | A friend sees A containing B |
+| Private A → anything | none | Nothing below a private box is visible to anyone but the owner |
 
-Apply this at every depth. Root grouping must happen in the database before pagination; fetching an arbitrary page and removing children in JavaScript gives missing/short pages and incorrect cursors.
+Apply this at every depth. Root grouping must still happen in the database before pagination; fetching an arbitrary page and removing children in JavaScript gives missing/short pages and incorrect cursors.
 
 Use owner-scoped recursive CTEs for connected subtree work and direct indexed parent joins for root detection. Keep cycle detection and same-owner checks. There is no product limit of “two levels” or a silent recursion truncation. A time/resource guard must fail explicitly without partial results. PostgreSQL documents [recursive queries and cycle handling](https://www.postgresql.org/docs/17/queries-with.html).
 
 ### 5.2 Scope of stats and copies
 
-A box's public subtree follows visible parent-child edges only. Stop at a hidden child. A public grandchild beyond that gap belongs to its separate root and does not count in the grandparent's stats or copy operation. Profile-root totals include all visible showcase roots exactly once.
+A box's public subtree follows visible parent-child edges only. Stop at a hidden child. Under 5.0 nothing below a hidden child can be visible, so traversal never resumes and there is no detached grandchild to account for separately. Profile-root totals include all visible showcase roots exactly once, plus the collection root's own visible loose items.
 
-Unboxed owned items remain private in this release; there is no synthetic publicly shared account root.
+**Amended 2026-09-08: the collection root is a real container.** The original text said unboxed owned items stay private with no shareable account root. That is superseded. The collection root has the same three-audience control as a box, so an owner can showcase loose items that are not filed in any box.
+
+The root is also the ceiling for the entire account under 5.0. Every top-level box is a child of the root, so a top-level box's audience must be dominated by the root's. This gives the owner one control that shuts everything off at once: set the root Private and nothing in the account is visible, whatever individual boxes say. It follows that publishing anything requires opening the root first and then narrowing selectively — which is the intended flow, and the UI should say so rather than letting a user set a box Public and wonder why nobody can see it.
+
+Suggested storage is `root_collection_visibility` and `root_share_financials` on the existing private sharing settings record, alongside the `root_wishlist_visibility` that is already there, with the predicates treating the root as a virtual box exactly as they already do for the wishlist dimension. Do not create a physical root row in `boxes`: `parent_box_id IS NULL` currently means top-level, and changing that meaning would touch every hierarchy query, position ordering, and paste path in the application for no functional gain.
+
+**Amended 2026-09-08: root is virtual in storage and a real node in the query layer.** The paragraph above is correct but understates what "treating the root as a virtual box" has to mean in practice. A nullity branch repeated at every predicate and guard is not a virtual box; it is the same special case written eight times, and it is already written twice on the wishlist dimension. The branch belongs in one function, `sharing_private.container_audience(owner, box_id, dimension)`, which returns root's audience for a null box id and a box's audience otherwise, failing closed as private. Every guard, clamp, and read predicate calls it; nothing else in the schema tests a box id for null in order to decide where an audience lives. The physical root row was reconsidered on architectural grounds and rejected — not for performance, which is a non-issue, but because `boxes.parent_box_id` cascades on delete and because the row relocates the special case into every box enumeration rather than removing it. See the settled-design and W1B sections of [the work orders](social-sharing-progress.md) for the full argument, the function, and the fact that the `sharing_audience` enum's declaration order already gives the ceiling its comparison and clamp operators.
 
 ### 5.3 Sharing editor and transaction
 
-Expose Collection visibility, Share collection finances, and Wishlist visibility together. Display a notice such as: “These settings will also apply to 12 sub-boxes. Existing sub-box settings will be replaced; you can edit them afterwards.” The server returns the authorized affected count during preview, and checks it again at save.
+Expose Collection visibility, Share collection finances, and Wishlist visibility together. The server returns the authorized affected count during preview, and checks it again at save.
+
+**Amended 2026-09-08.** The notice text depends on the direction of the change, per the clamp semantics in 5.0. The original single "settings will be replaced" message is superseded because it is wrong for a widening save.
+
+- Restricting: “This will also make 12 sub-boxes Private. You can open them up individually afterwards.” Count only the descendants that are actually wider than the new value — a subtree already Private has an affected count of zero and should say so rather than claiming twelve changes.
+- Widening: “This won't change your 12 sub-boxes. Open them up individually to show them.”
+- The audience control must not offer a value wider than the parent's. Disable or omit those options rather than accepting the choice and rejecting it on save. The root's control has no such restriction, because nothing is above it.
 
 - Changes remain draft until Save. Cancel persists nothing.
 - Selecting a collection audience suggests a wishlist audience only while the wishlist control has not been explicitly edited in that editor session. Once the user chooses a wishlist value, preserve it even if they toggle collection visibility again.
@@ -226,9 +297,11 @@ if item has a wishlist target box:
 else if item has a detached visibility preserved by a structural mutation:
     audience = item.wishlist_detached_visibility
 else:
-    audience = owner.root_wishlist_visibility
+    audience = root.wishlist_visibility   # stored as user_settings.root_wishlist_visibility
 return audience_allows(audience, viewer_context)
 ```
+
+The final branch is not a fallback. An item with no target box belongs to **root**, which is a container with its own audience; see the amended section 6.3. The share link toggle does not appear in this evaluation at all — it governs only whether a token URL resolves.
 
 The owner still sees all their items in the ordinary editing wishlist. Owner-private editing access is not used by published pages or preview.
 
@@ -250,26 +323,45 @@ The owner still sees all their items in the ordinary editing wishlist. Owner-pri
 - On a showcase box's wishlist subsection, show only the permitted wishlist entries associated with that visible box. Public wishlist items associated with invisible collection boxes remain available in the profile-wide Wishlist tab, without their box metadata.
 - Item photos and thumbnail URLs follow the same item permission, including explicit Private. No asset access based solely on `is_wishlist = true`.
 
-### 6.3 Account default and existing link controls
+### 6.3 Root as a container, and the share link toggle
 
-Replace the ambiguous blanket “Make wishlist public” setting with a labelled audience for “Wishlist items outside boxes.” Box-specific wishlist settings independently govern their associated entries. Do not add a hidden global switch that overrides a box's explicitly selected Public audience.
+**Amended 2026-09-08.** The original text called for deleting the blanket “Make wishlist public” switch. That is superseded. The switch is retained with a deliberately narrower meaning, and the account-level “default” becomes a real container. Two independent concepts:
 
-Migrate the old `wishlist_is_public` field into the new default as described in section 13. Once compatible clients have shipped, remove it from authoritative permission checks. While it remains for compatibility, the server maps it only to the root default and never uses it as an alternate broad SELECT rule.
+**Root is a container, not a fallback.** A wishlist item with no target box is *associated with root*, exactly as an item with a target box is associated with that box. Root has a wishlist audience — the existing `root_wishlist_visibility` — configured with the same three audience values and the same control vocabulary as any box. Do not present it as an “account default,” a fallback, or a second gate. It is one container among many, and it is the one that holds items the owner has not filed anywhere.
 
-Preserve existing valid tokens. Generate an owner-managed token when a user explicitly enables sharing and does not have one. If all applicable entries become private, an existing link shows no entries and grants no bypass. Explain in token-rotation UI that rotation changes the link, while audience controls determine privacy. Do not advertise a publicly accessible UUID wishlist as “secret” or “unlisted.”
+The wishlist audience described here is one of root's three settings, not its only one. Root also has a collection audience and a financial flag, added later the same day; see the amended section 5.2, which reverses the earlier rule that unboxed owned items stay private.
+
+**The share link toggle controls the existence of a link, and nothing else.** The legacy `wishlist_is_public` boolean is retained, renamed to reflect its real job, and stripped of all authority over item visibility. Its only effect:
+
+- Enabled: `/wishlist/[token]` resolves. Generate an owner-managed token if the user does not have one.
+- Disabled: `/wishlist/[token]` returns a generic 404. Token resolution must check this flag; resolving a token by value alone is not sufficient.
+
+Turning the link off does not make any content private, and does not change what the profile shows. This preserves the section 1.2 rule that rotating or removing a token cannot make content private while it remains publicly visible through a UUID profile. It is a link kill switch, not a privacy control, and the UI must say so.
+
+**There is therefore no “this user's wishlist is not public” state.** That state does not exist in the model. A profile whose Wishlist tab is empty means no wishlist item is currently visible to this viewer, which may be because every container is Private, or because there are no items. Do not distinguish those cases to a visitor, and do not add a message that infers the owner's settings. Section 9.4 covers the empty-state requirement for both tabs.
+
+Migration: map a legacy `wishlist_is_public = true` to the retained link toggle **and** to a public root audience, since under the old model that flag published the owner's unfiled items. Per-box wishlist audiences follow the conservative rule in section 13.2 and are not inferred from the legacy flag alone. Never use the legacy flag as an alternate broad SELECT rule.
+
+Do not advertise a publicly accessible UUID wishlist as “secret” or “unlisted.”
 
 ### 6.4 Move, acquire, and delete semantics
 
 - A normal explicit item move may change its inherited wishlist audience. Before a move that broadens audience, show the old/new audience; the owner can accept the broader audience or choose Private for the moved item. Without an explicit decision, reject the move with a privacy-conflict response and leave it unchanged. Background/import/automated moves never broaden by omission. Do not try to retain a different inherited audience under a new target using the root-only detached override.
 - The explicit item Private flag survives moves, box setting changes, and conversions to owned-and-back-to-wishlist until the owner changes it.
 - Current `wishlist_target_box_id ON DELETE SET NULL` needs a replacement trigger/transactional mutation: before detaching surviving wishlist items, persist their effective audience in `wishlist_detached_visibility`. Otherwise deleting a private box could expose those items under a Public root default.
+- **Amended 2026-09-08, then simplified the same day.** An earlier amendment here required clamping a detached item's preserved audience to the root wishlist audience. That clamp is unnecessary and should not be built. Under section 5.0 a box's wishlist audience is always dominated by the root's, so a preserved audience taken from a deleted box is already no wider than root. The ceiling makes the violation structurally impossible rather than something to defend against.
 - Clear the detached override when an explicit target/audience choice supersedes it. Explain retained privacy in the owner item editor; do not hide a permanent unexpected override.
 - Acquiring an item removes it from all public wishlist surfaces. Its new collection visibility comes from its owned target box; the mutation previews any new exposure. Hidden old wishlist financial fields never leak through the owned-item projection.
-- Delete-all and move-to-root box modes both need coverage. Apply the selected deletion behavior consistently and preserve privacy for items which survive.
+- **Amended 2026-09-08: "move to root" is replaced by "move up one level."** The old mode flattened the entire subtree — every descendant box became top-level and every item in the subtree became unboxed — which destroyed the owner's organisation far beyond the box they deleted. The replacement reparents the deleted box's **direct** children and items to the deleted box's parent, preserving all nesting below them. When several boxes are deleted at once, contents land on the nearest ancestor that is not itself being deleted, or the collection root when no such ancestor exists.
+- Moving up may **increase** visibility, and that is accepted rather than prevented. An owned item governed by a Friends-only box becomes governed by a Public parent; a wishlist item retargeted from a Friends-only box to a Public parent becomes Public. The owner is told this before confirming and no clamping, per-item prompting, or conflict rejection is added on this path. Explicitly Private wishlist items keep their veto, so they are the one thing that cannot broaden here.
+- This direction can never violate section 5.0. The destination is an ancestor of the deleted box, so it is wider than or equal to the deleted box, which was wider than or equal to everything inside it. Contents therefore arrive already dominated by their new parent, and no ceiling guard needs to run.
+- The existing `privacy_conflict` rejection in the item-target guard fires exactly on a broadening wishlist retarget, so the deletion path needs a sanctioned route through it. Treat that as consented broadening carried by the confirmed deletion, not as a reason to block the delete.
+- Delete-all and move-up box modes both need coverage. Apply the selected deletion behavior consistently and preserve privacy for items which survive, within the limits stated above.
 
 ### 6.5 “Preview public wishlist”
 
 - Add a prominent toggle in the owned Wishlist tab. Entering preview uses saved sharing settings and the canonical guest projection, not client-side filtering of already loaded owner items.
+- **Amended 2026-09-08.** Because no surface tells a visitor that a wishlist is unpublished, preview is now the only place an owner learns why their wishlist looks empty to others. Treat it as a required comprehension feature, not a convenience. Show the owner how many of their wishlist items are currently visible out of the total, and make it clear that the per-container audiences — each box's wishlist setting and root's — are what change that number. Counts of the owner's own items are safe to show to the owner.
 - Authenticate the owner for `/api/wishlist/preview`; resolve `ownerId` from their session and call the same read function with a fixed guest context. Do not allow arbitrary preview identities or unsaved settings to expand access.
 - The preview content matches a signed-out browser opening the owner's public wishlist: same item IDs/order, expected prices, thumbnails, empty state, and public theme resolution. Private/friends-only items and hidden target-box metadata are absent.
 - The surrounding authenticated toolbar may retain “Public preview” and “Exit preview.” It must not claim the owner is a guest or change authentication.
@@ -286,10 +378,10 @@ For an owned item in a visible collection box:
 
 - If that box shares finances, permit current value, acquisition price/date, and authorized value history.
 - Otherwise return those scalar fields as `null` and financial history as an empty series. Never return hidden values in another object or a “raw” API response.
-- Each box's financial flag governs its own direct items. A parent's total combines permitted finances from the connected visible subtree, evaluating each descendant's flag independently. A parent with its own finances hidden may still have totals from children whose finances are shared.
-- Profile-root totals cover visible collection boxes exactly once, including detached showcase roots. They exclude hidden boxes, unboxed owned items, and wishlist entries.
+- Each box's financial flag governs its own direct items. A parent's total combines permitted finances from the visible subtree, evaluating each descendant's flag independently. A parent with its own finances hidden may still have totals from children whose finances are shared. **Confirmed 2026-09-08:** this flag is deliberately exempt from the section 5.0 ceiling. It is a field-masking boolean, not an audience, and the mixed case above is intended behaviour rather than an oversight to be tidied up.
+- Profile-root totals cover visible collection boxes exactly once. **Amended 2026-09-08:** there are no detached showcase roots to include, and loose owned items are now counted when the collection root's audience and financial flag permit them. Totals still exclude hidden boxes and wishlist entries.
 - Use the existing missing-value behavior for totals: missing values contribute nothing. Do not display “financial information inaccessible” cards or fabricate a real per-item price of zero. A legitimate saved zero remains distinguishable from missing data in the DTO.
-- Counts describe visible items only. Per-box thumbnails, representative items, tags, sort keys, and search matches must also be derived from permitted data.
+- Counts describe visible items only. Per-box thumbnails, representative items, sort keys, and search matches must also be derived from permitted data. Tags are out of public scope entirely; see 9.2.
 - Expected prices appear on permitted wishlist entries independently; they do not enter owned collection acquisition/value totals.
 - Sorting/filtering by financial data must operate on masked values. Do not leak private prices through rank, range-filter matches, tooltip payloads, or chart dates.
 
@@ -364,7 +456,7 @@ Suggested route names are fixed for initial agent coordination. An equivalent ex
 | `GET /api/public/users/[userId]/items/[itemId]` | Safe item detail; collection and wishlist branches use their correct permission/projection. |
 | `GET /api/public/users/[userId]/stats?boxId=...&from=...&to=...` | Root or connected-box aggregate over permitted financial data. |
 | `GET /api/public/users/[userId]/wishlist?cursor=...` | Canonical published wishlist projection. |
-| `GET /api/wishlist/[token]` and existing page | Resolve token privately, then call the canonical wishlist service with the actual viewer. |
+| `GET /wishlist/[token]` page | Permanent surface. Resolve the token privately in-process and call the canonical wishlist service with the actual viewer; no self-HTTP request. Generic 404 when the owner's share link toggle is off, the token is unknown or rotated, the owner is unpublishable, or the viewer is blocked. Links through to `/users/[userId]`. |
 | `GET /api/wishlist/preview?cursor=...` | Owner-authenticated, forced guest projection of that owner's saved wishlist. |
 | `GET /api/public/media/[referenceId]` | Resolve a permitted photo/avatar reference and issue a short-lived URL. No arbitrary bucket/path input. |
 | `GET /api/social/friends?query=...&cursor=...` | At most 20 results, stable cursor. |
@@ -423,12 +515,12 @@ interface PublicBox {
   hasVisibleChildren: boolean;
 }
 
+// Amended 2026-09-08: tags are out of scope for every public surface.
 interface PublicCollectionItem {
   id: string;
   name: string;
   description: string | null;
   photos: PublicMedia[];
-  tags: Array<{ name: string; color: string }>;
   currentValue: number | null;
   acquisitionPrice: number | null;
   acquisitionDate: string | null;
@@ -446,7 +538,9 @@ interface PublicWishlistItem {
 
 List DTOs may contain only a thumbnail and detail URL rather than all photos. Detail photos/history are themselves paginated/bounded. Both variants must use the same fields/permission vocabulary; the contracts task fixes the exact split.
 
-Do not expose storage paths, hidden parent/target IDs, unused owner tags, account timestamps, provider metadata, tokens, financial-sharing flags that reveal whether private values exist, or raw financial history in general list responses. Internal database IDs for permitted items/boxes are acceptable and never constitute authorization by themselves.
+**Tags are out of scope for public surfaces. Amended 2026-09-08.** No public list, detail, profile, wishlist, token, or preview response carries tag names, colors, IDs, or counts, and no public surface offers tag filtering or sorting. Remove the tag field and its cursor from the public DTOs, the detail RPC, and their tests; a public item detail paginates photos only. This also removes the same-owner tag authorization question from the public read path entirely, so it is a net deletion rather than deferred work. Owner-side tags are unaffected.
+
+Do not expose storage paths, hidden parent/target IDs, tags of any kind, account timestamps, provider metadata, tokens, financial-sharing flags that reveal whether private values exist, or raw financial history in general list responses. Internal database IDs for permitted items/boxes are acceptable and never constitute authorization by themselves.
 
 ### 9.3 Pagination and errors
 
@@ -462,6 +556,7 @@ Do not expose storage paths, hidden parent/target IDs, unused owner tags, accoun
 - Extract reusable presentation and explicit capabilities such as `canEdit`, `canMove`, `canAcquire`, and `canCopyToOwnDashboard`. Data loaders and mutations remain in owner/public-specific adapters.
 - Reuse Box Stats panel, tabs, cards, image detail, tags, loading states, and empty states. Do not fork the full Dashboard client and maintain two implementations.
 - Profile header shows nickname/avatar/bio and the correct relationship button/menu; owner gets a Settings link. Do not show a private collection editing toolbar on this route.
+- **Amended 2026-09-08.** Both tabs are always present for a viewable profile, and each fetches its own data only when opened. Their empty states are neutral and identical in kind: they say nothing is visible here, and never infer the owner's settings. Do not write “this user's wishlist is not public,” “collection is private,” or any variant — those states are not representable and the message would leak a setting. A profile with an unpublished wishlist and no public boxes renders normally with two empty tabs; it is not a 404.
 - Navigation represents the viewer. Guests get a signed-out variant with login and Dashboard entry which follows the existing authentication redirect; never show the profile owner's name as the current signed-in account.
 - Keep the public view inside the existing semantic theme system. Shared style contains only whitelisted theme tokens, font keys, and radius. Do not expose the full `user_settings` object or accept arbitrary CSS/URLs from an owner theme.
 - Resolve theme once per public route. Preserve existing wishlist theme preference for token compatibility; profile pages use `profile_share_style`. Preview uses the token wishlist's guest theme contract. Align differing controls with clear labels, rather than silently enabling profile style sharing for legacy users.
@@ -502,7 +597,7 @@ The current “check remaining references, delete blob, delete rows” order is 
 5. Delete the object through the storage API; finalize/tombstone the asset record. Retry transient failures idempotently. Do not directly manipulate `storage.objects` rows as a substitute for deleting storage objects.
 6. Failed uploads and failed/cancelled copy staging are reclaimed after their lease/retention window; queue records survive account deletion until cleanup can run.
 
-Cover every deletion/replacement path: item, photo, box cascade, move-to-root, thumbnail replacement, avatar replacement/removal, general storage cleanup, moderation/account purge, and sandbox purge. Revoke direct browser object DELETE/UPDATE paths that could bypass this lifecycle for registered uploaded objects; use validated owner upload preparation and server cleanup operations.
+Cover every deletion/replacement path: item, photo, box cascade, thumbnail replacement, avatar replacement/removal, general storage cleanup, moderation/account purge, and sandbox purge. Box move-up needs no media cleanup — its items and their photo rows all survive — so an absent cleanup call there is correct rather than a gap. Revoke direct browser object DELETE/UPDATE paths that could bypass this lifecycle for registered uploaded objects; use validated owner upload preparation and server cleanup operations.
 
 Terminal account deletion can cancel unfinished jobs instead of indefinitely preserving source files. A cancelled job must never publish a partial destination. Completed copies are independent and remain unaffected by later source deletion.
 
@@ -511,10 +606,10 @@ Terminal account deletion can cancel unfinished jobs instead of indefinitely pre
 ### 11.1 Copy semantics
 
 - An authenticated mutable user can copy a visible showcase root or visible nested box into their own dashboard root. Guests get a sign-in action preserving the source URL.
-- Copy the source's connected visible subtree as rendered for this requester; hidden gaps stop traversal. No hidden sibling/child/parent, hidden wishlist item, or suppressed financial field enters the manifest.
+- Copy the source's visible subtree as rendered for this requester; a hidden child stops traversal and, under section 5.0, nothing below it can be visible to resume from. No hidden sibling/child/parent, hidden wishlist item, or suppressed financial field enters the manifest.
 - Include the permitted wishlist entries associated with copied visible boxes. Remap their target IDs to the corresponding destination boxes. Public wishlist entries attached to a hidden collection box are not smuggled into a copied collection subtree.
 - Destination boxes, including descendants, start `private / finances false / wishlist private`, irrespective of source settings.
-- Copy permitted descriptive fields, permitted financial fields/history, photos, and relevant tags. Reuse/create tags owned by the destination using normalized name matching and the existing named color slots; never reference source tag IDs. If an existing destination tag matches, preserve its chosen color.
+- Copy permitted descriptive fields, permitted financial fields/history, and photos. **Amended 2026-09-08: copying creates no tags for the copier.** Tags are excluded from the copy manifest, which follows from their being out of scope on public surfaces — a copier cannot see source tags, so there is nothing to carry over. Whether copying should ever create or match destination tags is a decision deliberately deferred until copy is implemented and can be evaluated in practice; do not build tag matching, normalized name reuse, or color-slot preservation on the strength of this paragraph's earlier text.
 - Remap every internal ID and thumbnail reference. If the same uploaded source asset appears multiple times in one job, copy it once for that destination job and create all destination references to that new asset. Do not deduplicate across owners by referencing source-owned objects.
 - Copies are snapshots. No live sync, downstream privacy control, automatic recopy, or deletion of another user's completed copy after unsharing.
 
@@ -689,13 +784,16 @@ Useful execution waves: T00 first; T01 and T08 next; then T02/T03/T04/T05 as cap
 | R05–R07: guest profiles, safe identity, owner edit/navigation | T01, T02, T10, T12 | Raw-access, server metadata, guest/profile tests |
 | R08: shared theme and visitor fallback | T08, T10, T11, T12 | Guest/visitor/owner theme and Back-navigation tests |
 | R09: reused profile tabs and stats | T07, T08, T10 | Owner/public fixture parity and permitted-stat totals |
-| R10–R11: independent collection finances and subtree sharing | T01, T04, T12 | Transaction/concurrency and editor tests |
-| R12–R13: root grouping and private gaps | T02, T07, T10 | Deep/wide hierarchy, stats, and copy fixtures |
+| R10–R11: independent collection finances and the audience ceiling | T01, T04, T12 | Write-time rejection of widening, clamp transaction/concurrency, direction-aware editor tests |
+| R12–R13: root grouping under an ancestor-closed visible set | T02, T07, T10 | Deep/wide hierarchy and stats fixtures; assert detached roots are unreachable rather than handled |
+| R25–R26: collection root as ceiling, tags out of public scope | T01, T02, T04, T07, T12 | Root-Private hides the account; loose items publish; no tag field on any public response |
+| R27: move up one level on box delete | T04, T12 | Nearest-surviving-ancestor destination, nesting preserved below, broadening permitted and disclosed, explicit-private items exempt |
 | R14–R17: independent wishlist audiences and strict item privacy | T02, T04, T05, T11, T12 | Audience cross-product and alternate-entry-point tests |
 | R18: public expected prices | T02, T07, T11 | Wishlist/owned financial projection tests |
 | R19: exact public wishlist preview | T02, T11 | Isolated guest-versus-preview parity tests |
 | R20: independent private copies and media | T05, T06, T10 | Source deletion, worker retry, and quota tests |
 | R21: block precedence with guest access retained | T02, T03, T05, T06 | Block/access/copy races and guest behavior tests |
+| R23–R24: permanent share link, root container, link-only toggle | T02, T04, T11, T12 | Link-off 404, link-off profile still shows public entries, neutral empty states, token-to-profile navigation |
 
 T00 coordinates all contracts, T13 independently verifies all requirements, and T14 owns operational readiness.
 
@@ -736,10 +834,10 @@ T00 coordinates all contracts, T13 independently verifies all requirements, and 
 1. Implement verified viewer resolution and account/block/friend predicates using the canonical tables.
 2. Implement profile, showcase root/child, owned-item detail, wishlist, visible target metadata, and media-reference authorization queries.
 3. Apply explicit field allowlists, null finance projection, stable cursors, filtering-before-pagination, and bounded lists/details.
-4. Implement the immediate-parent root rule at arbitrary depth and connected visible subtree helper consumed by stats/copy.
+4. Implement the immediate-parent root rule at arbitrary depth and the visible subtree helper consumed by stats/copy. Amended 2026-09-08: the visible set is ancestor-closed under section 5.0, so this helper no longer needs to rejoin descendants across a hidden gap.
 5. Implement forced-guest owner preview service, generic denials, and server/client cache contracts. Avoid request self-fetching which loses credentials.
 
-**Acceptance:** the same visitor gets the same permissions through list, detail, token, profile, media authorization, and copy eligibility; private gap example yields two roots; Private collection/Public wishlist works without leaking its target. Actual direct database and route tests accompany mocks.
+**Acceptance:** the same visitor gets the same permissions through list, detail, token, profile, media authorization, and copy eligibility; Private collection/Public wishlist works without leaking its target. Amended 2026-09-08: the private-gap two-roots case is removed — instead assert that the visible set is ancestor-closed and that no response ever carries a detached root, and drop tags from every public response. Actual direct database and route tests accompany mocks.
 
 ### T03 — Friendship transactions, blocks, rate limits, and inbox
 
@@ -764,10 +862,10 @@ T00 coordinates all contracts, T13 independently verifies all requirements, and 
 1. Implement saved independent audiences and financial flag with transactionally propagated descendant updates.
 2. Add revision-checked sharing preview/save, affected counts, and consistent owner lock ordering.
 3. Enforce child inheritance and existing-box move preservation across manual, paste, import, demo, and automated entry points.
-4. Preserve explicit-private wishlist flags and safe detached audience on target deletion/move-to-root; prevent accidental broadening during background operations.
+4. Preserve explicit-private wishlist flags and safe detached audience on target deletion; prevent accidental broadening during background operations. Owner-confirmed move-up broadening (section 6.4) is out of scope for this check.
 5. Update every relevant mutation's source revision, ownership, and media/quota integration points. Coordinate media deletions with T05 rather than adding another cleanup implementation.
 
-**Acceptance:** bulk edits are all-or-nothing; concurrent child creation cannot retain old sharing values; Private/Public combinations survive reload; explicit-private items stay hidden after every structural operation; deleting a private target never publishes an inherited wishlist item under a Public root.
+**Acceptance:** bulk edits are all-or-nothing; concurrent child creation cannot retain old sharing values; Private/Public combinations survive reload; explicit-private items stay hidden after every structural operation; deleting a private target never publishes an inherited wishlist item under a Public root. Amended 2026-09-08: a write setting any box wider than its parent is rejected through every entry point including move, paste, and import; restricting a parent clamps only the descendants that were wider; widening a parent changes none; a root set Private hides the whole account. Amended again 2026-09-08 for the deletion mode: deleting a box in move-up mode reparents its direct children and items to the nearest ancestor not also being deleted and leaves deeper nesting intact; the resulting audience broadening is permitted rather than rejected; explicit-private wishlist items survive it; and the owner sees the visibility consequence before confirming.
 
 ### T05 — Media registry, delivery, and reliable cleanup
 
@@ -803,12 +901,12 @@ T00 coordinates all contracts, T13 independently verifies all requirements, and 
 
 **Owned work:** public stats query/service/route, shared pure chart adapters, targeted existing stats route/hook changes coordinated with T08, stats tests and query-plan evidence.
 
-1. Aggregate only permitted finances over the connected visible subtree or all visible roots.
+1. Aggregate only permitted finances over the visible subtree or all visible roots, plus the collection root's permitted loose items.
 2. Implement bounded history buckets and correct opening/cumulative balances; preserve fully shared existing semantics.
 3. Fix query keys and separate owner/public/preview scope.
 4. Benchmark deep/wide/mixed-finance fixtures and remove per-depth round trips/unbounded raw history transfer.
 
-**Acceptance:** hidden amounts/history/dates never appear in responses; mixed visibility totals match a hand-calculated fixture; detached public grandchildren are counted once at root and not in an ancestor across a private gap; date-window totals remain correct; graphs/panels remain reusable.
+**Acceptance:** hidden amounts/history/dates never appear in responses; mixed visibility totals match a hand-calculated fixture; date-window totals remain correct; graphs/panels remain reusable. Amended 2026-09-08: the detached-grandchild-across-a-private-gap case is removed as unrepresentable — instead assert that traversal stops at a hidden child and never resumes below it, that mixed `share_financials` still aggregates across the visible subtree, and that loose owned items count once under the collection root's permission.
 
 ### T08 — Reusable collection, wishlist, and stats presentation
 
@@ -847,7 +945,7 @@ T00 coordinates all contracts, T13 independently verifies all requirements, and 
 3. Resolve approved owner/visitor/guest theme precedence and restore themes on navigation/back/refresh.
 4. Integrate “Copy to own dashboard,” guest sign-in return, job progress, success link, and safe failures.
 
-**Acceptance:** all owner/friend/stranger/guest/block fixtures match contracts; private gaps render detached roots; no sensitive fields enter hydration payloads; navigation retains viewer identity; profile visits do not alter owner editor data or visitor settings.
+**Acceptance:** all owner/friend/stranger/guest/block fixtures match contracts; no sensitive fields enter hydration payloads; navigation retains viewer identity; profile visits do not alter owner editor data or visitor settings. Amended 2026-09-08: the private-gap detached-root case is removed; instead assert both tabs are always present with neutral empty states, each fetches only its own data when opened, and the token page links through to the profile.
 
 ### T11 — Existing wishlist compatibility and public preview
 
@@ -860,7 +958,7 @@ T00 coordinates all contracts, T13 independently verifies all requirements, and 
 3. Add “Preview public wishlist”/Exit preview with real forced-guest reads and separate cache keys.
 4. Preserve existing wishlist rendering/acquire workflows outside preview, expected-price semantics, token rotation, and shared-style compatibility.
 
-**Acceptance:** browser guest and owner preview have identical public entries/order/fields/theme; signed-in blocked token visits deny; Private box/Public wishlist items appear without private target metadata; expected prices remain visible when collection finances are off; no owner mutation control works in preview.
+**Acceptance:** browser guest and owner preview have identical public entries/order/fields/theme; signed-in blocked token visits deny; Private box/Public wishlist items appear without private target metadata; expected prices remain visible when collection finances are off; no owner mutation control works in preview. Amended 2026-09-08: turning the share link off returns 404 on the token URL while the same entries remain visible on the profile Wishlist tab; root is presented as a container with an audience rather than an account default; preview reports how many wishlist items are visible out of the total.
 
 ### T12 — Public identity, theme consent, and box sharing editors
 
@@ -912,18 +1010,23 @@ T00 coordinates all contracts, T13 independently verifies all requirements, and 
 | Owner, friend, stranger, guest | Correct profile/action state; own private editor still works; published pages only show their permitted audience. |
 | Block either direction | Profile, wishlist/token, detail, stats, search, notification actor, media signing, and new copy are denied consistently. Guest behavior remains intentionally public. |
 | Raw database/API bypass | Anon/other authenticated user cannot select email/settings/raw finances/private photos, invoke service-only functions, forge accepted status, supply another actor, or lift caps. |
-| Three-level hierarchy and deeper | Visible immediate-parent grouping; hidden gaps detach roots; no hidden ancestor metadata; no duplicate roots/counts. |
+| Three-level hierarchy and deeper | Visible immediate-parent grouping; no hidden ancestor metadata; no duplicate roots/counts. |
+| Audience ceiling | A write setting a child wider than its parent is rejected, through every entry point: box editor, create, move, paste, import, and automated writes. Applies to collection and wishlist audiences independently, and not to `share_financials` — assert the mixed-financials totals in 7.1 still work. Restricting a parent clamps wider descendants in one transaction and leaves narrower ones untouched. Widening a parent changes no descendant. A root set Private hides the entire account; a root wishlist set Private hides every box wishlist. A Private collection box with a Public box wishlist still works. Upward paths need no guard: assert that a deleted box's detached wishlist audience is never wider than root's, rather than asserting a clamp ran. Legacy rows violating the invariant are clamped by backfill, and the constraint is validated afterwards. |
+| Box delete, move-up mode | Direct children and items land on the deleted box's parent; nesting below those children is unchanged — assert depth, not only first-level parentage. Deleting a box together with one of its own ancestors lands contents on the nearest surviving ancestor. Deleting a top-level box lands contents at the collection root. Broadening is permitted: a Friends-only box deleted under a Public parent leaves its contents Public with no `privacy_conflict` raised. Explicit-private wishlist items stay Private. Both delete dialogs state the visibility consequence before confirmation. |
+| Public tag absence | No public list, detail, wishlist, token, preview, or stats response contains tag names, colors, IDs, or counts, and no public surface offers tag filter or sort. |
 | Collection/Wishlist audience cross-product | All 3 × 3 combinations for owner/friend/stranger/guest, with explicit-private item flag on/off. Collection audience never silently gates wishlist entries. |
 | Wishlist finance independence | Visible wishlist expected price survives collection `share_financials = false`; owned acquisition/value/history are absent. |
 | Preview parity | Owner preview and isolated signed-out browser match item set/order/fields/empty state/theme; no owner bypass or mutation controls. |
+| Share link toggle | Link off returns 404 for the token URL; the same entries stay visible on the profile Wishlist tab; link on with an empty projection shows an empty list, not 404; rotating a token does not change any surface's contents; no surface reports that a wishlist is unpublished. |
+| Root container | An item with no target box follows root's audience; changing root's audience changes only unfiled items; a Private root with one Public box wishlist still shows that box's entries. |
 | Financial sharing | Mixed parent/child flags, null versus real zero, hidden history, sorting/filter leakage, date windows/opening balances, root totals without double counting. |
 | Sharing editor | Publicity suggestions before save; manual wishlist selection wins; reopening preserves stored values; Cancel is write-free; descendant notice/count/version conflict correct. |
-| Structural mutations | Child create during parent update; box move; private target deletion; move-to-root; acquire/re-wishlist; import/agent writes; explicit item Private survives. |
+| Structural mutations | Child create during parent update; box move; private target deletion; move-up reparenting to the nearest surviving ancestor; acquire/re-wishlist; import/agent writes; explicit item Private survives move-up. |
 | Relationship concurrency | Duplicate and opposite requests; stale request IDs; only-recipient accept; block/accept and block/copy races; independent directional unblocks. |
 | Pagination/search | More than 20/200/10,000 friends; remote-page search; duplicate sort keys; additions/removals and rename while paging; cursor invalidation; bounded DOM and cache. |
 | Notifications | Transactional delivery, retry deduplication, stale action state, blocked/deleted actor suppression, read ownership, retention/poll visibility. |
 | Media references | Shared same-owner refs, last-ref GC, outstanding source lease, failed DB commit, storage timeout, immutable replacement, legacy URL classification, thumbnail and avatar refs. |
-| Independent copies | Uploaded versus external media, repeated asset within subtree, hidden child/finance/wishlist omission, destination tag/target remapping, private defaults, source account deletion after completion. |
+| Independent copies | Uploaded versus external media, repeated asset within subtree, hidden child/finance/wishlist omission, destination target remapping, no tags created for the copier, private defaults, source account deletion after completion. |
 | Copy crashes/cap races | Crash before/after storage copy, before/after DB finalize; duplicate requests; worker lease expiry; cancellation; two simultaneous jobs and ordinary create near cap; source privacy/revision change. |
 | Cache/session/theme | Login/logout/account switch; guest to friend to blocked; SSR/hydration; browser Back; public-to-Dashboard theme restoration; signed-media optimizer caching. |
 | Lifecycle | Sandbox denied publishing/social mutations; account disable hides before purge; deletion cancels jobs and preserves cleanup manifests; copied assets of other users survive. |

@@ -40,6 +40,7 @@ export function createSharingMutationCore(rpc: SharingRpc): SharingMutationServi
         case "mutation_forbidden": return { ok: false, error: { code: "mutation_forbidden", status: 403 } }
         case "not_found": return { ok: false, error: { code: "not_found", status: 404 } }
         case "revision_conflict": return { ok: false, error: { code: "revision_conflict", status: 409 } }
+        case "privacy_conflict": return { ok: false, error: { code: "privacy_conflict", status: 409 } }
         default: return unavailable
       }
     } catch { return unavailable }

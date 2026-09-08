@@ -9,6 +9,7 @@ SET LOCAL request.jwt.claim.sub = 'a1000000-0000-4000-8000-000000000001';
 INSERT INTO public.boxes(id,user_id,name,collection_visibility,share_financials,wishlist_visibility) VALUES
  ('a2000000-0000-4000-8000-000000000001',auth.uid(),'Root','public',true,'public');
 SELECT pg_temp.assert_true((SELECT collection_visibility = 'private' AND NOT share_financials AND wishlist_visibility = 'private' FROM public.boxes WHERE id='a2000000-0000-4000-8000-000000000001'),'root always private');
+UPDATE public.user_settings SET root_collection_visibility='public', root_share_financials=true, root_wishlist_visibility='public' WHERE user_id=auth.uid();
 UPDATE public.boxes SET collection_visibility='public',share_financials=true,wishlist_visibility='friends' WHERE id='a2000000-0000-4000-8000-000000000001';
 INSERT INTO public.boxes(id,user_id,parent_box_id,name) VALUES
  ('a2000000-0000-4000-8000-000000000002',auth.uid(),'a2000000-0000-4000-8000-000000000001','Child');
