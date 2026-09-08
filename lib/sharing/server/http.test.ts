@@ -6,6 +6,7 @@ import { GET as collectionDetail } from "@/app/api/public/users/[userId]/items/[
 import { GET as wishlistDetail } from "@/app/api/public/users/[userId]/wishlist/[itemId]/route"
 import { GET as tokenWishlist } from "@/app/api/public/wishlist/[token]/route"
 import { GET as profile } from "@/app/api/public/users/[userId]/route"
+import { GET as stats } from "@/app/api/public/users/[userId]/stats/route"
 
 const mocks = vi.hoisted(() => ({ cookies: vi.fn(), getUser: vi.fn(), rpc: vi.fn(), service: vi.fn() }))
 vi.mock("next/headers", () => ({ cookies: mocks.cookies }))
@@ -75,6 +76,29 @@ describe("public HTTP boundaries", () => {
     expect(mocks.rpc.mock.calls[0]).toEqual(["sharing_resolve_wishlist_token", { p_token: token, p_viewer_id: null }])
     expect(mocks.rpc.mock.calls[2][1]).toMatchObject({ p_owner_id: owner, p_surface: "wishlist", p_viewer_id: null })
     expect(await result.json()).toEqual({ entries: [], nextCursor: null, hasMore: false })
+  })
+
+  it("wires public stats to the verified viewer without query identities", async () => {
+    const boxId = "61000000-0000-4000-8000-000000000002"
+    mocks.rpc.mockResolvedValueOnce({
+      data: { ok: true, data: {
+        currentValue: 10, totalAcquisition: 10, bucket: "day",
+        valueHistory: [{ date: "2024-01-01", value: 0 }],
+        acquisitionHistory: [{ date: "2024-01-01", cumulativeAcquisition: 10 }],
+        itemIds: ["SECRET"],
+      } }, error: null,
+    })
+    const result = await stats(new NextRequest(`http://localhost/api/public/users/${owner}/stats?boxId=${boxId}&fromDate=2024-01-01&toDate=2024-01-03&viewerId=${owner}`), { params: Promise.resolve({ userId: owner }) })
+    expect(result.status).toBe(200)
+    expect(result.headers.get("cache-control")).toContain("no-store")
+    expect(mocks.rpc.mock.calls[0]).toEqual(["sharing_read_stats", {
+      p_owner_id: owner, p_viewer_id: null, p_box_id: boxId, p_from: "2024-01-01", p_to: "2024-01-03",
+    }])
+    expect(await result.json()).toEqual({
+      currentValue: 10, totalAcquisition: 10, bucket: "day",
+      valueHistory: [{ date: "2024-01-01", value: 0 }],
+      acquisitionHistory: [{ date: "2024-01-01", cumulativeAcquisition: 10 }],
+    })
   })
 
   it("defaults feature off without touching auth or service client", async () => {

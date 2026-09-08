@@ -1,5 +1,5 @@
-import type { CursorPage, OperationError, OperationResult, PublicBox, PublicCollectionItem, PublicDetailRequest, PublicItemDetail, PublicMedia, PublicProfile, PublicReadService, PublicStyle, PublicWishlistItem, PublishedViewer } from "../contracts"
-import { GUEST_VIEWER } from "../contracts"
+import type { CursorPage, OperationError, OperationResult, PublicBox, PublicBoxStats, PublicCollectionItem, PublicDetailRequest, PublicItemDetail, PublicMedia, PublicProfile, PublicReadService, PublicStyle, PublicWishlistItem, PublishedViewer } from "../contracts"
+import { GUEST_VIEWER, SHARING_LIMITS } from "../contracts"
 import { FONT_OPTIONS, type FontFamilyId } from "@/lib/fonts"
 import { THEME_COLOR_KEYS } from "@/lib/theme-colors"
 import { TAG_COLORS, type TagColor, type Theme } from "@/lib/types"
@@ -25,6 +25,45 @@ function object(value: unknown): Record<string, unknown> | null {
 function nullableText(value: unknown): value is string | null { return value === null || typeof value === "string" }
 function nullableNumber(value: unknown): value is number | null { return value === null || (typeof value === "number" && Number.isFinite(value)) }
 function identity(value: unknown): value is string { return typeof value === "string" && uuid.test(value) }
+function finiteAmount(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null
+  if (typeof value === "string" && /^-?\d+(?:\.\d+)?$/.test(value)) {
+    const amount = Number(value)
+    return Number.isFinite(amount) ? amount : null
+  }
+  return null
+}
+function calendarDate(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const [year, month, day] = value.split("-").map(Number)
+  const utc = new Date(Date.UTC(year, month - 1, day))
+  return utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === day ? value : null
+}
+function parseStats(value: unknown): PublicBoxStats | null {
+  const row = object(value)
+  const currentValue = finiteAmount(row?.currentValue)
+  const totalAcquisition = finiteAmount(row?.totalAcquisition)
+  if (!row || currentValue === null || totalAcquisition === null || (row.bucket !== "day" && row.bucket !== "month" && row.bucket !== "year")
+    || !Array.isArray(row.valueHistory) || !Array.isArray(row.acquisitionHistory)
+    || row.valueHistory.length > SHARING_LIMITS.maxChartPoints || row.acquisitionHistory.length > SHARING_LIMITS.maxChartPoints) return null
+  const valueHistory: PublicBoxStats["valueHistory"] = []
+  for (const point of row.valueHistory) {
+    const entry = object(point)
+    const date = calendarDate(entry?.date)
+    const amount = finiteAmount(entry?.value)
+    if (!entry || !date || amount === null) return null
+    valueHistory.push({ date, value: amount })
+  }
+  const acquisitionHistory: PublicBoxStats["acquisitionHistory"] = []
+  for (const point of row.acquisitionHistory) {
+    const entry = object(point)
+    const date = calendarDate(entry?.date)
+    const amount = finiteAmount(entry?.cumulativeAcquisition)
+    if (!entry || !date || amount === null) return null
+    acquisitionHistory.push({ date, cumulativeAcquisition: amount })
+  }
+  return { currentValue, totalAcquisition, valueHistory, acquisitionHistory, bucket: row.bucket }
+}
 
 /** All output objects are reconstructed; extra database fields cannot cross this boundary. */
 function parseBox(value: unknown): PublicBox | null {
@@ -92,8 +131,8 @@ function failure(value: unknown): OperationResult<never> {
   return unavailable
 }
 
-/** T02 safe projections. Stats remain T07. */
-export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, media?: PublicMediaResolver): Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "collectionItem" | "wishlistItem" | "wishlist" | "previewWishlist" | "tokenWishlist"> {
+/** T02/T07 safe projections. */
+export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, media?: PublicMediaResolver): Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "collectionItem" | "wishlistItem" | "wishlist" | "previewWishlist" | "tokenWishlist" | "stats"> {
   async function resolveMedia(kind: "photo" | "avatar", referenceId: unknown, viewer: PublishedViewer): Promise<PublicMedia | null> {
     if (referenceId === null || referenceId === undefined) return null
     if (!identity(referenceId) || !media) throw new Error("Invalid media reference")
@@ -236,6 +275,24 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
         const ownerId = object(envelope.data)?.ownerId
         if (!identity(ownerId)) return unavailable
         return page(ownerId, viewer, "wishlist", undefined, request.cursor, parseWishlist)
+      } catch { return unavailable }
+    },
+    async stats(ownerId, viewer, request) {
+      try {
+        if (!identity(ownerId) || (viewer.kind === "authenticated" && !identity(viewer.userId))) return invalid
+        if (request.boxId !== undefined && !identity(request.boxId)) return invalid
+        const fromDate = request.fromDate === undefined ? undefined : calendarDate(request.fromDate)
+        const toDate = request.toDate === undefined ? undefined : calendarDate(request.toDate)
+        if (fromDate === null || toDate === null || (fromDate && toDate && fromDate > toDate)) return invalid
+        const response = await rpc("sharing_read_stats", {
+          p_owner_id: ownerId, p_viewer_id: viewer.kind === "guest" ? null : viewer.userId,
+          p_box_id: request.boxId ?? null, p_from: fromDate ?? null, p_to: toDate ?? null,
+        })
+        if (response.error) return unavailable
+        const envelope = object(response.data)
+        if (envelope?.ok !== true) return failure(response.data)
+        const data = parseStats(envelope.data)
+        return data ? { ok: true, data } : unavailable
       } catch { return unavailable }
     },
   }

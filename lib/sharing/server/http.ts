@@ -7,7 +7,7 @@ import { createMediaAuthorizeCore } from "@/lib/media/server/authorize-core"
 import { resolvePublishedViewer } from "./viewer"
 import type { OperationResult, PublicReadService, PublishedViewer } from "../contracts"
 
-type ReadCore = Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "collectionItem" | "wishlistItem" | "wishlist" | "previewWishlist" | "tokenWishlist">
+type ReadCore = Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "collectionItem" | "wishlistItem" | "wishlist" | "previewWishlist" | "tokenWishlist" | "stats">
 type Handler = (core: ReadCore, viewer: PublishedViewer) => Promise<OperationResult<unknown>>
 const headers = { "Cache-Control": "private, no-store, max-age=0", Vary: "Cookie, Authorization" }
 
