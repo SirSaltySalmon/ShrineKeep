@@ -13,6 +13,7 @@ export function ListState({
   empty,
   emptyText,
   onRetry,
+  formatError = socialErrorMessage,
   children,
 }: {
   loading: boolean
@@ -20,13 +21,14 @@ export function ListState({
   empty: boolean
   emptyText: string
   onRetry: () => void
+  formatError?: (error: unknown) => string
   children: React.ReactNode
 }) {
   if (loading) return <p className="text-fluid-sm text-muted-foreground">Loading…</p>
   if (error) {
     return (
       <div className="space-y-2">
-        <p className="text-fluid-sm text-destructive">{socialErrorMessage(error)}</p>
+        <p className="text-fluid-sm text-destructive">{formatError(error)}</p>
         <Button type="button" size="sm" variant="outline" onClick={onRetry}>
           Retry
         </Button>
