@@ -214,6 +214,10 @@ legacy `/api/wishlist/[token]` JSON route is deleted. Client pagination uses `/a
 - Sharing preview and save at `GET/PUT /api/boxes/[boxId]/sharing`, revision- and count-checked.
 - Social mutations, lists, and inbox under `/api/social/*`, transactional, with rate limits and idempotent receipts.
 - Public media signing at `/api/public/media/[kind]/[referenceId]`.
+- Authenticated Social UI at `/social` (friends, incoming/outgoing, inbox, blocked), gated by
+  `SOCIAL_MUTATIONS_ENABLED`. AppNav includes Social. List keys are `sharingKeys.social(actorId, …)`; a local
+  block evicts `sharing-public` and `public` caches for that owner; logout calls `queryClient.clear()`.
+  Friend rows still link to `/users/[id]`, which 404s until W6.
 - Nineteen social migrations of predicates, invariants, triggers, and service-only RPCs, with SQL tests that pass
 on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest: `20260908150000_audience_ceiling.sql`.
 - A fenced GC worker with proven Storage retry behaviour: `node --env-file=.env.local supabase/tests/media-gc-storage.mjs`.
@@ -245,9 +249,10 @@ were never created. Deferred by decision, so this is expected — but see the na
 
 ### What does not exist
 
-`app/social/*`, `app/users/[userId]/*`, `components/social/*`, `components/public-profile/*`,
+`app/users/[userId]/*`, `components/public-profile/*`,
 `lib/copy/*`, `supabase/functions/copy-worker/*`, and anything in `lib/sharing/presentation/` beyond
-`capabilities.ts`. T08 through T12 are unstarted as UI.
+`capabilities.ts`. T08 and T10–T12 are unstarted as UI. T09 Social UI lives in `app/social/*` and
+`components/social/*`.
 
 ### Open defects, recorded so they are not rediscovered
 
@@ -854,11 +859,11 @@ created request. Submit the `components/app-nav.tsx` change as its own small pat
 
 ### Done when
 
-- [ ] A 200-friend account never fetches the whole list and never renders more than 20 friend rows.
-- [ ] Search reaches friends outside the loaded page.
-- [ ] Every action works without a right-click.
-- [ ] A stale or cancelled request cannot be accepted through the UI.
-- [ ] After a local block, the blocked profile does not survive in a cached detail view.
+- [x] A 200-friend account never fetches the whole list and never renders more than 20 friend rows.
+- [x] Search reaches friends outside the loaded page.
+- [x] Every action works without a right-click.
+- [x] A stale or cancelled request cannot be accepted through the UI.
+- [x] After a local block, the blocked profile does not survive in a cached detail view.
 
 ---
 

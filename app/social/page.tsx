@@ -18,5 +18,5 @@ export default async function SocialPage() {
     .eq("id", authUser.id)
     .single()
 
-  return <SocialClient sandbox={user?.is_sandbox === true} />
+  return <SocialClient actorId={authUser.id} sandbox={user?.is_sandbox === true} />
 }

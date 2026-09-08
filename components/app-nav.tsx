@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { Package, Heart, LogOut, Settings, Users } from "lucide-react"
 import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -14,10 +15,12 @@ interface AppNavProps {
 
 export default function AppNav({ name, sandbox = false }: AppNavProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   const handleLogout = async () => {
     const supabase = createSupabaseClient()
     await supabase.auth.signOut()
+    queryClient.clear()
     router.push("/auth/login")
     router.refresh()
   }

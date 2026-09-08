@@ -17,6 +17,11 @@ test("dashboard redirects unauthenticated users to login", async ({ page }) => {
   await expect(page).toHaveURL(/\/auth\/login/)
 })
 
+test("social redirects unauthenticated users to login", async ({ page }) => {
+  await page.goto("/social")
+  await expect(page).toHaveURL(/\/auth\/login/)
+})
+
 test("judge page renders without minting", async ({ page }) => {
   await page.goto("/judge")
   await expect(page.getByText("Try ShrineKeep")).toBeVisible()

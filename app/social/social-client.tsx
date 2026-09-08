@@ -39,7 +39,7 @@ import {
 } from "@/lib/social/client"
 import { applySocialMutation, dropUnblockedUser } from "@/lib/social/invalidate"
 import {
-  SOCIAL_QUERY_ROOT,
+  socialActorKey,
   socialBlocksKey,
   socialFriendsKey,
   socialNotificationsKey,
@@ -47,6 +47,7 @@ import {
 } from "@/lib/social/query-keys"
 
 interface SocialClientProps {
+  actorId: string
   sandbox: boolean
 }
 
@@ -87,7 +88,7 @@ function useCursorStack(resetKey: string) {
   }
 }
 
-export default function SocialClient({ sandbox }: SocialClientProps) {
+export default function SocialClient({ actorId, sandbox }: SocialClientProps) {
   const queryClient = useQueryClient()
   const router = useRouter()
   const pathname = usePathname()
@@ -123,28 +124,29 @@ export default function SocialClient({ sandbox }: SocialClientProps) {
     staleTime: 0,
   } as const
 
+  const actorKey = socialActorKey(actorId)
   const friends = useQuery({
-    queryKey: socialFriendsKey(friendsQuery, friendsPage.cursor),
+    queryKey: socialFriendsKey(actorId, friendsQuery, friendsPage.cursor),
     queryFn: () => fetchFriends({ query: friendsQuery, cursor: friendsPage.cursor }),
     ...listQuery,
   })
   const incoming = useQuery({
-    queryKey: socialRequestsKey("incoming", incomingPage.cursor),
+    queryKey: socialRequestsKey(actorId, "incoming", incomingPage.cursor),
     queryFn: () => fetchRequests({ direction: "incoming", cursor: incomingPage.cursor }),
     ...listQuery,
   })
   const outgoing = useQuery({
-    queryKey: socialRequestsKey("outgoing", outgoingPage.cursor),
+    queryKey: socialRequestsKey(actorId, "outgoing", outgoingPage.cursor),
     queryFn: () => fetchRequests({ direction: "outgoing", cursor: outgoingPage.cursor }),
     ...listQuery,
   })
   const notifications = useQuery({
-    queryKey: socialNotificationsKey(notificationPage.cursor),
+    queryKey: socialNotificationsKey(actorId, notificationPage.cursor),
     queryFn: () => fetchNotifications(notificationPage.cursor),
     ...listQuery,
   })
   const blocks = useQuery({
-    queryKey: socialBlocksKey(blocksPage.cursor),
+    queryKey: socialBlocksKey(actorId, blocksPage.cursor),
     queryFn: () => fetchBlocks(blocksPage.cursor),
     ...listQuery,
   })
@@ -154,7 +156,7 @@ export default function SocialClient({ sandbox }: SocialClientProps) {
     setBusy(true)
     try {
       const result = await action()
-      applySocialMutation(queryClient, result, targetUserId)
+      applySocialMutation(queryClient, result, { actorId, targetUserId })
       if (
         result.invalidated.includes("blocks") &&
         result.invalidated.includes("friends") &&
@@ -163,11 +165,11 @@ export default function SocialClient({ sandbox }: SocialClientProps) {
       ) {
         router.replace("/social")
       }
-      await queryClient.refetchQueries({ queryKey: [SOCIAL_QUERY_ROOT] })
+      await queryClient.refetchQueries({ queryKey: actorKey })
     } catch (error) {
       setActionError(socialErrorMessage(error))
       if (error instanceof SocialRequestError && error.error.code === "stale_request") {
-        await queryClient.refetchQueries({ queryKey: [SOCIAL_QUERY_ROOT] })
+        await queryClient.refetchQueries({ queryKey: actorKey })
       }
     } finally {
       setBusy(false)
@@ -184,8 +186,8 @@ export default function SocialClient({ sandbox }: SocialClientProps) {
       return sendFriendRequest(targetUserId, key)
     },
     onSuccess: async (result, targetUserId) => {
-      applySocialMutation(queryClient, result, targetUserId)
-      await queryClient.refetchQueries({ queryKey: [SOCIAL_QUERY_ROOT, "requests"] })
+      applySocialMutation(queryClient, result, { actorId, targetUserId })
+      await queryClient.refetchQueries({ queryKey: actorKey })
       setAddError(null)
       setAddInput("")
     },
@@ -201,7 +203,7 @@ export default function SocialClient({ sandbox }: SocialClientProps) {
     else {
       await runMutation(async () => {
         const result = await unblockUser(userId)
-        dropUnblockedUser(queryClient, userId)
+        dropUnblockedUser(queryClient, actorId, userId)
         return result
       }, userId)
     }
