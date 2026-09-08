@@ -895,6 +895,15 @@ export default function DashboardClient({
           }}
           box={editBox}
           ownerSharing={ownerSharing}
+          parentSharing={
+            !editBox
+              ? undefined
+              : !editBox.parent_box_id
+                ? (ownerSharing?.available ? ownerSharing.root : undefined)
+                : currentBox?.id === editBox.parent_box_id
+                  ? currentBox.sharing
+                  : undefined
+          }
           descendantCount={
             editBox
               ? descendantCounts[editBox.id] ?? editBox.descendant_count ?? 0

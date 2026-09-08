@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { chooseCollection, chooseWishlist } from "@/lib/sharing/sharing-draft"
-import { AUDIENCES, type Audience, type SharingSettings } from "@/lib/sharing/contracts"
+import { audiencesDominatedBy, type Audience, type SharingSettings } from "@/lib/sharing/contracts"
 
 const AUDIENCE_LABELS: Record<Audience, string> = {
   private: "Private",
@@ -25,6 +25,10 @@ export interface ContainerAudienceFieldsProps {
   onChange: (next: SharingSettings) => void
   disabled?: boolean
   idPrefix?: string
+  /** Parent collection audience. Omit at root, where every audience is allowed. */
+  collectionCeiling?: Audience
+  /** Parent wishlist audience. Omit at root, where every audience is allowed. */
+  wishlistCeiling?: Audience
 }
 
 export function ContainerAudienceFields({
@@ -33,6 +37,8 @@ export function ContainerAudienceFields({
   onChange,
   disabled = false,
   idPrefix = "container",
+  collectionCeiling,
+  wishlistCeiling,
 }: ContainerAudienceFieldsProps) {
   const draft = { ...value, wishlistEdited: true, applyToDescendants: true }
 
@@ -52,6 +58,7 @@ export function ContainerAudienceFields({
         label="Collection visibility"
         hint="Who can see items filed in this container"
         value={value.collectionVisibility}
+        ceiling={collectionCeiling}
         disabled={disabled}
         onValueChange={(audience) => {
           const next = chooseCollection({ ...draft, wishlistEdited: false }, audience)
@@ -68,6 +75,7 @@ export function ContainerAudienceFields({
         label="Wishlist visibility"
         hint="Who can see wishes associated with this container"
         value={value.wishlistVisibility}
+        ceiling={wishlistCeiling}
         disabled={disabled}
         onValueChange={(audience) => {
           const next = chooseWishlist(draft, audience)
@@ -98,11 +106,17 @@ export function ContainerAudienceFields({
   )
 }
 
+function audienceChoices(ceiling: Audience | undefined, current: Audience) {
+  const allowed = audiencesDominatedBy(ceiling ?? "public")
+  return allowed.includes(current) ? allowed : [...allowed, current]
+}
+
 function AudienceSelect({
   id,
   label,
   hint,
   value,
+  ceiling,
   disabled,
   onValueChange,
 }: {
@@ -110,6 +124,7 @@ function AudienceSelect({
   label: string
   hint: string
   value: Audience
+  ceiling?: Audience
   disabled?: boolean
   onValueChange: (audience: Audience) => void
 }) {
@@ -121,7 +136,7 @@ function AudienceSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {AUDIENCES.map((audience) => (
+          {audienceChoices(ceiling, value).map((audience) => (
             <SelectItem key={audience} value={audience}>
               {AUDIENCE_LABELS[audience]}
             </SelectItem>

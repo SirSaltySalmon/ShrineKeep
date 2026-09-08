@@ -21,17 +21,17 @@ is "an unexecuted test is reported as unexecuted."
 These were open questions. They are now settled and the work orders below assume them.
 
 
-| Decision                            | Value                                                   | Consequence                                                                                                                                                                                                                                 |
-| ----------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| First release scope                 | Public profiles, wishlist sharing, and Social UI        | T01–T05, T07–T12 in scope. T06 deferred.                                                                                                                                                                                                    |
-| Deployment target                   | Local Docker clone `db-clones` only                     | Migrations are written and applied to the clone. No hosted apply is planned or authorized in this phase.                                                                                                                                    |
-| Wishlist share links                | **Permanent product surface, not legacy compatibility** | `/wishlist/[token]` stays as a first-class feature alongside the profile Wishlist tab. Only its insecure implementation is replaced. Real public wishlists exist (three on the clone), so audience backfill must map them, not assume none. |
-| Avatars bucket                      | Stays public for v1                                     | Avatar authorization is descoped. Avatar bytes are world-readable regardless of blocks; this is a documented v1 limitation, not a defect.                                                                                                   |
-| Copy to own dashboard (T06)         | Deferred past first release                             | R20 is not delivered in v1. `copy_jobs` and `media_asset_leases` stay as unused tables.                                                                                                                                                     |
-| Box delete, contents-surviving mode | **Move up one level**, replacing move-to-root           | Contents reparent to the deleted box's nearest surviving ancestor, preserving nesting below. See W1C.                                                                                                                                       |
-| Per-item wishlist Private (R16)     | **Removed**                                             | No `wishlist_is_private` column, UI, or veto. Wishlist privacy is only the box or root container audience.                                                                                                                                  |
+| Decision                            | Value                                                   | Consequence                                                                                                                                                                                                                                         |
+| ----------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First release scope                 | Public profiles, wishlist sharing, and Social UI        | T01–T05, T07–T12 in scope. T06 deferred.                                                                                                                                                                                                            |
+| Deployment target                   | Local Docker clone `db-clones` only                     | Migrations are written and applied to the clone. No hosted apply is planned or authorized in this phase.                                                                                                                                            |
+| Wishlist share links                | **Permanent product surface, not legacy compatibility** | `/wishlist/[token]` stays as a first-class feature alongside the profile Wishlist tab. Only its insecure implementation is replaced. Real public wishlists exist (three on the clone), so audience backfill must map them, not assume none.         |
+| Avatars bucket                      | Stays public for v1                                     | Avatar authorization is descoped. Avatar bytes are world-readable regardless of blocks; this is a documented v1 limitation, not a defect.                                                                                                           |
+| Copy to own dashboard (T06)         | Deferred past first release                             | R20 is not delivered in v1. `copy_jobs` and `media_asset_leases` stay as unused tables.                                                                                                                                                             |
+| Box delete, contents-surviving mode | **Move up one level**, replacing move-to-root           | Contents reparent to the deleted box's nearest surviving ancestor, preserving nesting below. See W1C.                                                                                                                                               |
+| Per-item wishlist Private (R16)     | **Removed**                                             | No `wishlist_is_private` column, UI, or veto. Wishlist privacy is only the box or root container audience.                                                                                                                                          |
 | Display name vs public nickname     | **Unified 2026-09-08**                                  | `users.name` is the public profile label. OAuth/signup names are public. Empty signup names become `Collector-<suffix>`. Drop `public_profiles.nickname` and `user_settings.use_custom_display_name`. JSON still publishes the label as `nickname`. |
-| Visibility increase on move-up      | **Notify, do not prevent**                              | Contents inherit the destination's audience and may become more visible. The owner is warned in the delete dialog; clamping, per-item prompts, and rejection are all out of scope. There is no per-item wishlist Private flag.               |
+| Visibility increase on move-up      | **Notify, do not prevent**                              | Contents inherit the destination's audience and may become more visible. The owner is warned in the delete dialog; clamping, per-item prompts, and rejection are all out of scope. There is no per-item wishlist Private flag.                      |
 
 
 
@@ -222,22 +222,22 @@ legacy `/api/wishlist/[token]` JSON route is deleted. Client pagination uses `/a
 - Shared presentation adapters in `lib/sharing/presentation/`. Owner grids and the token wishlist render through
 `presentOwner*` / `presentPublic*` plus `CollectionCapabilities`.
 - Authenticated Social UI at `/social` (friends, incoming/outgoing, inbox, blocked), gated by
-  `SOCIAL_MUTATIONS_ENABLED`. AppNav includes Social. List keys are `sharingKeys.social(actorId, …)`; a local
-  block evicts `sharing-public` and `public` caches for that owner; logout calls `queryClient.clear()`.
-  Friend rows link to `/users/[id]`.
+`SOCIAL_MUTATIONS_ENABLED`. AppNav includes Social. List keys are `sharingKeys.social(actorId, …)`; a local
+block evicts `sharing-public` and `public` caches for that owner; logout calls `queryClient.clear()`.
+Friend rows link to `/users/[id]`.
 - Public profile HTML at `/users/[userId]` (`loadPublicProfilePage`, `components/public-profile/*`). Showcase
-  and Wishlist tabs always render. Guest nav is signed-out; signed-in nav uses the viewer's `users.name`, never
-  the profile owner's unless they are the same account. Theme is route-scoped (`PublicTheme` /
-  `publicStyleProperties`), not `document.documentElement`. Copy affordances are omitted. Empty tabs use
-  `PUBLIC_EMPTY_COPY` ("Nothing is visible here.").
+and Wishlist tabs always render. Guest nav is signed-out; signed-in nav uses the viewer's `users.name`, never
+the profile owner's unless they are the same account. Theme is route-scoped (`PublicTheme` /
+`publicStyleProperties`), not `document.documentElement`. Copy affordances are omitted. Empty tabs use
+`PUBLIC_EMPTY_COPY` ("Nothing is visible here.").
 - Root collection items at `GET /api/public/users/[userId]/items`. When the collection root is not visible the
-  RPC 404s; Showcase maps that at root only to an empty page (`emptyRootCollectionPage`).
+RPC 404s; Showcase maps that at root only to an empty page (`emptyRootCollectionPage`).
 - Owner Wishlist "Preview public wishlist" against `/api/wishlist/preview` with `sharingKeys.preview`. The token
-  page links to `/users/[ownerId]?tab=wishlist` and uses the same `PublicTheme` wrapper.
+page links to `/users/[ownerId]?tab=wishlist` and uses the same `PublicTheme` wrapper.
 - Social migrations of predicates, invariants, triggers, and service-only RPCs, with SQL tests that pass
 on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest: `20260908210000_unify_display_name.sql`.
 - A fenced GC worker with proven Storage retry behaviour: `node --env-file=.env.local supabase/tests/media-gc-storage.mjs`.
-  Scheduled by `vercel.json` GET `/api/media/gc`; clone/dev wakeup is `instrumentation.ts` every minute.
+Scheduled by `vercel.json` GET `/api/media/gc`; clone/dev wakeup is `instrumentation.ts` every minute.
 
 
 
@@ -263,8 +263,6 @@ route are gone; `boxes.is_public` is dropped and `wishlist_is_public` is `wishli
 `CopyJobState` matches the media-lifecycle constraint; page sizes come from `SHARING_LIMITS`; adapter parse
 and signing failures map to `not_found`; photo replace no longer overwrites `storage_path` in place; avatar
 DELETE clears `public_profiles.avatar_asset_id`.
-
-
 
 ## Glossary and naming rules
 
@@ -334,7 +332,7 @@ the route without dropping the policies leaves the data exposed. Neither half is
   | `public.photos`        | `Users can view photos in public items`                         |
   | `public.photos`        | `Public can view photos for wishlist items in public wishlists` |
   | `public.wish_lists`    | `Users can view public wish lists of friends`                   |
-  | `public.user_settings` | `Public can view settings for public wishlists`                 |
+  | `public.user_settings` | `Public can view swettings for public wishlists`                |
   | `storage.objects`      | `Users can view wishlist item photos`                           |
   | `storage.objects`      | `Public can view wishlist item photos`                          |
 
@@ -427,6 +425,8 @@ the clamp, backfill
 - Edit: `supabase/tests/public-reads.sql`, `public-stats.sql`, `box-sharing.sql`, `box-invariants.sql`,
 `box-paste-inheritance.sql`, `public-item-details.sql`
 
+
+
 ### The container function
 
 Step 1 adds this and step 2 depends on it. A null `p_box_id` means the collection root and reads
@@ -470,7 +470,7 @@ by the items read surface once loose items publish. Keep it a separate function 
 ### Steps
 
 1. Add `root_collection_visibility` and `root_share_financials` to the private sharing settings record, both
-   defaulting to private and false, then add `container_audience` above and route every existing audience
+  defaulting to private and false, then add `container_audience` above and route every existing audience
    lookup through it. Do not add a row to `boxes`. Convert these call sites now, before the invariant, so the
    invariant has one thing to call: the inline `CASE` in `sharing_private.wishlist_item_is_visible`
    (`20260907034821_social_sharing_foundation.sql:170-173`), the hand-rolled root and target lookups in
@@ -478,7 +478,7 @@ by the items read surface once loose items publish. Keep it a separate function 
    `guard_box_tree` (`20260907124728_sharing_box_invariants.sql:36-42`), which collapses to one assignment
    per dimension with no branch.
 2. Add the invariant as a database constraint or trigger, **once per audience dimension**: a box's collection
-   audience must be dominated by its parent's collection audience and by the root's, and the same for its
+  audience must be dominated by its parent's collection audience and by the root's, and the same for its
    wishlist audience. Leave `share_financials` alone. This must hold for every writer — the box editor,
    create, move, the paste RPCs, import, and any automated write — which is the reason it belongs in the
    database and not in a route handler.
@@ -493,19 +493,19 @@ by the items read surface once loose items publish. Keep it a separate function 
    constraint on `boxes`. Order its lock acquisition through `sharing_private.lock_accounts` like every
    other writer.
 3. Rewrite propagation in `sharing_update_box` as a clamp rather than an overwrite. Restricting updates only
-   the descendants that were strictly wider; widening updates none. The affected count returned by preview
+  the descendants that were strictly wider; widening updates none. The affected count returned by preview
    must be the count that will actually change, so a subtree already Private reports zero.
 4. Clamp on move: a box moved under a narrower parent is narrowed to it, in both dimensions. A move must not
-   be a route around the ceiling.
+  be a route around the ceiling.
    There is deliberately no matching clamp on the *upward* paths. An earlier revision of this work order
    added a step 4b clamping detached wishlist audiences to root; it has been removed. The ceiling already
    guarantees a box's wishlist audience is no wider than root's, so a preserved value can never exceed it,
    and the clamp would have been unreachable code defending an impossible state.
 5. Backfill existing rows by clamping any box wider than its parent, then validate the constraint. The clone
-   currently has all boxes Private, so expect zero changes there — but write and run the backfill anyway,
+  currently has all boxes Private, so expect zero changes there — but write and run the backfill anyway,
    because a zero-row result on the clone is not evidence it is correct.
 6. Delete the private-gap and detached-**showcase-root** logic listed in the settled-design section, and the
-   tests that assert it. Exactly two assertions are in scope: `public-reads.sql:37` ("private gap detached
+  tests that assert it. Exactly two assertions are in scope: `public-reads.sql:37` ("private gap detached
    root") and `public-stats.sql:54` ("detached grandchild is its own root"). Replace them with one test per
    entry point proving a widening write is rejected.
    The word "detached" also names an unrelated and surviving mechanism — a wishlist item whose target box
@@ -513,7 +513,7 @@ by the items read surface once loose items publish. Keep it a separate function 
    `social-foundation.sql`, `box-delete.sql`, `contracts.test.ts`, and `privacy-fixtures.ts` matching that
    word belongs to the surviving mechanism and must not be removed. Read the glossary before grepping.
 7. Remove tags from the public path: `PublicItemDetail.tags`, `PublicDetailRequest.tagsCursor`, the tag
-   keyset in `sharing_read_item_detail`, the parsing in `read-core.ts`, the `tags` surface in `cursor.ts`,
+  keyset in `sharing_read_item_detail`, the parsing in `read-core.ts`, the `tags` surface in `cursor.ts`,
    and the tag assertions in `public-item-details.sql`.
 
 
@@ -522,8 +522,7 @@ by the items read surface once loose items publish. Keep it a separate function 
 
 - [x] `sharing_private.container_audience` is the only thing in the schema that reads
   `root_collection_visibility` or `root_wishlist_visibility`, and the only thing that branches on a box
-  id being null to locate an audience. Grep both column names and the phrase `wishlist_target_box_id IS
-  NULL`; every surviving hit must be about item detachment, not about where an audience lives.
+  id being null to locate an audience. Grep both column names and the phrase `wishlist_target_box_id IS NULL`; every surviving hit must be about item detachment, not about where an audience lives.
 - [x] No rank function, rank table, or hand-written meet exists. The guard compares audiences with `<=` and
   the clamp uses `least`, relying on the `sharing_audience` enum's declaration order.
 - [x] Root's ceiling and a parent box's ceiling are enforced by the same predicate, with no branch for
@@ -605,7 +604,7 @@ same way owned items do. Further privacy guardrails on this path are out of scop
   adjust to taste but keep the visibility sentence:
   > **Move contents up:** Move this box's items and sub-boxes into the box above it, then delete this box.
   > Anything inside will follow the parent's sharing settings, which may make it visible to more people.
-   When the deleted box is top-level, say "to the top level" rather than "into the box above it".
+  >  When the deleted box is top-level, say "to the top level" rather than "into the box above it".
 6. Rewrite `supabase/tests/box-delete.sql` for the new shape and update the `concurrency.mjs` contention
   case, which only needs the renamed mode.
 
@@ -722,7 +721,7 @@ backfill of existing rows reported zero remaining storage paths without `asset_i
   last-index expression. Changing `publicPageSize` to a different number and re-running the read tests
   produces correct paging with no edit anywhere else.
 - [x] Every term in the "not defined in the plan" list has a definition at its declaration.
-- [ ] `npm run check:full` passes.
+- [x] `npm run check:full` passes.
 
 ---
 
@@ -831,15 +830,15 @@ Copy to own dashboard is deferred, so render no copy affordance at all rather th
 
 ### Done when
 
-- [ ] Owner, friend, stranger, guest, and blocked fixtures each match the contracts.
-- [ ] The private-gap case is unreachable. Attempt to construct one through the UI and confirm the write is
+- [x] Owner, friend, stranger, guest, and blocked fixtures each match the contracts.
+- [x] The private-gap case is unreachable. Attempt to construct one through the UI and confirm the write is
   rejected. This item previously required rendering two detached roots; W1B removed that behaviour and
   the ceiling makes the state unrepresentable, so rendering it correctly is no longer a passing result.
 - [ ] Owner preview and a genuinely signed-out browser show identical entries, order, fields, empty state,
   and theme. Compare in two isolated sessions, not by reasoning about the code.
 - [x] Page titles, Open Graph metadata, and the hydration payload carry only the safe projection.
-- [ ] Visiting a profile does not alter the visitor's saved theme or the owner's editor data.
-- [ ] Both tabs are always present and each fetches only its own data when opened. Verify with the network
+- [x] Visiting a profile does not alter the visitor's saved theme or the owner's editor data.
+- [x] Both tabs are always present and each fetches only its own data when opened. Verify with the network
   panel, not by reading the hook.
 - [x] Empty tabs show neutral empty states. No string anywhere claims a wishlist or collection is not public.
 - [x] A profile with nothing public renders normally with two empty tabs rather than a 404.

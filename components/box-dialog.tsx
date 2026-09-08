@@ -21,6 +21,7 @@ interface BoxDialogProps {
   onOpenChange: (open: boolean) => void
   box: Box | null
   ownerSharing?: DashboardOwnerSharing | null
+  parentSharing?: SharingSettings | null
   descendantCount: number
   onSave: (updated: { id: string; name: string; description: string | null; sharing: SharingSettings }) => void
   onDeleted: (box: Box) => void
@@ -32,6 +33,7 @@ export default function BoxDialog({
   onOpenChange,
   box,
   ownerSharing,
+  parentSharing,
   descendantCount,
   onSave,
   onDeleted,
@@ -91,7 +93,9 @@ export default function BoxDialog({
           const code = (shareData as { error?: { code?: string } })?.error?.code
           throw new Error(code === "revision_conflict"
             ? "Sharing settings changed in another tab. Reload and try again."
-            : "Failed to save sharing settings")
+            : code === "privacy_conflict"
+              ? "A child cannot be more visible than its parent."
+              : "Failed to save sharing settings")
         }
         const next = shareData as { revision?: string }
         if (next.revision) setSharingRevision(next.revision)
@@ -248,6 +252,8 @@ export default function BoxDialog({
                   value={sharing}
                   onChange={setSharing}
                   idPrefix={`box-${box.id}`}
+                  collectionCeiling={parentSharing?.collectionVisibility}
+                  wishlistCeiling={parentSharing?.wishlistVisibility}
                 />
                 <WishlistVisibilitySummary
                   visibleCount={ownerSharing.wishlistGuestVisibleCount}

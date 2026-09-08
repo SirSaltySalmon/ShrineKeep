@@ -24,6 +24,7 @@ describe("dashboard local item search", () => {
     expect(src).toContain('from "@/components/box-dialog"')
     expect(src).toContain("<BoxDialog")
     expect(src).not.toContain("<ContainerAudienceFields")
+    expect(src).toContain("parentSharing=")
   })
 
   it("edits root audience at the bottom of the dashboard root", () => {

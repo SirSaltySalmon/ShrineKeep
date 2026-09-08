@@ -6,6 +6,17 @@ import type { Relationship } from "@/lib/social/contracts"
 export const SHARING_CONTRACT_VERSION = 1 as const
 export const AUDIENCES = ["private", "friends", "public"] as const
 export type Audience = (typeof AUDIENCES)[number]
+/** Breadth order: public > friends > private. A parent must dominate every child. */
+const AUDIENCE_BREADTH: Record<Audience, number> = { private: 0, friends: 1, public: 2 }
+
+export function audienceDominates(parent: Audience, child: Audience) {
+  return AUDIENCE_BREADTH[child] <= AUDIENCE_BREADTH[parent]
+}
+
+/** Audiences a container may take under this parent, including the parent itself. */
+export function audiencesDominatedBy(parent: Audience): Audience[] {
+  return AUDIENCES.filter((audience) => audienceDominates(parent, audience))
+}
 /** Decimal bigint string: database revisions must not lose JS number precision. */
 export type SharingRevision = string
 /** Verified session identity for a published read: guest, or an authenticated user id. Never taken from request JSON. */

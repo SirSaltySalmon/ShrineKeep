@@ -16,6 +16,8 @@ describe("box dialog layout", () => {
 
   it("keeps sharing on the same audience control as root and delete in the footer", () => {
     expect(src).toContain("<ContainerAudienceFields")
+    expect(src).toContain("collectionCeiling={parentSharing?.collectionVisibility}")
+    expect(src).toContain("privacy_conflict")
     expect(src).toContain("containerLabel={box.name}")
     expect(src).toContain('className="mr-auto"')
     expect(src).toContain("Delete")

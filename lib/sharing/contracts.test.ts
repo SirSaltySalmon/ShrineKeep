@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { AUDIENCES, GUEST_VIEWER, PRIVATE_SHARING_DEFAULTS } from "./contracts"
+import { AUDIENCES, GUEST_VIEWER, PRIVATE_SHARING_DEFAULTS, audienceDominates, audiencesDominatedBy } from "./contracts"
 import { isPublicBioValid, isPublicNicknameValid, publicNickname } from "./identity"
 import { sharingKeys } from "./cache-keys"
 import { chooseCollection, chooseWishlist, openSharingDraft } from "./sharing-draft"
@@ -83,5 +83,13 @@ describe("identity and presentation contracts", () => {
   it("keeps incoming and outgoing requests in separate caches", () => {
     expect(sharingKeys.social("owner", { surface: "requests", direction: "incoming" }))
       .not.toEqual(sharingKeys.social("owner", { surface: "requests", direction: "outgoing" }))
+  })
+
+  it("a private parent only permits private children", () => {
+    expect(audiencesDominatedBy("private")).toEqual(["private"])
+    expect(audiencesDominatedBy("friends")).toEqual(["private", "friends"])
+    expect(audiencesDominatedBy("public")).toEqual(["private", "friends", "public"])
+    expect(audienceDominates("friends", "public")).toBe(false)
+    expect(audienceDominates("friends", "friends")).toBe(true)
   })
 })
