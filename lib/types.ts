@@ -15,7 +15,6 @@ export interface Box {
   parent_box_id?: string
   name: string
   description?: string
-  is_public: boolean
   position: number
   created_at: string
   updated_at: string
@@ -220,9 +219,19 @@ export interface UserSettings {
   border_radius?: string | null
   /** When true, draw value and acquisition on one chart; when false, two separate. Stored separately from theme colors. */
   graph_overlay?: boolean | null
-  wishlist_is_public: boolean
+  /** Share-link toggle only. Does not publish wishlist items. */
+  wishlist_link_enabled: boolean
   wishlist_share_token?: string | null
   wishlist_apply_colors: boolean
+  root_collection_visibility?: "private" | "friends" | "public"
+  root_share_financials?: boolean
+  root_wishlist_visibility?: "private" | "friends" | "public"
+  profile_share_style?: boolean
+  public_nickname?: string | null
+  public_bio?: string
+  sharing_revision?: string
+  wishlist_guest_visible_count?: number
+  wishlist_guest_total_count?: number
   /** When true, show public.users.name; when false, show provider name (e.g. Google). */
   use_custom_display_name?: boolean
   created_at: string

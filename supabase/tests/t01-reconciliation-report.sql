@@ -110,9 +110,9 @@ FROM walk
 WHERE is_cycle;
 
 \echo '=== legacy publication inventory (mapping not applied) ==='
-SELECT count(*)::bigint AS boxes_is_public_true
-FROM public.boxes
-WHERE is_public;
+SELECT count(*)::bigint AS boxes_is_public_column
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'boxes' AND column_name = 'is_public';
 
 SELECT collection_visibility::text, count(*)::bigint AS n
 FROM public.boxes
@@ -129,7 +129,7 @@ FROM public.boxes
 GROUP BY 1
 ORDER BY 1;
 
-SELECT wishlist_is_public, count(*)::bigint AS n
+SELECT wishlist_link_enabled, count(*)::bigint AS n
 FROM public.user_settings
 GROUP BY 1
 ORDER BY 1;

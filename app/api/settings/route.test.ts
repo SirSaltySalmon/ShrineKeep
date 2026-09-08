@@ -121,7 +121,7 @@ describe("/api/settings", () => {
         }),
       }),
     })
-    const response = await PUT(makePutRequest({ wishlist_is_public: true }) as any)
+    const response = await PUT(makePutRequest({ wishlist_link_enabled: true }) as any)
     expect(response.status).toBe(403)
   })
 

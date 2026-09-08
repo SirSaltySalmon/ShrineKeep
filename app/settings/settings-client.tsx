@@ -33,6 +33,8 @@ import {
 } from "@/lib/fonts"
 import type { FontFamilyId } from "@/lib/fonts"
 import { UserSettings, Theme } from "@/lib/types"
+import { PRIVATE_SHARING_DEFAULTS, type SharingSettings } from "@/lib/sharing/contracts"
+import { publicNickname } from "@/lib/sharing/identity"
 import { Upload } from "lucide-react"
 
 const SETTINGS_TABS = ["personal", "theme", "options", "tags", "billing"] as const
@@ -87,8 +89,8 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   const [graphOverlay, setGraphOverlay] = useState(
     initialSettings?.graph_overlay ?? true
   )
-  const [wishlistIsPublic, setWishlistIsPublic] = useState(
-    initialSettings?.wishlist_is_public || false
+  const [wishlistLinkEnabled, setWishlistLinkEnabled] = useState(
+    initialSettings?.wishlist_link_enabled || false
   )
   const [wishlistShareToken, setWishlistShareToken] = useState<string | null>(
     initialSettings?.wishlist_share_token || null
@@ -96,6 +98,30 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
   const [wishlistApplyColors, setWishlistApplyColors] = useState(
     initialSettings?.wishlist_apply_colors || false
   )
+  const [publicNicknameValue, setPublicNicknameValue] = useState(initialSettings?.public_nickname ?? "")
+  const [publicBio, setPublicBio] = useState(initialSettings?.public_bio ?? "")
+  const [profileShareStyle, setProfileShareStyle] = useState(initialSettings?.profile_share_style ?? false)
+  const [root, setRoot] = useState<SharingSettings>({
+    collectionVisibility: initialSettings?.root_collection_visibility ?? PRIVATE_SHARING_DEFAULTS.collectionVisibility,
+    shareFinancials: initialSettings?.root_share_financials ?? PRIVATE_SHARING_DEFAULTS.shareFinancials,
+    wishlistVisibility: initialSettings?.root_wishlist_visibility ?? PRIVATE_SHARING_DEFAULTS.wishlistVisibility,
+  })
+  const [sharingRevision, setSharingRevision] = useState(initialSettings?.sharing_revision ?? "0")
+  const [visibleCount, setVisibleCount] = useState(initialSettings?.wishlist_guest_visible_count ?? 0)
+  const [totalCount, setTotalCount] = useState(initialSettings?.wishlist_guest_total_count ?? 0)
+  const [savingSharing, setSavingSharing] = useState(false)
+  const [savedSharing, setSavedSharing] = useState(false)
+  const sharingSnapshot = {
+    publicNicknameValue: initialSettings?.public_nickname ?? "",
+    publicBio: initialSettings?.public_bio ?? "",
+    profileShareStyle: initialSettings?.profile_share_style ?? false,
+    root: {
+      collectionVisibility: initialSettings?.root_collection_visibility ?? PRIVATE_SHARING_DEFAULTS.collectionVisibility,
+      shareFinancials: initialSettings?.root_share_financials ?? PRIVATE_SHARING_DEFAULTS.shareFinancials,
+      wishlistVisibility: initialSettings?.root_wishlist_visibility ?? PRIVATE_SHARING_DEFAULTS.wishlistVisibility,
+    },
+    wishlistLinkEnabled: initialSettings?.wishlist_link_enabled || false,
+  }
   const [useCustomDisplayName, setUseCustomDisplayName] = useState(
     initialProfile.useCustomDisplayName
   )
@@ -197,6 +223,60 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     URL.revokeObjectURL(url)
   }
 
+  const restoreSharing = () => {
+    setPublicNicknameValue(sharingSnapshot.publicNicknameValue)
+    setPublicBio(sharingSnapshot.publicBio)
+    setProfileShareStyle(sharingSnapshot.profileShareStyle)
+    setRoot(sharingSnapshot.root)
+    setWishlistLinkEnabled(sharingSnapshot.wishlistLinkEnabled)
+  }
+
+  const saveOwnerSharing = async () => {
+    setSavingSharing(true)
+    setSavedSharing(false)
+    try {
+      const res = await fetch("/api/settings/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nickname: publicNicknameValue.trim() || null,
+          bio: publicBio,
+          profileShareStyle,
+          root,
+          wishlistLinkEnabled,
+          wishlistShareToken: null,
+          expectedRevision: sharingRevision,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const code = (data as { error?: { code?: string } })?.error?.code
+        throw new Error(code === "revision_conflict"
+          ? "Sharing settings changed in another tab. Reload and try again."
+          : (data as { error?: string })?.error ?? "Failed to save sharing settings")
+      }
+      const next = data as {
+        revision?: string
+        wishlistShareToken?: string | null
+        wishlistGuestVisibleCount?: number
+        wishlistGuestTotalCount?: number
+      }
+      if (next.revision) setSharingRevision(next.revision)
+      if (next.wishlistShareToken !== undefined) setWishlistShareToken(next.wishlistShareToken)
+      if (typeof next.wishlistGuestVisibleCount === "number") setVisibleCount(next.wishlistGuestVisibleCount)
+      if (typeof next.wishlistGuestTotalCount === "number") setTotalCount(next.wishlistGuestTotalCount)
+      setSavedSharing(true)
+      setTimeout(() => setSavedSharing(false), 3000)
+      router.refresh()
+    } catch (err) {
+      console.error("Error saving sharing settings:", err)
+      alert(err instanceof Error ? err.message : "Failed to save sharing settings")
+      throw err
+    } finally {
+      setSavingSharing(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -232,6 +312,17 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
               avatarUrl={avatarUrl}
               avatarVersion={avatarVersion}
               userId={initialProfile.userId}
+              publicNickname={publicNicknameValue}
+              publicBio={publicBio}
+              profileShareStyle={profileShareStyle}
+              publicFallbackLabel={publicNickname(initialProfile.userId, null)}
+              onPublicNicknameChange={setPublicNicknameValue}
+              onPublicBioChange={setPublicBio}
+              onProfileShareStyleChange={setProfileShareStyle}
+              onSavePublicProfile={saveOwnerSharing}
+              onCancelPublicProfile={restoreSharing}
+              savingPublicProfile={savingSharing}
+              savedPublicProfile={savedSharing}
               onDisplayNameChange={setDisplayName}
               onUseCustomDisplayNameChange={setUseCustomDisplayName}
               onAvatarChange={(url) => {
@@ -315,12 +406,20 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
             <OptionsSettings
               graphOverlay={graphOverlay}
               onGraphOverlayChange={setGraphOverlay}
-              wishlistIsPublic={wishlistIsPublic}
+              wishlistLinkEnabled={wishlistLinkEnabled}
               wishlistShareToken={wishlistShareToken}
               wishlistApplyColors={wishlistApplyColors}
-              onPublicChange={setWishlistIsPublic}
+              onLinkEnabledChange={setWishlistLinkEnabled}
               onApplyColorsChange={setWishlistApplyColors}
               onShareTokenChange={setWishlistShareToken}
+              root={root}
+              onRootChange={setRoot}
+              visibleCount={visibleCount}
+              totalCount={totalCount}
+              onSaveSharing={saveOwnerSharing}
+              onCancelSharing={restoreSharing}
+              savingSharing={savingSharing}
+              savedSharing={savedSharing}
             />
           </TabsContent>
 

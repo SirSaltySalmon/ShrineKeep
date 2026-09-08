@@ -211,14 +211,19 @@ wishlist, wishlist item detail, stats, owner guest preview, token wishlist. `lib
 The HTML share link at `/wishlist/[token]` now calls that core in-process via `loadTokenWishlistPage`; the
 legacy `/api/wishlist/[token]` JSON route is deleted. Client pagination uses `/api/public/wishlist/[token]`.
 - Owner media delivery through `/api/media/photo/:id` with authorization before a private, no-store redirect.
+- Server media upload at `POST /api/media/upload` (`media_register_asset` / `media_finalize_upload` /
+`media_attach_photo` / `media_attach_avatar`). Item and avatar writes go through `uploadOwnedMedia`;
+`photos.asset_id` is set on insert. Direct `item-photos` writes for `authenticated` are revoked.
 - Sharing preview and save at `GET/PUT /api/boxes/[boxId]/sharing`, revision- and count-checked.
+- Owner profile, root audiences, and share-link toggle at `GET/PUT /api/settings/profile` (`sharing_read_owner_settings` / `sharing_update_owner_settings`). `user_settings.wishlist_is_public` is renamed `wishlist_link_enabled`. `boxes.is_public` is dropped (`20260908201000_drop_boxes_is_public.sql`).
 - Social mutations, lists, and inbox under `/api/social/*`, transactional, with rate limits and idempotent receipts.
 - Public media signing at `/api/public/media/[kind]/[referenceId]`.
 - Shared presentation adapters in `lib/sharing/presentation/`. Owner grids and the token wishlist render through
 `presentOwner*` / `presentPublic*` plus `CollectionCapabilities`.
-- Nineteen social migrations of predicates, invariants, triggers, and service-only RPCs, with SQL tests that pass
-on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest: `20260908150000_audience_ceiling.sql`.
+- Social migrations of predicates, invariants, triggers, and service-only RPCs, with SQL tests that pass
+on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest: `20260908201000_drop_boxes_is_public.sql`.
 - A fenced GC worker with proven Storage retry behaviour: `node --env-file=.env.local supabase/tests/media-gc-storage.mjs`.
+  Scheduled by `vercel.json` GET `/api/media/gc`; clone/dev wakeup is `instrumentation.ts` every minute.
 
 
 
@@ -226,20 +231,6 @@ on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest
 
 These are the ones that make progress look further along than it is.
 
-- **The media upload registry.** `media_register_asset`, `media_finalize_upload`, `media_attach_photo`,
-`media_attach_avatar`, `media_lease_asset`, and `media_release_lease` exist in SQL with **zero TypeScript
-callers**. Uploads still go browser-direct to Storage from `components/item-dialog.tsx` and
-`components/settings/personal-settings.tsx`, and photo rows are inserted with `asset_id` null. Assets are
-registered lazily, on the first owner GET of `/api/media/photo/:id`. An asset nobody views is never
-registered and can never be garbage collected.
-- `public_profiles`**.** The table exists and has a row per user on the clone. **No application code writes
-it.** There is no path to set a nickname or a bio. `app/api/settings/route.ts` does not touch it.
-- `root_collection_visibility`, `root_share_financials`, `root_wishlist_visibility` **and** `profile_share_style`**.**
-Audiences are read only through `sharing_private.container_audience` (financials through `container_share_financials`).
-No application code writes them yet. `app/api/settings/route.ts:173` still writes the legacy `wishlist_is_public`.
-- **The GC worker trigger.** The worker and its Edge entry exist. There is no `vercel.json` anywhere in the
-repo and no cron declaration. `supabase/operations/schedule-media-gc.sql` is a script for a cluster that
-does not yet have `pg_cron` or `pg_net` installed. Nothing wakes the worker.
 - `copy_jobs` **and** `media_asset_leases`**.** Created, no consumer, and `copy_job_entries` / `copy_job_assets`
 were never created. Deferred by decision, so this is expected — but see the naming rule below.
 
@@ -253,15 +244,11 @@ extract in `lib/sharing/presentation/` and the token wishlist cards.
 
 ### Open defects, recorded so they are not rediscovered
 
-1. **Two permission models still run at once**, which plan §13.3 forbids. `is_public` and `wishlist_is_public`
-  remain live columns written by settings and some box/item paths; the new audience columns are authoritative
-   in the RPCs. They can still drift on a settings save. The legacy `/api/wishlist/[token]` JSON route is gone.
-2. **Two storage leaks.** `lib/api/patch-item.ts:115-127` updates a photo's `storage_path` in place and
-  abandons the old blob; `app/api/users/me/avatar/route.ts` DELETE clears `users.avatar_url` and leaves
-   `public_profiles.avatar_asset_id` dangling. An earlier revision of this list counted box delete in
-   move-up mode as a third leak because `lib/api/delete-box.ts` skips the cleanup helper unless mode is
-   `delete-all`. That is correct behaviour, not a leak: in that mode the items and their photo rows all
-   survive the delete, so there is nothing unreferenced to collect.
+None of the previously recorded defects remain after W2–W4: legacy public-read policies and the token JSON
+route are gone; `boxes.is_public` is dropped and `wishlist_is_public` is `wishlist_link_enabled`;
+`CopyJobState` matches the media-lifecycle constraint; page sizes come from `SHARING_LIMITS`; adapter parse
+and signing failures map to `not_found`; photo replace no longer overwrites `storage_path` in place; avatar
+DELETE clears `public_profiles.avatar_asset_id`.
 
 
 
@@ -769,19 +756,19 @@ wishlist boolean. Until this exists there is nothing for the profile UI to edit.
 
 ### Done when
 
-- [ ] An owner can save a nickname and bio, and they appear on the public profile read.
-- [ ] A new account's public label is the neutral `Collector-<suffix>` fallback until a nickname is saved.
-- [ ] `root_wishlist_visibility` is the only authority for wishlist items associated with root.
-- [ ] `wishlist_link_enabled` is the only remaining job of the old boolean; `boxes.is_public` has no readers
+- [x] An owner can save a nickname and bio, and they appear on the public profile read.
+- [x] A new account's public label is the neutral `Collector-<suffix>` fallback until a nickname is saved.
+- [x] `root_wishlist_visibility` is the only authority for wishlist items associated with root.
+- [x] `wishlist_link_enabled` is the only remaining job of the old boolean; `boxes.is_public` has no readers
   and is dropped.
-- [ ] Link off returns 404 on the token URL while the same entries stay visible on the profile Wishlist tab.
+- [x] Link off returns 404 on the token URL while the same entries stay visible on the profile Wishlist tab.
   Test both halves; passing only the first would mean the toggle is still gating content.
-- [ ] A Private *collection* root with a Public root wishlist publishes loose wishlist items. (The earlier
+- [x] A Private *collection* root with a Public root wishlist publishes loose wishlist items. (The earlier
   version of this item said a Private root wishlist could coexist with a Public box wishlist; the
   symmetric ceiling decided 2026-09-08 makes that unrepresentable.)
-- [ ] Root's audience control is the same component as a box's, and is not labelled a default.
-- [ ] Preview shows a visible-out-of-total count that changes when a container's audience changes.
-- [ ] Cancel in the settings form issues no write.
+- [x] Root's audience control is the same component as a box's, and is not labelled a default.
+- [x] Preview shows a visible-out-of-total count that changes when a container's audience changes.
+- [x] Cancel in the settings form issues no write.
 
 ---
 

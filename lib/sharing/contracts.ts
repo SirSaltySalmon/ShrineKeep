@@ -118,6 +118,28 @@ export interface SharingUpdate extends SharingSettings {
   expectedDescendantCount: number
 }
 
+export interface OwnerSharingSnapshot {
+  nickname: string | null
+  bio: string
+  profileShareStyle: boolean
+  root: SharingSettings
+  wishlistLinkEnabled: boolean
+  wishlistShareToken: string | null
+  revision: SharingRevision
+  wishlistGuestVisibleCount: number
+  wishlistGuestTotalCount: number
+}
+
+export interface OwnerSharingUpdate {
+  nickname: string | null
+  bio: string
+  profileShareStyle: boolean
+  root: SharingSettings
+  wishlistLinkEnabled: boolean
+  wishlistShareToken: string | null
+  expectedRevision: SharingRevision
+}
+
 export type OperationError =
   | { code: "invalid_input"; status: 400 }
   | { code: "authentication_required"; status: 401 }
@@ -157,6 +179,13 @@ export const GUEST_VIEWER: Readonly<{ kind: "guest" }> = Object.freeze({ kind: "
 export interface SharingMutationService {
   preview(actorId: string, boxId: string): Promise<OperationResult<{ revision: SharingRevision; descendantCount: number; settings: SharingSettings }>>
   update(actorId: string, input: SharingUpdate): Promise<OperationResult<{ revision: SharingRevision }>>
+  readOwnerSettings(actorId: string): Promise<OperationResult<OwnerSharingSnapshot>>
+  updateOwnerSettings(actorId: string, input: OwnerSharingUpdate): Promise<OperationResult<{
+    revision: SharingRevision
+    wishlistShareToken: string | null
+    wishlistGuestVisibleCount: number
+    wishlistGuestTotalCount: number
+  }>>
 }
 
 export const COPY_JOB_STATES = ["queued", "planning", "copying", "finalizing", "completed", "failed", "cancelled"] as const

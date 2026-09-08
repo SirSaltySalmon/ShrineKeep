@@ -20,8 +20,8 @@ INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
  ('e1000000-0000-4000-8000-000000000003','revoke-other@test.invalid','{"username":"revoke-other"}');
 INSERT INTO public.social_friendships(user_low,user_high,requested_by,status,accepted_at) VALUES
  ('e1000000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000002','e1000000-0000-4000-8000-000000000001','accepted',now());
-INSERT INTO public.boxes(id,user_id,name,is_public,collection_visibility) VALUES
- ('e2000000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000001','public box',true,'public');
+INSERT INTO public.boxes(id,user_id,name,collection_visibility) VALUES
+ ('e2000000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000001','public box','public');
 INSERT INTO public.items(id,user_id,box_id,name,acquisition_price,current_value,is_wishlist,expected_price) VALUES
  ('e3000000-0000-4000-8000-000000000001','e1000000-0000-4000-8000-000000000001','e2000000-0000-4000-8000-000000000001','owned',12.34,56.78,false,NULL),
  ('e3000000-0000-4000-8000-000000000002','e1000000-0000-4000-8000-000000000001',NULL,'wish item',NULL,NULL,true,0);
@@ -34,7 +34,7 @@ INSERT INTO storage.objects(id,bucket_id,name) VALUES
  ('e7000000-0000-4000-8000-000000000001','item-photos','e1000000-0000-4000-8000-000000000001/items/wish.jpg'),
  ('e7000000-0000-4000-8000-000000000002','avatars','e1000000-0000-4000-8000-000000000001/avatar.png');
 UPDATE public.user_settings SET
-  wishlist_is_public=true,
+  wishlist_link_enabled=true,
   wishlist_share_token='e4000000-0000-4000-8000-000000000001'
  WHERE user_id='e1000000-0000-4000-8000-000000000001';
 GRANT SELECT ON storage.objects TO anon, authenticated;

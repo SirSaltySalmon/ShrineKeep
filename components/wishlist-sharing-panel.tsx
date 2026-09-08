@@ -8,31 +8,44 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Copy, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { WishlistVisibilitySummary } from "@/components/sharing/wishlist-visibility-summary"
 
 export interface WishlistSharingPanelProps {
-  wishlistIsPublic: boolean
+  wishlistLinkEnabled: boolean
   wishlistShareToken: string | null
   wishlistApplyColors: boolean
-  onPublicChange: (isPublic: boolean) => void
+  onLinkEnabledChange: (enabled: boolean) => void
   onApplyColorsChange: (applyColors: boolean) => void
   onShareTokenChange: (token: string | null) => void
+  visibleCount?: number
+  totalCount?: number
   /**
    * embedded — under Settings → Options (parent provides “Save options”).
-   * card — own bordered section with “Save sharing” on the wishlist page.
+   * card — own bordered section with save on the wishlist page.
    */
   layout?: "embedded" | "card"
+  onSaveSharing?: () => Promise<void>
+  onCancelSharing?: () => void
+  savingSharing?: boolean
+  savedSharing?: boolean
   /** Called after a successful save or token regenerate (e.g. router.refresh). */
   onPersisted?: () => void
 }
 
 export function WishlistSharingPanel({
-  wishlistIsPublic,
+  wishlistLinkEnabled,
   wishlistShareToken,
   wishlistApplyColors,
-  onPublicChange,
+  onLinkEnabledChange,
   onApplyColorsChange,
   onShareTokenChange,
+  visibleCount,
+  totalCount,
   layout = "embedded",
+  onSaveSharing,
+  onCancelSharing,
+  savingSharing = false,
+  savedSharing = false,
   onPersisted,
 }: WishlistSharingPanelProps) {
   const router = useRouter()
@@ -54,13 +67,13 @@ export function WishlistSharingPanel({
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          wishlist_is_public: wishlistIsPublic,
           wishlist_apply_colors: wishlistApplyColors,
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((data as { error?: string })?.error ?? "Failed to save sharing settings")
-      onShareTokenChange((data as { wishlist_share_token?: string | null }).wishlist_share_token ?? null)
+      await onSaveSharing?.()
+      onShareTokenChange((data as { wishlist_share_token?: string | null }).wishlist_share_token ?? wishlistShareToken)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
       onPersisted?.()
@@ -105,26 +118,30 @@ export function WishlistSharingPanel({
         <div>
           <h2 className="text-fluid-lg font-semibold">Wishlist settings</h2>
           <p className="text-fluid-sm text-muted-foreground mt-0.5">
-            Control who can view your wishlist and how it appears.
+            The share link only controls whether this URL works.
           </p>
         </div>
       )}
 
+      {visibleCount != null && totalCount != null && (
+        <WishlistVisibilitySummary visibleCount={visibleCount} totalCount={totalCount} />
+      )}
+
       <div className="flex items-center justify-between gap-4">
         <div className="space-y-0.5 min-w-0">
-          <Label>Make wishlist public</Label>
+          <Label>Share wishlist by link</Label>
           <p className="text-fluid-xs text-muted-foreground">
-            Allow others to view your wishlist via a shareable link
+            When this is off, the link 404s. Your profile Wishlist tab is unchanged.
           </p>
         </div>
         <Switch
-          checked={wishlistIsPublic}
-          onCheckedChange={onPublicChange}
-          aria-label="Make wishlist public"
+          checked={wishlistLinkEnabled}
+          onCheckedChange={onLinkEnabledChange}
+          aria-label="Share wishlist by link"
         />
       </div>
 
-      {wishlistIsPublic && (
+      {wishlistLinkEnabled && (
         <div className="space-y-2">
           <Label>Shareable link</Label>
           <div className="flex flex-wrap gap-2">
@@ -166,7 +183,7 @@ export function WishlistSharingPanel({
         </div>
       )}
 
-      {wishlistIsPublic && (
+      {wishlistLinkEnabled && (
         <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5 min-w-0">
             <Label>Apply custom colors to public view</Label>
@@ -184,11 +201,16 @@ export function WishlistSharingPanel({
 
       {isCard && (
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-          {saved && (
+          {(saved || savedSharing) && (
             <span className="text-fluid-sm text-muted-foreground mr-auto">Sharing settings saved.</span>
           )}
-          <Button type="button" onClick={saveWishlistOnly} disabled={saving}>
-            {saving ? "Saving…" : "Save options"}
+          {onCancelSharing && (
+            <Button type="button" variant="outline" onClick={onCancelSharing} disabled={saving || savingSharing}>
+              Cancel
+            </Button>
+          )}
+          <Button type="button" onClick={saveWishlistOnly} disabled={saving || savingSharing}>
+            {saving || savingSharing ? "Saving…" : "Save options"}
           </Button>
         </div>
       )}
