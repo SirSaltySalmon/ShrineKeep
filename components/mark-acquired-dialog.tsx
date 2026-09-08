@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Item } from "@/lib/types"
 import {
   Dialog,
@@ -31,12 +31,14 @@ export default function MarkAcquiredDialog({
 }: MarkAcquiredDialogProps) {
   const [acquisitionDate, setAcquisitionDate] = useState("")
   const [acquisitionPrice, setAcquisitionPrice] = useState("")
-
-  useEffect(() => {
-    if (!open || !item) return
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open && !wasOpen && item) {
+    setWasOpen(true)
     setAcquisitionDate(new Date().toISOString().split("T")[0])
     setAcquisitionPrice(item.expected_price?.toString() ?? "")
-  }, [open, item])
+  } else if (!open && wasOpen) {
+    setWasOpen(false)
+  }
 
   const handleConfirm = async () => {
     if (!item) return

@@ -27,16 +27,20 @@ export default function ImageGalleryCarousel({
   images,
   initialIndex = 0,
 }: ImageGalleryCarouselProps) {
-  const [index, setIndex] = useState(
-    Math.min(Math.max(0, initialIndex), Math.max(0, images.length - 1))
-  )
-
-  useEffect(() => {
-    if (open && images.length) {
-      const i = Math.min(Math.max(0, initialIndex), images.length - 1)
-      setIndex(i)
-    }
-  }, [open, images.length, initialIndex])
+  const clampedInitial = images.length
+    ? Math.min(Math.max(0, initialIndex), images.length - 1)
+    : 0
+  const [index, setIndex] = useState(clampedInitial)
+  const [openReset, setOpenReset] = useState({ open, length: images.length, initialIndex })
+  if (
+    open &&
+    (!openReset.open || openReset.length !== images.length || openReset.initialIndex !== initialIndex)
+  ) {
+    setOpenReset({ open, length: images.length, initialIndex })
+    setIndex(clampedInitial)
+  } else if (!open && openReset.open) {
+    setOpenReset({ open: false, length: images.length, initialIndex })
+  }
 
   const goPrev = useCallback(() => {
     setIndex((i) => (i <= 0 ? images.length - 1 : i - 1))

@@ -1,16 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useSyncExternalStore } from "react"
+
+const emptySubscribe = () => () => undefined
+
+function getNotFoundPath() {
+  return window.location.pathname + window.location.search || window.location.href || "(unknown path)"
+}
 
 export function NotFoundCode() {
-  const [code, setCode] = useState<string>("")
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const { pathname, search } = window.location
-      setCode(pathname + search || window.location.href || "(unknown path)")
-    }
-  }, [])
+  const code = useSyncExternalStore(emptySubscribe, getNotFoundPath, () => "")
 
   if (!code) {
     return (

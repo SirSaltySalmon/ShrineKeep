@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Bot, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -80,7 +80,9 @@ export default function AgentSuggestionReviewDialog({ batch, open, applying, err
   const useFirstImageAsThumbnail = imageSearchOverride ?? !largeImageSearchBatch
 
   const persistRef = useRef({ batch, selected, itemDrafts, createDrafts, wishlistDrafts, imageSearchOverride, onPersistReview })
-  persistRef.current = { batch, selected, itemDrafts, createDrafts, wishlistDrafts, imageSearchOverride, onPersistReview }
+  useLayoutEffect(() => {
+    persistRef.current = { batch, selected, itemDrafts, createDrafts, wishlistDrafts, imageSearchOverride, onPersistReview }
+  })
 
   const persistNow = () => {
     const current = persistRef.current
