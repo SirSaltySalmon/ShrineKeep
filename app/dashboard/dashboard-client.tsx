@@ -128,6 +128,7 @@ export default function DashboardClient({
     folderLoading,
     loadBoxes,
     loadItems,
+    patchBox,
     setUserTags,
     setOwnerSharing,
   } = useDashboardData({
@@ -910,6 +911,11 @@ export default function DashboardClient({
               : 0
           }
           onSave={(updated) => {
+            patchBox(updated.id, {
+              name: updated.name,
+              description: updated.description || undefined,
+              sharing: updated.sharing,
+            })
             if (currentBox?.id === updated.id) {
               setCurrentBox({
                 ...currentBox,

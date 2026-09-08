@@ -24,7 +24,8 @@ DECLARE owner_id uuid := 'b1000000-0000-4000-8000-000000000001';
 BEGIN
  response := public.sharing_read_context(owner_id,NULL);
  PERFORM pg_temp.assert_true(response->'data'->'profile'->'sharedStyle'='null'::jsonb,'opt-in style stays private');
- PERFORM pg_temp.assert_true(response->'data'->'profile'->'avatar'='null'::jsonb AND response->'data'->'profile'->'avatarReferenceId'='null'::jsonb,'no avatar reference');
+ PERFORM pg_temp.assert_true(response->'data'->'profile'->'avatar'='null'::jsonb AND response->'data'->'profile'->'avatarUrl'='null'::jsonb,'no avatar url');
+ PERFORM pg_temp.assert_true(NOT (response->'data'->'profile' ? 'avatarReferenceId'),'no media avatar reference');
  PERFORM pg_temp.assert_true(position('SECRET' IN response::text)=0 AND position('wishlist_share_token' IN response::text)=0,'no token or private settings');
  UPDATE public.user_settings SET profile_share_style=true WHERE user_id=owner_id;
  response := public.sharing_read_context(owner_id,NULL);
@@ -33,16 +34,20 @@ BEGIN
  PERFORM pg_temp.assert_true(response->'data'->'profile'->'sharedStyle'->'colorScheme'->>'background'='0 0% 100%','shared color token');
  PERFORM pg_temp.assert_true(NOT (response->'data'->'profile'->'sharedStyle' ? 'graph_overlay'),'private setting omitted');
  PERFORM pg_temp.assert_true(public.sharing_read_context(owner_id,blocked_id)->'error'->>'code'='not_found','block denies style');
+ UPDATE public.users SET avatar_url='https://example.test/storage/v1/object/public/avatars/' || owner_id::text || '/avatar.jpg' WHERE id=owner_id;
+ response := public.sharing_read_context(owner_id,NULL);
+ PERFORM pg_temp.assert_true(
+  (response->'data'->'profile'->>'avatarUrl')
+  = ('https://example.test/storage/v1/object/public/avatars/' || owner_id::text || '/avatar.jpg'),
+  'publishes users.avatar_url');
+ PERFORM pg_temp.assert_true(response->'data'->'profile'->'avatar'='null'::jsonb,'sql never hydrates avatar media');
  response := public.media_register_asset(owner_id,'avatars',owner_id::text || '/avatars/v1.png','image/png',12,'ready');
  PERFORM pg_temp.assert_true((response->>'ok')::boolean,'avatar registered');
  avatar_id := (response->'data'->>'assetId')::uuid;
  PERFORM pg_temp.assert_true((public.media_attach_avatar(owner_id,avatar_id)->>'ok')::boolean,'avatar attached');
+ UPDATE public.users SET avatar_url=NULL WHERE id=owner_id;
  response := public.sharing_read_context(owner_id,NULL);
- PERFORM pg_temp.assert_true(response->'data'->'profile'->>'avatarReferenceId'=owner_id::text,'avatar reference is owner id');
- PERFORM pg_temp.assert_true(response->'data'->'profile'->'avatar'='null'::jsonb,'sql never signs avatar');
- UPDATE public.media_assets SET state='pending' WHERE id=avatar_id;
- response := public.sharing_read_context(owner_id,NULL);
- PERFORM pg_temp.assert_true(response->'data'->'profile'->'avatarReferenceId'='null'::jsonb,'pending avatar omitted');
+ PERFORM pg_temp.assert_true(response->'data'->'profile'->'avatarUrl'='null'::jsonb,'cleared avatar_url omitted even if asset attached');
 END $$;
 RESET ROLE;
 SET LOCAL ROLE authenticated;

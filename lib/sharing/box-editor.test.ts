@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest"
 import { PRIVATE_SHARING_DEFAULTS } from "./contracts"
 import {
   countDescendantsById,
+  laterSharingRevision,
   normalizeBox,
+  overlayOwnerSharingSnapshot,
   parseOwnerSharingSummary,
+  revisionAfterDirectBoxWrite,
   sharingSettingsFromBoxRow,
 } from "./box-editor"
 
@@ -96,5 +99,61 @@ describe("parseOwnerSharingSummary", () => {
   it("rejects incomplete payloads", () => {
     expect(parseOwnerSharingSummary({ revision: "1" })).toBeNull()
     expect(parseOwnerSharingSummary({ ...snapshot, root: { collectionVisibility: "private" } })).toBeNull()
+  })
+})
+
+describe("laterSharingRevision", () => {
+  it("keeps a local write when dashboard props are still stale", () => {
+    expect(laterSharingRevision("6", "7")).toBe("7")
+    expect(laterSharingRevision("7", "6")).toBe("7")
+  })
+})
+
+describe("revisionAfterDirectBoxWrite", () => {
+  it("accounts for the extra bump from a name/description boxes UPDATE", () => {
+    expect(revisionAfterDirectBoxWrite("7")).toBe("8")
+    expect(revisionAfterDirectBoxWrite("9007199254740993")).toBe("9007199254740994")
+  })
+})
+
+describe("overlayOwnerSharingSnapshot", () => {
+  const snapshot = {
+    available: true as const,
+    revision: "6",
+    wishlistGuestVisibleCount: 2,
+    wishlistGuestTotalCount: 4,
+    nickname: "Shown",
+    bio: "plain",
+    profileShareStyle: false,
+    wishlistLinkEnabled: true,
+    wishlistShareToken: "share-token-value",
+    root: {
+      collectionVisibility: "private" as const,
+      wishlistVisibility: "public" as const,
+      shareFinancials: false,
+    },
+  }
+
+  it("bumps revision from the PUT even when the follow-up GET cannot be parsed", () => {
+    expect(overlayOwnerSharingSnapshot(snapshot, "7", null).revision).toBe("7")
+  })
+
+  it("keeps a local root write when the follow-up GET cannot be parsed", () => {
+    const nextRoot = {
+      collectionVisibility: "friends" as const,
+      wishlistVisibility: "public" as const,
+      shareFinancials: false,
+    }
+    expect(overlayOwnerSharingSnapshot(snapshot, "7", null, { root: nextRoot }).root).toEqual(nextRoot)
+  })
+
+  it("does not let a stale GET overwrite a newer write revision", () => {
+    expect(overlayOwnerSharingSnapshot(snapshot, "8", { ...snapshot, revision: "7" }).revision).toBe("8")
+  })
+
+  it("keeps the extra boxes-write bump when the follow-up GET is still on the PUT revision", () => {
+    expect(
+      overlayOwnerSharingSnapshot(snapshot, revisionAfterDirectBoxWrite("7"), { ...snapshot, revision: "7" }).revision,
+    ).toBe("8")
   })
 })

@@ -13,4 +13,10 @@ describe("root audience panel", () => {
     expect(src).toContain('containerLabel="Items not in a box"')
     expect(src).toContain("/api/settings/profile")
   })
+
+  it("sends the latest local revision after a previous save in the same tab", () => {
+    expect(src).toContain("expectedRevision: sharingRevision")
+    expect(src).toContain("overlayOwnerSharingSnapshot")
+    expect(src).toContain("laterSharingRevision")
+  })
 })

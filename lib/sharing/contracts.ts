@@ -43,7 +43,7 @@ export const SHARING_LIMITS = {
 export interface PublicMedia {
   referenceId: string
   url: string
-  /** Null only for validated external links. Uploaded media expires within 60s. */
+  /** Null for durable public URLs (avatars, validated external links). Signed item photos expire within 60s. */
   expiresAt: string | null
 }
 

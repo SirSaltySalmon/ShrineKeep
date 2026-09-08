@@ -24,6 +24,9 @@ BEGIN
   PERFORM pg_temp.assert_true((SELECT sharing_revision = base_revision FROM public.users WHERE id = actor),'preview makes no write');
   result := public.sharing_update_box(actor,box,'public',false,'public',false,base_revision,2);
   PERFORM pg_temp.assert_true((result->>'ok')::boolean,'parent opened');
+  SELECT sharing_revision INTO base_revision FROM public.users WHERE id = actor;
+  UPDATE public.boxes SET name = name WHERE id = box;
+  PERFORM pg_temp.assert_true((SELECT sharing_revision = base_revision + 1 FROM public.users WHERE id = actor),'name-only update bumps revision after sharing save');
   UPDATE public.boxes SET collection_visibility='public', wishlist_visibility='public' WHERE id IN (child, grandchild);
   SELECT sharing_revision INTO base_revision FROM public.users WHERE id = actor;
   preview := public.sharing_preview_box(actor,box,'friends',false,'friends',false);

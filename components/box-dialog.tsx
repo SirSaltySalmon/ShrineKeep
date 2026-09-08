@@ -12,7 +12,13 @@ import { Trash2 } from "lucide-react"
 import { ContainerAudienceFields } from "@/components/sharing/container-audience-fields"
 import { WishlistVisibilitySummary } from "@/components/sharing/wishlist-visibility-summary"
 import { PRIVATE_SHARING_DEFAULTS, type SharingSettings } from "@/lib/sharing/contracts"
-import { parseOwnerSharingSummary, type DashboardOwnerSharing } from "@/lib/sharing/box-editor"
+import {
+  laterSharingRevision,
+  overlayOwnerSharingSnapshot,
+  parseOwnerSharingSummary,
+  revisionAfterDirectBoxWrite,
+  type DashboardOwnerSharing,
+} from "@/lib/sharing/box-editor"
 
 type DeleteMode = "delete-all" | "move-up"
 
@@ -55,11 +61,16 @@ export default function BoxDialog({
     setName(box.name || "")
     setDescription(box.description || "")
     setSharing(box.sharing ?? PRIVATE_SHARING_DEFAULTS)
-    setSharingRevision(ownerSharing?.available ? ownerSharing.revision : "0")
     setConfirmingDelete(false)
     setDeleteMode(null)
     setDeleteConfirmName("")
-  }, [box, open, ownerSharing])
+  }, [box, open])
+
+  useEffect(() => {
+    if (!open) return
+    const fromOwner = ownerSharing?.available ? ownerSharing.revision : "0"
+    setSharingRevision((prev) => laterSharingRevision(fromOwner, prev))
+  }, [open, ownerSharing])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -74,8 +85,14 @@ export default function BoxDialog({
     if (!box || !name.trim()) return
     setSaving(true)
     try {
+      const trimmedName = name.trim()
+      const trimmedDescription = description.trim() || null
+      const identityChanged =
+        trimmedName !== (box.name || "").trim() ||
+        trimmedDescription !== ((box.description ?? "").trim() || null)
+      let writeRevision: string | null | undefined
+
       if (ownerSharing?.available) {
-        const sharingSnapshot = ownerSharing
         const shareRes = await fetch(`/api/boxes/${box.id}/sharing`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -97,35 +114,38 @@ export default function BoxDialog({
               ? "A child cannot be more visible than its parent."
               : "Failed to save sharing settings")
         }
-        const next = shareData as { revision?: string }
-        if (next.revision) setSharingRevision(next.revision)
-        const ownerRes = await fetch("/api/settings/profile")
-        if (ownerRes.ok) {
-          const parsed = parseOwnerSharingSummary(await ownerRes.json())
-          if (parsed) {
-            onOwnerSharingChange?.(parsed)
-            setSharingRevision(parsed.revision)
-          }
-        } else if (next.revision) {
-          onOwnerSharingChange?.({ ...sharingSnapshot, revision: next.revision })
+        writeRevision = (shareData as { revision?: string }).revision
+      }
+
+      if (identityChanged) {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error("Not signed in")
+        const { error } = await supabase
+          .from("boxes")
+          .update({
+            name: trimmedName,
+            description: trimmedDescription,
+          })
+          .eq("id", box.id)
+          .eq("user_id", user.id)
+        if (error) throw error
+        if (ownerSharing?.available) {
+          writeRevision = revisionAfterDirectBoxWrite(writeRevision ?? ownerSharing.revision)
         }
       }
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Not signed in")
+      if (ownerSharing?.available) {
+        const sharingSnapshot = ownerSharing
+        let parsed: ReturnType<typeof parseOwnerSharingSummary> = null
+        const ownerRes = await fetch("/api/settings/profile")
+        if (ownerRes.ok) {
+          parsed = parseOwnerSharingSummary(await ownerRes.json())
+        }
+        const updated = overlayOwnerSharingSnapshot(sharingSnapshot, writeRevision, parsed)
+        onOwnerSharingChange?.(updated)
+        setSharingRevision(updated.revision)
+      }
 
-      const trimmedName = name.trim()
-      const trimmedDescription = description.trim() || null
-      const { error } = await supabase
-        .from("boxes")
-        .update({
-          name: trimmedName,
-          description: trimmedDescription,
-        })
-        .eq("id", box.id)
-        .eq("user_id", user.id)
-
-      if (error) throw error
       onSave({
         id: box.id,
         name: trimmedName,

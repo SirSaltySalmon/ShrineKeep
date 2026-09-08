@@ -136,3 +136,39 @@ export function parseOwnerSharingSummary(value: unknown): Extract<DashboardOwner
     wishlistGuestTotalCount: total,
   }
 }
+
+const REVISION_SHAPE = /^\d{1,19}$/
+
+/** Account-wide sharing revision is monotonic. Keep the later value when props lag a local write. */
+export function laterSharingRevision(current: string, incoming: string | null | undefined): string {
+  if (!incoming || !REVISION_SHAPE.test(incoming)) return current
+  if (!REVISION_SHAPE.test(current)) return incoming
+  return BigInt(incoming) > BigInt(current) ? incoming : current
+}
+
+/**
+ * A direct `boxes` UPDATE fires `sharing_boxes_update_revision` even when only
+ * name/description changed. That bump happens after `sharing_update_box` already
+ * returned, so the PUT revision is one behind unless the follow-up GET is used.
+ */
+export function revisionAfterDirectBoxWrite(putRevision: string | null | undefined): string | null | undefined {
+  if (!putRevision || !REVISION_SHAPE.test(putRevision)) return putRevision
+  return String(BigInt(putRevision) + BigInt(1))
+}
+
+type AvailableOwnerSharing = Extract<DashboardOwnerSharing, { available: true }>
+
+/** Merge a successful write into the dashboard snapshot even when a follow-up GET cannot be parsed. */
+export function overlayOwnerSharingSnapshot(
+  snapshot: AvailableOwnerSharing,
+  writeRevision: string | null | undefined,
+  fetched: AvailableOwnerSharing | null,
+  patch?: Partial<Omit<AvailableOwnerSharing, "available" | "revision">>,
+): AvailableOwnerSharing {
+  const base = fetched ?? snapshot
+  return {
+    ...base,
+    ...patch,
+    revision: laterSharingRevision(base.revision, writeRevision),
+  }
+}

@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { ContainerAudienceFields } from "@/components/sharing/container-audience-fields"
-import { parseOwnerSharingSummary, type DashboardOwnerSharing } from "@/lib/sharing/box-editor"
+import {
+  laterSharingRevision,
+  overlayOwnerSharingSnapshot,
+  parseOwnerSharingSummary,
+  type DashboardOwnerSharing,
+} from "@/lib/sharing/box-editor"
 import type { SharingSettings } from "@/lib/sharing/contracts"
 
 type AvailableOwnerSharing = Extract<DashboardOwnerSharing, { available: true }>
@@ -18,12 +23,17 @@ export function RootAudiencePanel({
   onOwnerSharingChange,
 }: RootAudiencePanelProps) {
   const [root, setRoot] = useState<SharingSettings>(ownerSharing.root)
+  const [sharingRevision, setSharingRevision] = useState(ownerSharing.revision)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     setRoot(ownerSharing.root)
   }, [ownerSharing.root])
+
+  useEffect(() => {
+    setSharingRevision((prev) => laterSharingRevision(ownerSharing.revision, prev))
+  }, [ownerSharing.revision])
 
   const restore = () => {
     setRoot(ownerSharing.root)
@@ -43,7 +53,7 @@ export function RootAudiencePanel({
           root,
           wishlistLinkEnabled: ownerSharing.wishlistLinkEnabled,
           wishlistShareToken: null,
-          expectedRevision: ownerSharing.revision,
+          expectedRevision: sharingRevision,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -53,14 +63,16 @@ export function RootAudiencePanel({
           ? "Sharing settings changed in another tab. Reload and try again."
           : "Failed to save sharing settings")
       }
+      const next = data as { revision?: string }
+      let parsed: ReturnType<typeof parseOwnerSharingSummary> = null
       const ownerRes = await fetch("/api/settings/profile")
       if (ownerRes.ok) {
-        const parsed = parseOwnerSharingSummary(await ownerRes.json())
-        if (parsed) {
-          onOwnerSharingChange?.(parsed)
-          setRoot(parsed.root)
-        }
+        parsed = parseOwnerSharingSummary(await ownerRes.json())
       }
+      const updated = overlayOwnerSharingSnapshot(ownerSharing, next.revision, parsed, { root })
+      onOwnerSharingChange?.(updated)
+      setSharingRevision(updated.revision)
+      setRoot(updated.root)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (error) {

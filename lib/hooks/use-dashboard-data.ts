@@ -247,6 +247,16 @@ export function useDashboardData({
     queryClient.setQueryData(ownerSharingKey, next)
   }
 
+  const patchBox = (id: string, patch: Partial<Box>) => {
+    queryClient.setQueryData(boxesKey, (old: BoxesQueryData | undefined) => {
+      if (!old) return old
+      return {
+        ...old,
+        boxes: old.boxes.map((box) => (box.id === id ? { ...box, ...patch } : box)),
+      }
+    })
+  }
+
   const descendantCounts = boxesQuery.data?.descendantCounts ?? initialDescendantCounts
 
   const boxes = useMemo(
@@ -267,6 +277,7 @@ export function useDashboardData({
     folderLoading,
     loadBoxes,
     loadItems,
+    patchBox,
     refreshOwnerSharing,
     setOwnerSharing,
   }

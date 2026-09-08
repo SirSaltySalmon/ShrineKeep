@@ -7,10 +7,10 @@ import { decodeCursor, encodeCursor, type CursorScope } from "./cursor"
 
 /** Server-only RPC transport. Supply the service client; never a browser client. */
 export type SharingRpc = (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>
-/** Signs a permitted photo/avatar reference into a short-lived PublicMedia URL. */
+/** Signs a permitted item-photo reference into a short-lived PublicMedia URL. Avatars use users.avatar_url. */
 export type PublicMediaResolver = (kind: "photo" | "avatar", referenceId: string, viewer: PublishedViewer) => Promise<OperationResult<PublicMedia>>
 type Surface = "boxes" | "items" | "wishlist"
-type Context = { revision: string; viewerCategory: CursorScope["viewerCategory"]; profile: PublicProfile; avatarReferenceId: string | null }
+type Context = { revision: string; viewerCategory: CursorScope["viewerCategory"]; profile: PublicProfile }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** Share-link token alphabet and length accepted by `sharing_resolve_wishlist_token`. */
 const tokenShape = /^[A-Za-z0-9_-]{8,128}$/
@@ -114,6 +114,31 @@ function parseStyle(value: unknown): PublicStyle | null {
   const borderRadius = typeof row.borderRadius === "string" && radii.has(row.borderRadius) ? row.borderRadius : null
   return { colorScheme, headerFontFamily: parseFont(row.headerFontFamily), bodyFontFamily: parseFont(row.bodyFontFamily), borderRadius }
 }
+
+/** Avatars are a public bucket. Allow the same users.avatar_url Settings shows; never signed or authenticated storage paths. */
+function publicAvatarMedia(ownerId: string, value: unknown): PublicMedia | null {
+  if (typeof value !== "string") return null
+  const raw = value.trim()
+  if (!raw || raw.length > 2048) return null
+  if (/javascript:/i.test(raw) || /^data:/i.test(raw) || /^blob:/i.test(raw)) return null
+  let parsed: URL
+  try { parsed = new URL(raw) } catch { return null }
+  if (parsed.username || parsed.password) return null
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null
+  const path = parsed.pathname
+  if (path.includes("..")) return null
+  const ownerPath = `/storage/v1/object/public/avatars/${ownerId.toLowerCase()}/`
+  if (path.toLowerCase().includes("/storage/v1/object/")) {
+    if (!path.toLowerCase().startsWith(ownerPath)) return null
+    if (/\/object\/(sign|authenticated)\//i.test(path)) return null
+    const rest = path.slice(ownerPath.length)
+    if (!rest || rest.includes("..")) return null
+    return { referenceId: ownerId, url: parsed.toString(), expiresAt: null }
+  }
+  if (parsed.protocol !== "https:") return null
+  return { referenceId: ownerId, url: parsed.toString(), expiresAt: null }
+}
+
 function parseContext(value: unknown): Context | null {
   const data = object(value)
   const profile = object(data?.profile)
@@ -121,12 +146,11 @@ function parseContext(value: unknown): Context | null {
     !["guest", "owner", "friend", "stranger"].includes(String(data.viewerCategory)) ||
     !profile || !identity(profile.id) || typeof profile.nickname !== "string" || typeof profile.bio !== "string" ||
     profile.avatar !== null ||
-    (profile.avatarReferenceId !== undefined && profile.avatarReferenceId !== null && !identity(profile.avatarReferenceId)) ||
+    (profile.avatarUrl !== undefined && profile.avatarUrl !== null && typeof profile.avatarUrl !== "string") ||
     !["self", "none", "outgoing_pending", "incoming_pending", "friends"].includes(String(profile.relationship))) return null
-  const avatarReferenceId = profile.avatarReferenceId === undefined || profile.avatarReferenceId === null ? null : String(profile.avatarReferenceId)
-  if (avatarReferenceId && avatarReferenceId.toLowerCase() !== profile.id.toLowerCase()) return null
-  return { revision: data.revision, viewerCategory: data.viewerCategory as Context["viewerCategory"], avatarReferenceId,
-    profile: { id: profile.id, nickname: profile.nickname, bio: profile.bio, avatar: null, sharedStyle: parseStyle(profile.sharedStyle),
+  return { revision: data.revision, viewerCategory: data.viewerCategory as Context["viewerCategory"],
+    profile: { id: profile.id, nickname: profile.nickname, bio: profile.bio,
+      avatar: publicAvatarMedia(profile.id, profile.avatarUrl), sharedStyle: parseStyle(profile.sharedStyle),
       relationship: profile.relationship as PublicProfile["relationship"] } }
 }
 
@@ -256,9 +280,7 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
     async profile(ownerId, viewer) {
       try {
         const result = await context(ownerId, viewer)
-        if (!result.ok) return result
-        result.data.profile.avatar = await resolveMedia("avatar", result.data.avatarReferenceId, viewer)
-        return { ok: true, data: result.data.profile }
+        return result.ok ? { ok: true, data: result.data.profile } : result
       } catch { return notFound }
     },
     boxes: (ownerId, viewer, request) => page(ownerId, viewer, "boxes", request.parentId, request.cursor, parseBox),

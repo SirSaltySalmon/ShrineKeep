@@ -48,6 +48,7 @@ try {
     'supabase/migrations/20260908200000_owner_profile_and_link_toggle.sql',
     'supabase/migrations/20260908201000_drop_boxes_is_public.sql',
     'supabase/migrations/20260908210000_unify_display_name.sql',
+    'supabase/migrations/20260909010000_public_profile_avatar_url.sql',
     'supabase/tests/social-foundation.sql',
     'supabase/tests/social-transactions.sql',
     'supabase/tests/public-reads.sql',
