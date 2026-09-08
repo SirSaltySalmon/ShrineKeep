@@ -1,14 +1,20 @@
-import type { CursorPage, OperationError, OperationResult, PublicBox, PublicCollectionItem, PublicDetailRequest, PublicItemDetail, PublicMedia, PublicProfile, PublicReadService, PublicWishlistItem, PublishedViewer } from "../contracts"
+import type { CursorPage, OperationError, OperationResult, PublicBox, PublicCollectionItem, PublicDetailRequest, PublicItemDetail, PublicMedia, PublicProfile, PublicReadService, PublicStyle, PublicWishlistItem, PublishedViewer } from "../contracts"
 import { GUEST_VIEWER } from "../contracts"
-import { TAG_COLORS, type TagColor } from "@/lib/types"
+import { FONT_OPTIONS, type FontFamilyId } from "@/lib/fonts"
+import { THEME_COLOR_KEYS } from "@/lib/theme-colors"
+import { TAG_COLORS, type TagColor, type Theme } from "@/lib/types"
 import { decodeCursor, encodeCursor, type CursorScope } from "./cursor"
 
 /** Server-only dependency boundary. Supply the service client; never a browser client. */
 export type SharingRpc = (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>
 export type PublicMediaResolver = (kind: "photo" | "avatar", referenceId: string, viewer: PublishedViewer) => Promise<OperationResult<PublicMedia>>
 type Surface = "boxes" | "items" | "wishlist"
-type Context = { revision: string; viewerCategory: CursorScope["viewerCategory"]; profile: PublicProfile }
+type Context = { revision: string; viewerCategory: CursorScope["viewerCategory"]; profile: PublicProfile; avatarReferenceId: string | null }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const hsl = /^-?\d+(?:\.\d+)?(?:\s+-?\d+(?:\.\d+)?%){2}$/
+const fonts = new Set<string>(FONT_OPTIONS.map(option => option.value))
+const radii = new Set(["0", "0.25rem", "0.5rem", "0.75rem"])
+const themeKeys = new Set<string>(THEME_COLOR_KEYS)
 const unavailable: OperationResult<never> = { ok: false, error: { code: "temporarily_unavailable", status: 503 } }
 const invalid: OperationResult<never> = { ok: false, error: { code: "invalid_input", status: 400 } }
 
@@ -43,16 +49,36 @@ function parseWishlist(value: unknown): PublicWishlistItem | null {
   }
   return { id: row.id, name: row.name, description: row.description, thumbnail: null, expectedPrice: row.expectedPrice, visibleTarget }
 }
+function parseFont(value: unknown): FontFamilyId | null {
+  return typeof value === "string" && fonts.has(value) ? value as FontFamilyId : null
+}
+function parseStyle(value: unknown): PublicStyle | null {
+  if (value === null || value === undefined) return null
+  const row = object(value)
+  if (!row) return null
+  const scheme = object(row.colorScheme) ?? {}
+  const colorScheme: Theme = {}
+  for (const [key, token] of Object.entries(scheme)) {
+    if (!themeKeys.has(key) || typeof token !== "string" || token.length > 40 || !hsl.test(token)) continue
+    colorScheme[key as keyof Theme] = token
+  }
+  const borderRadius = typeof row.borderRadius === "string" && radii.has(row.borderRadius) ? row.borderRadius : null
+  return { colorScheme, headerFontFamily: parseFont(row.headerFontFamily), bodyFontFamily: parseFont(row.bodyFontFamily), borderRadius }
+}
 function parseContext(value: unknown): Context | null {
   const data = object(value)
   const profile = object(data?.profile)
   if (!data || typeof data.revision !== "string" || !/^\d{1,19}$/.test(data.revision) ||
     !["guest", "owner", "friend", "stranger"].includes(String(data.viewerCategory)) ||
     !profile || !identity(profile.id) || typeof profile.nickname !== "string" || typeof profile.bio !== "string" ||
-    profile.avatar !== null || profile.sharedStyle !== null ||
+    profile.avatar !== null ||
+    (profile.avatarReferenceId !== undefined && profile.avatarReferenceId !== null && !identity(profile.avatarReferenceId)) ||
     !["self", "none", "outgoing_pending", "incoming_pending", "friends"].includes(String(profile.relationship))) return null
-  return { revision: data.revision, viewerCategory: data.viewerCategory as Context["viewerCategory"],
-    profile: { id: profile.id, nickname: profile.nickname, bio: profile.bio, avatar: null, sharedStyle: null, relationship: profile.relationship as PublicProfile["relationship"] } }
+  const avatarReferenceId = profile.avatarReferenceId === undefined || profile.avatarReferenceId === null ? null : String(profile.avatarReferenceId)
+  if (avatarReferenceId && avatarReferenceId.toLowerCase() !== profile.id.toLowerCase()) return null
+  return { revision: data.revision, viewerCategory: data.viewerCategory as Context["viewerCategory"], avatarReferenceId,
+    profile: { id: profile.id, nickname: profile.nickname, bio: profile.bio, avatar: null, sharedStyle: parseStyle(profile.sharedStyle),
+      relationship: profile.relationship as PublicProfile["relationship"] } }
 }
 
 function failure(value: unknown): OperationResult<never> {
@@ -67,10 +93,10 @@ function failure(value: unknown): OperationResult<never> {
 
 /** T02 safe projections. Stats, styles and token resolution remain separate work. */
 export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, media?: PublicMediaResolver): Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "collectionItem" | "wishlistItem" | "wishlist" | "previewWishlist"> {
-  async function photo(referenceId: unknown, viewer: PublishedViewer): Promise<PublicMedia | null> {
+  async function resolveMedia(kind: "photo" | "avatar", referenceId: unknown, viewer: PublishedViewer): Promise<PublicMedia | null> {
     if (referenceId === null || referenceId === undefined) return null
     if (!identity(referenceId) || !media) throw new Error("Invalid media reference")
-    const result = await media("photo", referenceId, viewer)
+    const result = await media(kind, referenceId, viewer)
     if (!result.ok) {
       if (result.error.code === "not_found") return null
       throw new Error("Media unavailable")
@@ -123,7 +149,7 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
         for (let offset = 0; offset < entries.length; offset += 4) {
           await Promise.all(entries.slice(offset, offset + 4).map(async (entry, localIndex) => {
             const item = entry as PublicCollectionItem | PublicWishlistItem
-            item.thumbnail = await photo(object(object(data.rows[offset + localIndex])?.item)?.thumbnailReferenceId, viewer)
+            item.thumbnail = await resolveMedia("photo", object(object(data.rows[offset + localIndex])?.item)?.thumbnailReferenceId, viewer)
           }))
         }
       }
@@ -172,11 +198,11 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
       })
       const photos: PublicMedia[] = []
       for (let offset = 0; offset < Math.min(photoRows.length, 20); offset += 4) {
-        const batch = await Promise.all(photoRows.slice(offset, Math.min(offset + 4, 20)).map(row => photo(row.referenceId, viewer)))
+        const batch = await Promise.all(photoRows.slice(offset, Math.min(offset + 4, 20)).map(row => resolveMedia("photo", row.referenceId, viewer)))
         photos.push(...batch.filter((entry): entry is PublicMedia => entry !== null))
       }
       const thumbnailReferenceId = object(data.item)?.thumbnailReferenceId
-      item.thumbnail = photos.find(entry => entry.referenceId === thumbnailReferenceId) ?? await photo(thumbnailReferenceId, viewer)
+      item.thumbnail = photos.find(entry => entry.referenceId === thumbnailReferenceId) ?? await resolveMedia("photo", thumbnailReferenceId, viewer)
       return { ok: true, data: { item,
         photos: { entries: photos, hasMore: photoRows.length > 20, nextCursor: photoRows.length > 20 ? encodeCursor(scope("photos"), photoRows[19].key, cursorSecret) : null },
         tags: { entries: tagRows.slice(0, 20).map(row => row.item), hasMore: tagRows.length > 20, nextCursor: tagRows.length > 20 ? encodeCursor(scope("tags"), tagRows[19].key, cursorSecret) : null },
@@ -188,7 +214,9 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
     async profile(ownerId, viewer) {
       try {
         const result = await context(ownerId, viewer)
-        return result.ok ? { ok: true, data: result.data.profile } : result
+        if (!result.ok) return result
+        result.data.profile.avatar = await resolveMedia("avatar", result.data.avatarReferenceId, viewer)
+        return { ok: true, data: result.data.profile }
       } catch { return unavailable }
     },
     boxes: (ownerId, viewer, request) => page(ownerId, viewer, "boxes", request.parentId, request.cursor, parseBox),

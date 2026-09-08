@@ -4,6 +4,7 @@ import { publicReadResponse } from "./http"
 import { GET as preview } from "@/app/api/wishlist/preview/route"
 import { GET as collectionDetail } from "@/app/api/public/users/[userId]/items/[itemId]/route"
 import { GET as wishlistDetail } from "@/app/api/public/users/[userId]/wishlist/[itemId]/route"
+import { GET as profile } from "@/app/api/public/users/[userId]/route"
 
 const mocks = vi.hoisted(() => ({ cookies: vi.fn(), getUser: vi.fn(), rpc: vi.fn(), service: vi.fn() }))
 vi.mock("next/headers", () => ({ cookies: mocks.cookies }))
@@ -34,6 +35,31 @@ describe("public HTTP boundaries", () => {
     expect(result.headers.get("cache-control")).toContain("no-store")
     expect(mocks.rpc.mock.calls[1][1]).toMatchObject({ p_owner_id: owner, p_item_id: itemId, p_surface: surface, p_viewer_id: null })
     expect(await result.json()).toEqual({ item, photos: { entries: [], nextCursor: null, hasMore: false }, tags: { entries: [], nextCursor: null, hasMore: false } })
+  })
+
+  it("hydrates profile avatar and style through the verified guest viewer", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: { ok: true, data: { revision: "0", viewerCategory: "guest", profile: {
+        id: owner, nickname: "Collector", bio: "", avatar: null, avatarReferenceId: owner, relationship: "none",
+        sharedStyle: { colorScheme: { background: "0 0% 100%" }, headerFontFamily: "Lora", bodyFontFamily: "Inter", borderRadius: "0.5rem" },
+      } } }, error: null,
+    }).mockResolvedValueOnce({
+      data: { ok: true, data: { kind: "uploaded", referenceId: owner, bucket: "avatars", objectPath: `${owner}/avatars/v1.png` } }, error: null,
+    })
+    mocks.service.mockReturnValue({
+      rpc: mocks.rpc,
+      storage: { from: () => ({ createSignedUrl: async () => ({ data: { signedUrl: "https://signed.test/avatar" }, error: null }) }) },
+    })
+    const result = await profile(new NextRequest(`http://localhost/api/public/users/${owner}?viewerId=${owner}`), { params: Promise.resolve({ userId: owner }) })
+    expect(result.status).toBe(200)
+    const body = await result.json()
+    expect(body.avatar).toEqual({ referenceId: owner, url: "https://signed.test/avatar", expiresAt: expect.any(String) })
+    expect(body.sharedStyle.headerFontFamily).toBe("Lora")
+    expect(JSON.stringify(body)).not.toContain("objectPath")
+    expect(mocks.rpc.mock.calls[0][0]).toBe("sharing_read_context")
+    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_owner_id: owner, p_viewer_id: null })
+    expect(mocks.rpc.mock.calls[1][0]).toBe("media_authorize_reference")
+    expect(mocks.rpc.mock.calls[1][1]).toMatchObject({ p_kind: "avatar", p_reference_id: owner, p_viewer_id: null })
   })
 
   it("defaults feature off without touching auth or service client", async () => {
