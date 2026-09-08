@@ -134,11 +134,6 @@ function makeSupabase(opts: {
 }
 
 describe("applyItemPatch", () => {
-  it.each([true, false])("persists explicit wishlist privacy %s", async (value) => {
-    const { supabase, calls } = makeSupabase({ item: { id: "item-1" } })
-    await applyItemPatch({ supabase, userId: "user-1", patch: { id: "item-1", wishlist_is_private: value } })
-    expect(calls.itemsUpdate).toEqual([{ wishlist_is_private: value }])
-  })
   beforeEach(() => {
     vi.clearAllMocks()
   })

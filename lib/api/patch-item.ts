@@ -23,7 +23,6 @@ const SCALAR_KEYS = [
   "box_id",
   "wishlist_target_box_id",
   "is_wishlist",
-  "wishlist_is_private",
 ] as const
 
 function hasPhotoWork(photos: ItemPhotoOps | undefined): boolean {

@@ -58,8 +58,8 @@ BEGIN
  PERFORM pg_temp.assert_true(public.sharing_read_item_detail(owner_id,NULL,item_id,'items',NULL,rev)->'error'->>'code'='cursor_reset','revision rechecked');
  PERFORM pg_temp.assert_true(public.sharing_read_item_detail(owner_id,NULL,item_id,'items')->'error'->>'code'='not_found','guest denied friends item');
  PERFORM pg_temp.assert_true((public.sharing_read_item_detail(owner_id,'a1000000-0000-4000-8000-000000000002',item_id,'items')->>'ok')::boolean,'friend allowed');
- UPDATE public.items SET wishlist_is_private=true WHERE id=wish_id;
- PERFORM pg_temp.assert_true(public.sharing_read_item_detail(owner_id,NULL,wish_id,'wishlist')->'error'->>'code'='not_found','explicit private veto');
+ UPDATE public.boxes SET wishlist_visibility='private' WHERE id='a2000000-0000-4000-8000-000000000002';
+ PERFORM pg_temp.assert_true(public.sharing_read_item_detail(owner_id,NULL,wish_id,'wishlist')->'error'->>'code'='not_found','private box wishlist hides the item');
  INSERT INTO public.user_blocks(blocker_id,blocked_id) VALUES(owner_id,'a1000000-0000-4000-8000-000000000002');
  PERFORM pg_temp.assert_true(public.sharing_read_item_detail(owner_id,'a1000000-0000-4000-8000-000000000002',item_id,'items')->'error'->>'code'='not_found','block denies friend details');
 END $$;

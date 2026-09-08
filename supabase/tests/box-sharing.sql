@@ -8,8 +8,8 @@ INSERT INTO public.boxes (id,user_id,parent_box_id,name) VALUES
  ('72000000-0000-4000-8000-000000000001','71000000-0000-4000-8000-000000000001',NULL,'Parent'),
  ('72000000-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000001','72000000-0000-4000-8000-000000000001','Child'),
  ('72000000-0000-4000-8000-000000000003','71000000-0000-4000-8000-000000000001','72000000-0000-4000-8000-000000000002','Grandchild');
-INSERT INTO public.items (user_id,name,is_wishlist,wishlist_is_private,wishlist_target_box_id) VALUES
- ('71000000-0000-4000-8000-000000000001','Secret wish',true,true,'72000000-0000-4000-8000-000000000003');
+INSERT INTO public.items (user_id,name,is_wishlist,wishlist_target_box_id) VALUES
+ ('71000000-0000-4000-8000-000000000001','Secret wish',true,'72000000-0000-4000-8000-000000000003');
 UPDATE public.user_settings SET root_collection_visibility='public', root_wishlist_visibility='public'
  WHERE user_id='71000000-0000-4000-8000-000000000001';
 SET LOCAL ROLE service_role;
@@ -30,7 +30,6 @@ BEGIN
   PERFORM pg_temp.assert_true((preview->'data'->>'affectedCount')::bigint = 3,'restrict preview matches rows that will change');
   result := public.sharing_update_box(actor,box,'friends',false,'friends',false,base_revision,2);
   PERFORM pg_temp.assert_true((SELECT bool_and(collection_visibility = 'friends' AND wishlist_visibility = 'friends' AND NOT share_financials) FROM public.boxes WHERE user_id = actor AND id IN (box, child, grandchild)),'restrict clamps wider descendants');
-  PERFORM pg_temp.assert_true((SELECT bool_and(wishlist_is_private) FROM public.items WHERE user_id = actor),'propagation never clears explicit private');
   result := public.sharing_update_box(actor,box,'public',true,'private',true,base_revision,2);
   PERFORM pg_temp.assert_true(result->'error'->>'code' = 'revision_conflict','stale save denied');
   result := public.sharing_update_box(actor,box,'public',true,'private',true,(SELECT sharing_revision FROM public.users WHERE id = actor),1);

@@ -41,15 +41,12 @@ END $$;
 INSERT INTO public.items (id, user_id, name, is_wishlist, wishlist_target_box_id, expected_price) VALUES
  ('30000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'wishlist', true, '20000000-0000-4000-8000-000000000001', 0);
 DO $$
-DECLARE collection public.sharing_audience; wishlist public.sharing_audience; explicit_private boolean;
+DECLARE collection public.sharing_audience; wishlist public.sharing_audience;
 BEGIN
   FOREACH collection IN ARRAY enum_range(NULL::public.sharing_audience) LOOP
     FOREACH wishlist IN ARRAY enum_range(NULL::public.sharing_audience) LOOP
-      FOREACH explicit_private IN ARRAY ARRAY[false, true] LOOP
-        UPDATE public.boxes SET collection_visibility = collection, wishlist_visibility = wishlist;
-        UPDATE public.items SET wishlist_is_private = explicit_private;
-        PERFORM pg_temp.assert_true(sharing_private.wishlist_item_is_visible('30000000-0000-4000-8000-000000000001', NULL) = (wishlist = 'public' AND NOT explicit_private), 'independent wishlist guest matrix');
-      END LOOP;
+      UPDATE public.boxes SET collection_visibility = collection, wishlist_visibility = wishlist;
+      PERFORM pg_temp.assert_true(sharing_private.wishlist_item_is_visible('30000000-0000-4000-8000-000000000001', NULL) = (wishlist = 'public'), 'independent wishlist guest matrix');
     END LOOP;
   END LOOP;
 END $$;
@@ -65,9 +62,7 @@ UPDATE public.users SET public_access_disabled_at = NULL WHERE id = '10000000-00
 -- An actual service context executes the same predicates, including root fallback.
 SET LOCAL ROLE service_role;
 UPDATE public.boxes SET wishlist_visibility = 'private';
-UPDATE public.items SET wishlist_is_private = false, wishlist_target_box_id = NULL, wishlist_detached_visibility = 'private';
--- Clearing an explicit veto is a separate owner choice from structural moves.
-UPDATE public.items SET wishlist_is_private = false;
+UPDATE public.items SET wishlist_target_box_id = NULL, wishlist_detached_visibility = 'private';
 UPDATE public.user_settings SET root_wishlist_visibility = 'public';
 SELECT pg_temp.assert_true(NOT sharing_private.wishlist_item_is_visible('30000000-0000-4000-8000-000000000001',NULL), 'detached private vetoes root default');
 UPDATE public.items SET wishlist_detached_visibility = NULL;

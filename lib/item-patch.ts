@@ -16,7 +16,6 @@ export interface ItemFormSnapshot {
   box_id: string | null
   wishlist_target_box_id: string | null
   is_wishlist: boolean
-  wishlist_is_private?: boolean
   photos: ItemFormPhoto[]
   tag_ids: string[]
 }
@@ -44,7 +43,6 @@ export interface ItemPatch {
   box_id?: string | null
   wishlist_target_box_id?: string | null
   is_wishlist?: boolean
-  wishlist_is_private?: boolean
   photos?: ItemPhotoOps
   tag_ids?: string[]
 }
@@ -90,7 +88,6 @@ export function buildItemFormSnapshot(input: {
   box_id?: string | null
   wishlist_target_box_id?: string | null
   is_wishlist: boolean
-  wishlist_is_private?: boolean
   photos: ItemFormPhoto[]
   tag_ids: string[]
 }): ItemFormSnapshot {
@@ -105,7 +102,6 @@ export function buildItemFormSnapshot(input: {
     box_id: emptyToNull(input.box_id),
     wishlist_target_box_id: emptyToNull(input.wishlist_target_box_id),
     is_wishlist: input.is_wishlist,
-    ...(input.wishlist_is_private !== undefined ? { wishlist_is_private: input.wishlist_is_private } : {}),
     photos: input.photos.map((photo) => ({
       id: photo.id,
       url: photo.url,
@@ -127,7 +123,6 @@ const SCALAR_KEYS = [
   "box_id",
   "wishlist_target_box_id",
   "is_wishlist",
-  "wishlist_is_private",
 ] as const
 
 function diffPhotos(baseline: ItemFormPhoto[], current: ItemFormPhoto[]): ItemPhotoOps | undefined {
@@ -184,7 +179,6 @@ export function diffItemPatch(
   const patch: ItemPatch = { id: itemId }
 
   for (const key of SCALAR_KEYS) {
-    if (key === "wishlist_is_private" && current[key] === undefined) continue
     if (baseline[key] !== current[key]) {
       Object.assign(patch, { [key]: current[key] })
     }

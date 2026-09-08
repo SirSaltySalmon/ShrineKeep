@@ -819,7 +819,7 @@ export default function DashboardClient({
                               className="mt-1"
                             />
                             <span className="layout-shrink-visible">
-                              <strong>Move contents up:</strong> Move this box&apos;s items and sub-boxes {editBox?.parent_box_id ? "into the box above it" : "to the top level"}, then delete this box. Anything inside will follow the parent&apos;s sharing settings, which may make it visible to more people. Wishes you marked Private stay Private.
+                              <strong>Move contents up:</strong> Move this box&apos;s items and sub-boxes {editBox?.parent_box_id ? "into the box above it" : "to the top level"}, then delete this box. Anything inside will follow the parent&apos;s sharing settings, which may make it visible to more people.
                             </span>
                           </Label>
                         </div>
@@ -829,7 +829,7 @@ export default function DashboardClient({
                         <p className="text-fluid-sm text-muted-foreground">
                           {deleteMode === "delete-all"
                             ? "All contents will be permanently deleted. This cannot be undone."
-                            : `Move this box's items and sub-boxes ${editBox?.parent_box_id ? "into the box above it" : "to the top level"}, then delete this box. Anything inside will follow the parent's sharing settings, which may make it visible to more people. Wishes you marked Private stay Private.`}
+                            : `Move this box's items and sub-boxes ${editBox?.parent_box_id ? "into the box above it" : "to the top level"}, then delete this box. Anything inside will follow the parent's sharing settings, which may make it visible to more people.`}
                         </p>
                         <div className="layout-shrink-visible">
                           <Label className="text-fluid-sm font-medium min-w-0">

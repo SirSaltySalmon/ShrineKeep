@@ -29,7 +29,8 @@ These were open questions. They are now settled and the work orders below assume
 | Avatars bucket                      | Stays public for v1                                     | Avatar authorization is descoped. Avatar bytes are world-readable regardless of blocks; this is a documented v1 limitation, not a defect.                                                                                                   |
 | Copy to own dashboard (T06)         | Deferred past first release                             | R20 is not delivered in v1. `copy_jobs` and `media_asset_leases` stay as unused tables.                                                                                                                                                     |
 | Box delete, contents-surviving mode | **Move up one level**, replacing move-to-root           | Contents reparent to the deleted box's nearest surviving ancestor, preserving nesting below. See W1C.                                                                                                                                       |
-| Visibility increase on move-up      | **Notify, do not prevent**                              | Contents inherit the destination's audience and may become more visible. The owner is warned in the delete dialog; clamping, per-item prompts, and rejection are all out of scope. Explicit Private wishlist flags still win.               |
+| Per-item wishlist Private (R16)     | **Removed**                                             | No `wishlist_is_private` column, UI, or veto. Wishlist privacy is only the box or root container audience.                                                                                                                                  |
+| Visibility increase on move-up      | **Notify, do not prevent**                              | Contents inherit the destination's audience and may become more visible. The owner is warned in the delete dialog; clamping, per-item prompts, and rejection are all out of scope. There is no per-item wishlist Private flag.               |
 
 
 
@@ -571,8 +572,8 @@ deleted box.
 **Visibility may increase, and that is the accepted outcome.** The destination is an ancestor, so it is
 wider than or equal to the box being deleted; contents governed by a Friends-only box that land under a
 Public parent become Public. The owner is told this before confirming and nothing else is added — no
-clamping, no per-item prompts, no refusing the delete. Explicitly Private wishlist items keep their veto and
-are the one thing that cannot broaden. Further privacy guardrails on this path are out of scope.
+clamping, no per-item prompts, no refusing the delete. Wishlist items follow the destination container the
+same way owned items do. Further privacy guardrails on this path are out of scope.
 
 ### Files
 
@@ -602,13 +603,11 @@ are the one thing that cannot broaden. Further privacy guardrails on this path a
 4. Let the broadening through. `sharing_private.guard_item_targets` raises `privacy_conflict` on exactly this
   shape of retarget — target changed, new audience wider — so as written it will reject the delete. Give the
    RPC a sanctioned route past it, such as a transaction-local flag the guard checks, and document at the
-   guard why that route exists. Do not weaken the guard for ordinary moves, and do not touch the
-   `wishlist_is_private` veto.
+   guard why that route exists. Do not weaken the guard for ordinary moves.
 5. Update the dialog copy in both delete surfaces. The option is no longer "Move to root". Suggested copy,
   adjust to taste but keep the visibility sentence:
   > **Move contents up:** Move this box's items and sub-boxes into the box above it, then delete this box.
   > Anything inside will follow the parent's sharing settings, which may make it visible to more people.
-  > Wishes you marked Private stay Private.
    When the deleted box is top-level, say "to the top level" rather than "into the box above it".
 6. Rewrite `supabase/tests/box-delete.sql` for the new shape and update the `concurrency.mjs` contention
   case, which only needs the renamed mode.
@@ -625,7 +624,6 @@ are the one thing that cannot broaden. Further privacy guardrails on this path a
 - [x] Deleting a top-level box puts its contents at the collection root.
 - [x] A Friends-only box deleted under a Public parent leaves its items and wishlist entries Public, with no
   `privacy_conflict` raised and no rows rejected.
-- [x] Wishlist items with the explicit Private flag are still Private afterwards.
 - [x] Both delete dialogs state the visibility consequence before the owner confirms.
 - [x] `rg move-to-root` returns nothing in live contract, UI, or tests. The applied historical migration
   `20260907172603_sharing_box_delete.sql` and the decision docs still name the retired mode.

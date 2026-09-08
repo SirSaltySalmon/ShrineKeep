@@ -459,8 +459,7 @@ export function SelectionActionBar({
                         ? "to the top level"
                         : "into the box above it"}
                       , then delete this box. Anything inside will follow the parent&apos;s sharing
-                      settings, which may make it visible to more people. Wishes you marked Private
-                      stay Private.
+                      settings, which may make it visible to more people.
                     </span>
                   </label>
                 </div>

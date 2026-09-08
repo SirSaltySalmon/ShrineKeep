@@ -31,10 +31,6 @@ DO $$ BEGIN
     RAISE EXCEPTION 'cross-owner wishlist allowed';
   EXCEPTION WHEN check_violation THEN NULL; END;
 END $$;
-UPDATE public.items SET wishlist_is_private=true,wishlist_target_box_id='b2000000-0000-4000-8000-000000000002' WHERE id='b3000000-0000-4000-8000-000000000001';
-UPDATE public.items SET is_wishlist=false,wishlist_target_box_id=NULL,wishlist_is_private=false WHERE id='b3000000-0000-4000-8000-000000000001';
-UPDATE public.items SET is_wishlist=true,wishlist_target_box_id='b2000000-0000-4000-8000-000000000002',wishlist_is_private=false WHERE id='b3000000-0000-4000-8000-000000000001';
-SELECT pg_temp.assert_true((SELECT wishlist_is_private FROM public.items WHERE id='b3000000-0000-4000-8000-000000000001'),'private survives conversions');
 DELETE FROM public.boxes WHERE id='b2000000-0000-4000-8000-000000000001';
 SELECT pg_temp.assert_true((SELECT wishlist_target_box_id IS NULL AND wishlist_detached_visibility='private' FROM public.items WHERE id='b3000000-0000-4000-8000-000000000002'),'deleted private target preserves audience');
 DO $$ BEGIN

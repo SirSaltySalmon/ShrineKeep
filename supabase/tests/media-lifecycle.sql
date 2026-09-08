@@ -13,16 +13,17 @@ INSERT INTO public.social_friendships (user_low, user_high, requested_by, status
 INSERT INTO public.user_blocks (blocker_id, blocked_id) VALUES
  ('71000000-0000-4000-8000-000000000003', '71000000-0000-4000-8000-000000000001');
 INSERT INTO public.boxes (id, user_id, name) VALUES
- ('72000000-0000-4000-8000-000000000001', '71000000-0000-4000-8000-000000000001', 'media box');
+ ('72000000-0000-4000-8000-000000000001', '71000000-0000-4000-8000-000000000001', 'media box'),
+ ('72000000-0000-4000-8000-000000000002', '71000000-0000-4000-8000-000000000001', 'private wish box');
 UPDATE public.user_settings SET root_collection_visibility = 'public', root_wishlist_visibility = 'public'
  WHERE user_id = '71000000-0000-4000-8000-000000000001';
 UPDATE public.boxes SET collection_visibility = 'public', wishlist_visibility = 'public'
   WHERE id = '72000000-0000-4000-8000-000000000001';
 INSERT INTO public.items (id, user_id, name, box_id) VALUES
  ('73000000-0000-4000-8000-000000000001', '71000000-0000-4000-8000-000000000001', 'owned item', '72000000-0000-4000-8000-000000000001');
-INSERT INTO public.items (id, user_id, name, is_wishlist, wishlist_target_box_id, wishlist_is_private) VALUES
- ('73000000-0000-4000-8000-000000000002', '71000000-0000-4000-8000-000000000001', 'wish item', true, '72000000-0000-4000-8000-000000000001', false),
- ('73000000-0000-4000-8000-000000000003', '71000000-0000-4000-8000-000000000001', 'private wish', true, '72000000-0000-4000-8000-000000000001', true);
+INSERT INTO public.items (id, user_id, name, is_wishlist, wishlist_target_box_id) VALUES
+ ('73000000-0000-4000-8000-000000000002', '71000000-0000-4000-8000-000000000001', 'wish item', true, '72000000-0000-4000-8000-000000000001'),
+ ('73000000-0000-4000-8000-000000000003', '71000000-0000-4000-8000-000000000001', 'private-box wish', true, '72000000-0000-4000-8000-000000000002');
 INSERT INTO public.photos (id, item_id, url, storage_path) VALUES
  ('74000000-0000-4000-8000-000000000001', '73000000-0000-4000-8000-000000000001',
   'https://example.test/storage/v1/object/public/item-photos/71000000-0000-4000-8000-000000000001/items/a.jpg',
@@ -60,7 +61,7 @@ BEGIN
   response := public.media_authorize_reference('photo', wish_photo, NULL);
   PERFORM pg_temp.assert_true(response->'data'->>'kind' = 'external' AND response->'data'->>'externalUrl' = 'https://cdn.example.test/external.png', 'external link');
   response := public.media_authorize_reference('photo', private_photo, NULL);
-  PERFORM pg_temp.assert_true(response->'error'->>'code' = 'not_found', 'explicit private wishlist photo denied');
+  PERFORM pg_temp.assert_true(response->'error'->>'code' = 'not_found', 'private-box wishlist photo denied');
   response := public.media_authorize_reference('photo', wish_photo, friend_id);
   PERFORM pg_temp.assert_true(response->'data'->>'kind' = 'external', 'friend still sees public wishlist photo');
 

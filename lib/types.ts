@@ -29,7 +29,6 @@ export interface Item {
   id: string
   box_id: string | null
   wishlist_target_box_id?: string | null
-  wishlist_is_private?: boolean
   user_id: string
   name: string
   description?: string

@@ -34,17 +34,16 @@ UPDATE public.boxes SET collection_visibility='private', wishlist_visibility='fr
 UPDATE public.boxes SET collection_visibility='private', wishlist_visibility='private'
  WHERE id='c2000000-0000-4000-8000-000000000003';
 
-INSERT INTO public.items (id, user_id, box_id, name, is_wishlist, wishlist_is_private, wishlist_target_box_id) VALUES
- ('c3000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000001', 'Parent item', false, false, NULL),
- ('c3000000-0000-4000-8000-000000000002', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000003', 'Grandchild item', false, false, NULL),
- ('c3000000-0000-4000-8000-000000000003', 'c1000000-0000-4000-8000-000000000001', NULL, 'Outside wish', true, true, 'c2000000-0000-4000-8000-000000000001'),
- ('c3000000-0000-4000-8000-000000000004', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000005', 'Doomed item', false, false, NULL),
- ('c3000000-0000-4000-8000-000000000011', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000012', 'Mid item', false, false, NULL),
- ('c3000000-0000-4000-8000-000000000012', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000014', 'Deep item', false, false, NULL),
- ('c3000000-0000-4000-8000-000000000021', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000024', 'Inner item', false, false, NULL),
- ('c3000000-0000-4000-8000-000000000031', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000032', 'Friends item', false, false, NULL),
- ('c3000000-0000-4000-8000-000000000032', 'c1000000-0000-4000-8000-000000000001', NULL, 'Friends wish', true, false, 'c2000000-0000-4000-8000-000000000032'),
- ('c3000000-0000-4000-8000-000000000033', 'c1000000-0000-4000-8000-000000000001', NULL, 'Private wish', true, true, 'c2000000-0000-4000-8000-000000000032');
+INSERT INTO public.items (id, user_id, box_id, name, is_wishlist, wishlist_target_box_id) VALUES
+ ('c3000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000001', 'Parent item', false, NULL),
+ ('c3000000-0000-4000-8000-000000000002', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000003', 'Grandchild item', false, NULL),
+ ('c3000000-0000-4000-8000-000000000003', 'c1000000-0000-4000-8000-000000000001', NULL, 'Outside wish', true, 'c2000000-0000-4000-8000-000000000001'),
+ ('c3000000-0000-4000-8000-000000000004', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000005', 'Doomed item', false, NULL),
+ ('c3000000-0000-4000-8000-000000000011', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000012', 'Mid item', false, NULL),
+ ('c3000000-0000-4000-8000-000000000012', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000014', 'Deep item', false, NULL),
+ ('c3000000-0000-4000-8000-000000000021', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000024', 'Inner item', false, NULL),
+ ('c3000000-0000-4000-8000-000000000031', 'c1000000-0000-4000-8000-000000000001', 'c2000000-0000-4000-8000-000000000032', 'Friends item', false, NULL),
+ ('c3000000-0000-4000-8000-000000000032', 'c1000000-0000-4000-8000-000000000001', NULL, 'Friends wish', true, 'c2000000-0000-4000-8000-000000000032');
 
 INSERT INTO public.photos (id, item_id, url, storage_path) VALUES
  ('c4000000-0000-4000-8000-000000000001', 'c3000000-0000-4000-8000-000000000004', 'https://example.test/doomed.jpg', 'c1000000-0000-4000-8000-000000000001/items/doomed.jpg');
@@ -118,15 +117,10 @@ BEGIN
   PERFORM pg_temp.assert_true((SELECT box_id FROM public.items WHERE id='c3000000-0000-4000-8000-000000000031') = public_parent, 'friends-box items land on public parent');
   PERFORM pg_temp.assert_true(sharing_private.owned_item_is_visible('c3000000-0000-4000-8000-000000000031', NULL), 'collection item follows public parent');
   PERFORM pg_temp.assert_true((
-    SELECT wishlist_target_box_id = public_parent AND NOT wishlist_is_private
+    SELECT wishlist_target_box_id = public_parent
     FROM public.items WHERE id='c3000000-0000-4000-8000-000000000032'
   ), 'wishlist retargets to public parent');
-  PERFORM pg_temp.assert_true(sharing_private.wishlist_item_is_visible('c3000000-0000-4000-8000-000000000032', NULL), 'non-private wish follows public parent');
-  PERFORM pg_temp.assert_true((
-    SELECT wishlist_target_box_id = public_parent AND wishlist_is_private
-    FROM public.items WHERE id='c3000000-0000-4000-8000-000000000033'
-  ), 'explicit Private wish keeps the flag after retarget');
-  PERFORM pg_temp.assert_true(NOT sharing_private.wishlist_item_is_visible('c3000000-0000-4000-8000-000000000033', NULL), 'explicit Private wish is still hidden');
+  PERFORM pg_temp.assert_true(sharing_private.wishlist_item_is_visible('c3000000-0000-4000-8000-000000000032', NULL), 'wish follows public parent');
 
   SELECT sharing_revision INTO before_revision FROM public.users WHERE id = actor;
   result := public.sharing_delete_boxes(actor, ARRAY[parent, parent], 'move-up');
@@ -137,7 +131,7 @@ BEGIN
   PERFORM pg_temp.assert_true((SELECT box_id IS NULL FROM public.items WHERE id='c3000000-0000-4000-8000-000000000001'), 'parent item unboxed at collection root');
   PERFORM pg_temp.assert_true((SELECT box_id FROM public.items WHERE id='c3000000-0000-4000-8000-000000000002') = grandchild, 'descendant item stays in grandchild');
   PERFORM pg_temp.assert_true((
-    SELECT wishlist_target_box_id IS NULL AND wishlist_is_private AND wishlist_detached_visibility='friends'
+    SELECT wishlist_target_box_id IS NULL AND wishlist_detached_visibility='friends'
     FROM public.items WHERE id='c3000000-0000-4000-8000-000000000003'
   ), 'wishlist targeting deleted top-level box detaches with saved audience');
   PERFORM pg_temp.assert_true((SELECT sharing_revision > before_revision FROM public.users WHERE id = actor), 'revision advanced');
