@@ -14,6 +14,8 @@ import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_LENGTH_MESSAGE,
 } from "@/lib/validation"
+import { SHARING_LIMITS } from "@/lib/sharing/contracts"
+import { Textarea } from "@/components/ui/textarea"
 import TurnstileWidget, { type TurnstileWidgetRef } from "@/components/turnstile-widget"
 import { User } from "lucide-react"
 
@@ -92,6 +94,17 @@ export interface PersonalSettingsProps {
   avatarVersion?: number
   /** Current user id (for storage path). */
   userId: string
+  publicNickname: string
+  publicBio: string
+  profileShareStyle: boolean
+  publicFallbackLabel: string
+  onPublicNicknameChange: (value: string) => void
+  onPublicBioChange: (value: string) => void
+  onProfileShareStyleChange: (value: boolean) => void
+  onSavePublicProfile: () => Promise<void>
+  onCancelPublicProfile: () => void
+  savingPublicProfile?: boolean
+  savedPublicProfile?: boolean
   onDisplayNameChange: (value: string) => void
   onUseCustomDisplayNameChange: (value: boolean) => void
   onAvatarChange: (url: string | null) => void
@@ -107,6 +120,17 @@ export function PersonalSettings({
   avatarUrl,
   avatarVersion,
   userId,
+  publicNickname: publicNicknameValue,
+  publicBio,
+  profileShareStyle,
+  publicFallbackLabel,
+  onPublicNicknameChange,
+  onPublicBioChange,
+  onProfileShareStyleChange,
+  onSavePublicProfile,
+  onCancelPublicProfile,
+  savingPublicProfile = false,
+  savedPublicProfile = false,
   onDisplayNameChange,
   onUseCustomDisplayNameChange,
   onAvatarChange,
@@ -397,6 +421,77 @@ export function PersonalSettings({
             </div>
           </>
         )}
+      </div>
+
+      <div>
+        <h3 className="text-fluid-lg font-semibold mb-2">Public profile</h3>
+        <p className="text-fluid-sm text-muted-foreground mb-4">
+          Nickname and bio are what other people see. They are never taken from your display name
+          unless you type them here and save.
+        </p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="public-nickname">Public nickname</Label>
+            <Input
+              id="public-nickname"
+              type="text"
+              value={publicNicknameValue}
+              onChange={(e) => onPublicNicknameChange(e.target.value)}
+              placeholder={publicFallbackLabel}
+              className="max-w-sm"
+              maxLength={NAME_MAX_LENGTH}
+            />
+            <p className="text-fluid-xs text-muted-foreground">
+              Leave blank to show {publicFallbackLabel}. Your private display name
+              {displayName.trim() ? ` (“${displayName.trim()}”)` : ""} is only a reminder, not a public label.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="public-bio">Bio</Label>
+            <Textarea
+              id="public-bio"
+              value={publicBio}
+              onChange={(e) => onPublicBioChange(e.target.value)}
+              maxLength={SHARING_LIMITS.bioCharacters}
+              className="max-w-xl"
+            />
+            <p className="text-fluid-xs text-muted-foreground">
+              Plain text, {SHARING_LIMITS.bioCharacters} characters or fewer. Shown as written, not as HTML or Markdown.
+            </p>
+          </div>
+          <div className="flex items-center justify-between gap-4 max-w-xl">
+            <div className="space-y-0.5 min-w-0">
+              <Label htmlFor="profile-share-style">Share my theme on my public profile</Label>
+              <p className="text-fluid-xs text-muted-foreground">
+                Visitors see your colors and fonts on your profile when this is on.
+              </p>
+            </div>
+            <Switch
+              id="profile-share-style"
+              checked={profileShareStyle}
+              onCheckedChange={onProfileShareStyleChange}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {savedPublicProfile && (
+              <span className="text-fluid-sm text-muted-foreground self-center">Public profile saved.</span>
+            )}
+            <Button type="button" variant="outline" onClick={onCancelPublicProfile} disabled={savingPublicProfile}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                void onSavePublicProfile().catch((err: unknown) => {
+                  alert(err instanceof Error ? err.message : "Failed to save public profile. Please try again.")
+                })
+              }}
+              disabled={savingPublicProfile}
+            >
+              {savingPublicProfile ? "Saving..." : "Save public profile"}
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div>

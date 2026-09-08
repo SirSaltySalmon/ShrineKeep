@@ -6,28 +6,46 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { WishlistSharingPanel } from "@/components/wishlist-sharing-panel"
+import { ContainerAudienceFields } from "@/components/sharing/container-audience-fields"
+import { WishlistVisibilitySummary } from "@/components/sharing/wishlist-visibility-summary"
+import type { SharingSettings } from "@/lib/sharing/contracts"
 
 export interface OptionsSettingsProps {
-  /** Whether value and acquisition are drawn on one graph (overlay). */
   graphOverlay: boolean
   onGraphOverlayChange: (checked: boolean) => void
-  wishlistIsPublic: boolean
+  wishlistLinkEnabled: boolean
   wishlistShareToken: string | null
   wishlistApplyColors: boolean
-  onPublicChange: (isPublic: boolean) => void
+  onLinkEnabledChange: (enabled: boolean) => void
   onApplyColorsChange: (applyColors: boolean) => void
   onShareTokenChange: (token: string | null) => void
+  root: SharingSettings
+  onRootChange: (next: SharingSettings) => void
+  visibleCount: number
+  totalCount: number
+  onSaveSharing: () => Promise<void>
+  onCancelSharing: () => void
+  savingSharing?: boolean
+  savedSharing?: boolean
 }
 
 export function OptionsSettings({
   graphOverlay,
   onGraphOverlayChange,
-  wishlistIsPublic,
+  wishlistLinkEnabled,
   wishlistShareToken,
   wishlistApplyColors,
-  onPublicChange,
+  onLinkEnabledChange,
   onApplyColorsChange,
   onShareTokenChange,
+  root,
+  onRootChange,
+  visibleCount,
+  totalCount,
+  onSaveSharing,
+  onCancelSharing,
+  savingSharing = false,
+  savedSharing = false,
 }: OptionsSettingsProps) {
   const router = useRouter()
   const [saving, setSaving] = useState(false)
@@ -42,13 +60,13 @@ export function OptionsSettings({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           graph_overlay: graphOverlay,
-          wishlist_is_public: wishlistIsPublic,
           wishlist_apply_colors: wishlistApplyColors,
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error((data as { error?: string })?.error ?? "Failed to save options")
-      onShareTokenChange((data as { wishlist_share_token?: string | null }).wishlist_share_token ?? null)
+      await onSaveSharing()
+      onShareTokenChange((data as { wishlist_share_token?: string | null }).wishlist_share_token ?? wishlistShareToken)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
       router.refresh()
@@ -65,7 +83,7 @@ export function OptionsSettings({
       <div>
         <h2 className="text-fluid-xl font-semibold mb-2">Options</h2>
         <p className="text-fluid-sm text-muted-foreground mb-4">
-          App behavior, display preferences, and wishlist sharing.
+          App behavior, display preferences, and sharing.
         </p>
       </div>
 
@@ -88,20 +106,39 @@ export function OptionsSettings({
         </div>
       </div>
 
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-fluid-lg font-semibold mb-2">Items not in a box</h3>
+          <p className="text-fluid-sm text-muted-foreground mb-4">
+            Loose collection items and wishes with no target box belong to this container.
+          </p>
+          <ContainerAudienceFields
+            containerLabel="Items not in a box"
+            value={root}
+            onChange={onRootChange}
+            idPrefix="root"
+          />
+        </div>
+        <WishlistVisibilitySummary visibleCount={visibleCount} totalCount={totalCount} />
+      </div>
+
       <div>
-        <h3 className="text-fluid-lg font-semibold mb-2">Wishlist</h3>
+        <h3 className="text-fluid-lg font-semibold mb-2">Share link</h3>
         <p className="text-fluid-sm text-muted-foreground mb-4">
-          Control who can view your wishlist and how it appears.
+          The link only controls whether the URL works. It does not change who can see items.
         </p>
         <WishlistSharingPanel
           layout="embedded"
-          wishlistIsPublic={wishlistIsPublic}
+          wishlistLinkEnabled={wishlistLinkEnabled}
           wishlistShareToken={wishlistShareToken}
           wishlistApplyColors={wishlistApplyColors}
-          onPublicChange={onPublicChange}
+          onLinkEnabledChange={onLinkEnabledChange}
           onApplyColorsChange={onApplyColorsChange}
           onShareTokenChange={onShareTokenChange}
-          onPersisted={() => router.refresh()}
+          onSaveSharing={onSaveSharing}
+          onCancelSharing={onCancelSharing}
+          savingSharing={savingSharing}
+          savedSharing={savedSharing}
         />
       </div>
 
@@ -109,8 +146,11 @@ export function OptionsSettings({
         {saved && (
           <span className="text-fluid-sm text-muted-foreground self-center">Options saved!</span>
         )}
-        <Button type="button" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : "Save options"}
+        <Button type="button" variant="outline" onClick={onCancelSharing} disabled={saving || savingSharing}>
+          Cancel
+        </Button>
+        <Button type="button" onClick={handleSave} disabled={saving || savingSharing}>
+          {saving || savingSharing ? "Saving..." : "Save options"}
         </Button>
       </div>
     </div>

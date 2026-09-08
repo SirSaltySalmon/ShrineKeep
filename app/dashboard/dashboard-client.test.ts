@@ -19,4 +19,9 @@ describe("dashboard local item search", () => {
     expect(src).toContain("Wishlist ({unacquiredItems.length} remaining)")
     expect(src).toContain("No wishlist items in this box match your search.")
   })
+
+  it("uses the same container audience control as root", () => {
+    expect(src).toContain('from "@/components/sharing/container-audience-fields"')
+    expect(src).toContain("<ContainerAudienceFields")
+  })
 })

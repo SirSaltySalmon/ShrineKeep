@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { generateShareToken } from "@/lib/settings"
 import { Theme } from "@/lib/types"
 import { FONT_OPTIONS } from "@/lib/fonts"
@@ -7,6 +8,7 @@ import type { FontFamilyId } from "@/lib/fonts"
 import { NAME_MAX_LENGTH, NAME_MAX_MESSAGE } from "@/lib/validation"
 import { requireMutableUser } from "@/lib/judge/require-mutable-user"
 import { assertNotSandbox } from "@/lib/judge/sandbox"
+import { createSharingMutationCore } from "@/lib/sharing/server/mutation-core"
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,7 +40,7 @@ export async function GET(request: NextRequest) {
         body_font_family: "Inter",
         border_radius: null,
         graph_overlay: null,
-        wishlist_is_public: false,
+        wishlist_link_enabled: false,
         wishlist_share_token: null,
         wishlist_apply_colors: false,
         use_custom_display_name: true,
@@ -59,7 +61,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(settings)
+    return NextResponse.json(await attachOwnerSharing(user.id, settings))
   } catch (error) {
     console.error("Error fetching settings:", error)
     return NextResponse.json(
@@ -83,7 +85,7 @@ export async function PUT(request: NextRequest) {
       body_font_family,
       border_radius,
       graph_overlay,
-      wishlist_is_public,
+      wishlist_link_enabled,
       wishlist_apply_colors,
       regenerate_wishlist_token,
       use_custom_display_name,
@@ -109,7 +111,7 @@ export async function PUT(request: NextRequest) {
       body_font_family?: string
       border_radius?: string | null
       graph_overlay?: boolean | null
-      wishlist_is_public?: boolean
+      wishlist_link_enabled?: boolean
       wishlist_share_token?: string | null
       wishlist_apply_colors?: boolean
       use_custom_display_name?: boolean
@@ -163,18 +165,16 @@ export async function PUT(request: NextRequest) {
     // Wishlist share token is server-only: never accept from client; generate or clear on server.
     if (regenerate_wishlist_token) {
       updateData.wishlist_share_token = generateShareToken()
-    } else if (wishlist_is_public !== undefined) {
-      if (wishlist_is_public) {
+    } else if (wishlist_link_enabled !== undefined) {
+      if (wishlist_link_enabled) {
         const sandbox = await assertNotSandbox(supabase, user.id)
         if (!sandbox.ok) {
           return NextResponse.json({ error: sandbox.error }, { status: sandbox.status })
         }
       }
-      updateData.wishlist_is_public = wishlist_is_public
-      if (wishlist_is_public && !existing?.wishlist_share_token) {
+      updateData.wishlist_link_enabled = wishlist_link_enabled
+      if (wishlist_link_enabled && !existing?.wishlist_share_token) {
         updateData.wishlist_share_token = generateShareToken()
-      } else if (!wishlist_is_public) {
-        updateData.wishlist_share_token = null
       }
     }
 
@@ -231,12 +231,38 @@ export async function PUT(request: NextRequest) {
       await supabase.from("users").update(userUpdates).eq("id", user.id)
     }
 
-    return NextResponse.json(updated)
+    return NextResponse.json(await attachOwnerSharing(user.id, updated))
   } catch (error) {
     console.error("Error updating settings:", error)
     return NextResponse.json(
       { error: "Failed to update settings" },
       { status: 500 }
     )
+  }
+}
+
+async function attachOwnerSharing(userId: string, settings: Record<string, unknown>) {
+  if (process.env.SOCIAL_SHARING_EDITS_ENABLED !== "true") return settings
+  try {
+    const service = createSupabaseServiceClient()
+    const core = createSharingMutationCore((name, args) => service.rpc(name, args))
+    const result = await core.readOwnerSettings(userId)
+    if (!result.ok) return settings
+    return {
+      ...settings,
+      wishlist_link_enabled: result.data.wishlistLinkEnabled,
+      wishlist_share_token: result.data.wishlistShareToken,
+      public_nickname: result.data.nickname,
+      public_bio: result.data.bio,
+      profile_share_style: result.data.profileShareStyle,
+      root_collection_visibility: result.data.root.collectionVisibility,
+      root_share_financials: result.data.root.shareFinancials,
+      root_wishlist_visibility: result.data.root.wishlistVisibility,
+      sharing_revision: result.data.revision,
+      wishlist_guest_visible_count: result.data.wishlistGuestVisibleCount,
+      wishlist_guest_total_count: result.data.wishlistGuestTotalCount,
+    }
+  } catch {
+    return settings
   }
 }

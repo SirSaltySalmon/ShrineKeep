@@ -300,7 +300,7 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
       color_scheme: null,
       header_font_family: "Inter",
       body_font_family: "Inter",
-      wishlist_is_public: false,
+      wishlist_link_enabled: false,
       wishlist_share_token: null,
       wishlist_apply_colors: false,
       created_at: new Date().toISOString(),

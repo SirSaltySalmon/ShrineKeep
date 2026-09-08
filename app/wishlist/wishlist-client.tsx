@@ -7,6 +7,8 @@ import { normalizeItem } from "@/lib/utils"
 import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
 import { SelectionModeToggle } from "@/components/selection-mode-toggle"
 import { WishlistSharingPanel } from "@/components/wishlist-sharing-panel"
+import { ContainerAudienceFields } from "@/components/sharing/container-audience-fields"
+import { PRIVATE_SHARING_DEFAULTS, type SharingSettings } from "@/lib/sharing/contracts"
 import ItemGrid from "@/components/item-grid"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
@@ -20,17 +22,31 @@ import WebMcpStatusPanel from "@/components/webmcp-status-panel"
 interface WishlistClientProps {
   aiWidgetVisible?: boolean
   userId: string
-  initialWishlistIsPublic: boolean
+  initialWishlistLinkEnabled: boolean
   initialWishlistShareToken: string | null
   initialWishlistApplyColors: boolean
+  initialRoot: SharingSettings
+  initialNickname: string | null
+  initialBio: string
+  initialProfileShareStyle: boolean
+  initialSharingRevision: string
+  initialVisibleCount: number
+  initialTotalCount: number
 }
 
 export default function WishlistClient({
   aiWidgetVisible = true,
   userId,
-  initialWishlistIsPublic,
+  initialWishlistLinkEnabled,
   initialWishlistShareToken,
   initialWishlistApplyColors,
+  initialRoot,
+  initialNickname,
+  initialBio,
+  initialProfileShareStyle,
+  initialSharingRevision,
+  initialVisibleCount,
+  initialTotalCount,
 }: WishlistClientProps) {
   const supabase = createSupabaseClient()
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
@@ -46,19 +62,69 @@ export default function WishlistClient({
   const [loading, setLoading] = useState(true)
   const [itemToMark, setItemToMark] = useState<Item | null>(null)
   const [marking, setMarking] = useState(false)
-  const [wishlistIsPublic, setWishlistIsPublic] = useState(initialWishlistIsPublic)
+  const [wishlistLinkEnabled, setWishlistLinkEnabled] = useState(initialWishlistLinkEnabled)
   const [wishlistShareToken, setWishlistShareToken] = useState<string | null>(initialWishlistShareToken)
   const [wishlistApplyColors, setWishlistApplyColors] = useState(initialWishlistApplyColors)
+  const [root, setRoot] = useState<SharingSettings>(initialRoot ?? PRIVATE_SHARING_DEFAULTS)
+  const [sharingRevision, setSharingRevision] = useState(initialSharingRevision)
+  const [visibleCount, setVisibleCount] = useState(initialVisibleCount)
+  const [totalCount, setTotalCount] = useState(initialTotalCount)
+  const [savingSharing, setSavingSharing] = useState(false)
 
   useEffect(() => {
     loadWishlistItems()
   }, [])
 
   useEffect(() => {
-    setWishlistIsPublic(initialWishlistIsPublic)
+    setWishlistLinkEnabled(initialWishlistLinkEnabled)
     setWishlistShareToken(initialWishlistShareToken)
     setWishlistApplyColors(initialWishlistApplyColors)
-  }, [initialWishlistIsPublic, initialWishlistShareToken, initialWishlistApplyColors])
+    setRoot(initialRoot)
+    setSharingRevision(initialSharingRevision)
+    setVisibleCount(initialVisibleCount)
+    setTotalCount(initialTotalCount)
+  }, [initialWishlistLinkEnabled, initialWishlistShareToken, initialWishlistApplyColors, initialRoot, initialSharingRevision, initialVisibleCount, initialTotalCount])
+
+  const restoreSharing = () => {
+    setWishlistLinkEnabled(initialWishlistLinkEnabled)
+    setRoot(initialRoot)
+    setWishlistApplyColors(initialWishlistApplyColors)
+  }
+
+  const saveOwnerSharing = async () => {
+    setSavingSharing(true)
+    try {
+      const res = await fetch("/api/settings/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nickname: initialNickname,
+          bio: initialBio,
+          profileShareStyle: initialProfileShareStyle,
+          root,
+          wishlistLinkEnabled,
+          wishlistShareToken: null,
+          expectedRevision: sharingRevision,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error((data as { error?: { code?: string } })?.error?.code === "revision_conflict"
+        ? "Sharing settings changed in another tab. Reload and try again."
+        : "Failed to save sharing settings")
+      const next = data as {
+        revision?: string
+        wishlistShareToken?: string | null
+        wishlistGuestVisibleCount?: number
+        wishlistGuestTotalCount?: number
+      }
+      if (next.revision) setSharingRevision(next.revision)
+      if (next.wishlistShareToken !== undefined) setWishlistShareToken(next.wishlistShareToken)
+      if (typeof next.wishlistGuestVisibleCount === "number") setVisibleCount(next.wishlistGuestVisibleCount)
+      if (typeof next.wishlistGuestTotalCount === "number") setTotalCount(next.wishlistGuestTotalCount)
+    } finally {
+      setSavingSharing(false)
+    }
+  }
 
   const loadWishlistItems = async () => {
     try {
@@ -161,15 +227,30 @@ export default function WishlistClient({
 
         {!loading && (
           <div className="mt-8 w-full flex justify-center">
-            <WishlistSharingPanel
-              layout="card"
-              wishlistIsPublic={wishlistIsPublic}
-              wishlistShareToken={wishlistShareToken}
-              wishlistApplyColors={wishlistApplyColors}
-              onPublicChange={setWishlistIsPublic}
-              onApplyColorsChange={setWishlistApplyColors}
-              onShareTokenChange={setWishlistShareToken}
-            />
+            <div className="mt-8 w-full max-w-2xl mx-auto space-y-6">
+              <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm p-4 sm:p-5">
+                <ContainerAudienceFields
+                  containerLabel="Items not in a box"
+                  value={root}
+                  onChange={setRoot}
+                  idPrefix="root"
+                />
+              </div>
+              <WishlistSharingPanel
+                layout="card"
+                wishlistLinkEnabled={wishlistLinkEnabled}
+                wishlistShareToken={wishlistShareToken}
+                wishlistApplyColors={wishlistApplyColors}
+                onLinkEnabledChange={setWishlistLinkEnabled}
+                onApplyColorsChange={setWishlistApplyColors}
+                onShareTokenChange={setWishlistShareToken}
+                visibleCount={visibleCount}
+                totalCount={totalCount}
+                onSaveSharing={saveOwnerSharing}
+                onCancelSharing={restoreSharing}
+                savingSharing={savingSharing}
+              />
+            </div>
           </div>
         )}
 

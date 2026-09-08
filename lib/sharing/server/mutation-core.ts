@@ -1,7 +1,9 @@
-import { AUDIENCES, type Audience, type OperationResult, type SharingMutationService, type SharingUpdate } from "../contracts"
+import { AUDIENCES, type Audience, type OperationResult, type OwnerSharingUpdate, type SharingMutationService, type SharingSettings, type SharingUpdate } from "../contracts"
+import { isPublicBioValid, isPublicNicknameValid } from "../identity"
 import type { SharingRpc } from "./read-core"
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const tokenShape = /^[A-Za-z0-9_-]{8,128}$/
 const invalid = { ok: false, error: { code: "invalid_input", status: 400 } } as const
 const unavailable = { ok: false, error: { code: "temporarily_unavailable", status: 503 } } as const
 function record(value: unknown): Record<string, unknown> | null {
@@ -10,6 +12,16 @@ function record(value: unknown): Record<string, unknown> | null {
 function audience(value: unknown): value is Audience { return typeof value === "string" && AUDIENCES.some(item => item === value) }
 function revision(value: unknown): value is string {
   return typeof value === "string" && /^\d{1,19}$/.test(value) && BigInt(value) <= BigInt("9223372036854775807")
+}
+function asCount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value
+  if (typeof value === "string" && /^\d{1,15}$/.test(value)) return Number(value)
+  return null
+}
+function sharingSettings(value: unknown): SharingSettings | null {
+  const body = record(value)
+  if (!body || !audience(body.collectionVisibility) || !audience(body.wishlistVisibility) || typeof body.shareFinancials !== "boolean") return null
+  return { collectionVisibility: body.collectionVisibility, wishlistVisibility: body.wishlistVisibility, shareFinancials: body.shareFinancials }
 }
 
 /** Route supplies the box ID; client may supply only editor values, never actor. */
@@ -21,6 +33,27 @@ export function parseSharingUpdate(boxId: string, value: unknown): SharingUpdate
   return { boxId, collectionVisibility: body.collectionVisibility, wishlistVisibility: body.wishlistVisibility,
     shareFinancials: body.shareFinancials, applyToDescendants: body.applyToDescendants,
     expectedRevision: body.expectedRevision, expectedDescendantCount: body.expectedDescendantCount }
+}
+
+/** Client may supply profile and root values, never actor. Empty nickname becomes null. */
+export function parseOwnerSharingUpdate(value: unknown): OwnerSharingUpdate | null {
+  const body = record(value)
+  if (!body || typeof body.profileShareStyle !== "boolean" || typeof body.wishlistLinkEnabled !== "boolean" || !revision(body.expectedRevision)) return null
+  const nickname = body.nickname === null || body.nickname === "" ? null : body.nickname
+  if (!isPublicNicknameValid(nickname) || !isPublicBioValid(body.bio)) return null
+  const root = sharingSettings(body.root)
+  if (!root) return null
+  const wishlistShareToken = body.wishlistShareToken === null || body.wishlistShareToken === undefined ? null : body.wishlistShareToken
+  if (wishlistShareToken !== null && (typeof wishlistShareToken !== "string" || !tokenShape.test(wishlistShareToken))) return null
+  return {
+    nickname: typeof nickname === "string" ? nickname.trim() || null : null,
+    bio: body.bio,
+    profileShareStyle: body.profileShareStyle,
+    root,
+    wishlistLinkEnabled: body.wishlistLinkEnabled,
+    wishlistShareToken,
+    expectedRevision: body.expectedRevision,
+  }
 }
 
 export function createSharingMutationCore(rpc: SharingRpc): SharingMutationService {
@@ -65,6 +98,56 @@ export function createSharingMutationCore(rpc: SharingRpc): SharingMutationServi
         p_expected_revision: parsed.expectedRevision, p_expected_descendant_count: parsed.expectedDescendantCount })
       if (!result.ok) return result
       return revision(result.data.revision) ? { ok: true, data: { revision: result.data.revision } } : unavailable
+    },
+    async readOwnerSettings(actorId) {
+      if (!uuid.test(actorId)) return invalid
+      const result = await call("sharing_read_owner_settings", { p_actor_id: actorId })
+      if (!result.ok) return result
+      const root = sharingSettings(result.data.root)
+      const token = result.data.wishlistShareToken
+      const visibleCount = asCount(result.data.wishlistGuestVisibleCount)
+      const totalCount = asCount(result.data.wishlistGuestTotalCount)
+      if (!root || !revision(result.data.revision) || !isPublicNicknameValid(result.data.nickname) || !isPublicBioValid(result.data.bio)
+        || typeof result.data.profileShareStyle !== "boolean" || typeof result.data.wishlistLinkEnabled !== "boolean"
+        || !(token === null || (typeof token === "string" && tokenShape.test(token)))
+        || visibleCount === null || totalCount === null) return unavailable
+      return {
+        ok: true,
+        data: {
+          nickname: result.data.nickname === null ? null : String(result.data.nickname).trim() || null,
+          bio: result.data.bio,
+          profileShareStyle: result.data.profileShareStyle,
+          root,
+          wishlistLinkEnabled: result.data.wishlistLinkEnabled,
+          wishlistShareToken: token,
+          revision: result.data.revision,
+          wishlistGuestVisibleCount: visibleCount,
+          wishlistGuestTotalCount: totalCount,
+        },
+      }
+    },
+    async updateOwnerSettings(actorId, input) {
+      const parsed = parseOwnerSharingUpdate(input)
+      if (!uuid.test(actorId) || !parsed) return invalid
+      const result = await call("sharing_update_owner_settings", {
+        p_actor_id: actorId,
+        p_nickname: parsed.nickname,
+        p_bio: parsed.bio,
+        p_profile_share_style: parsed.profileShareStyle,
+        p_root_collection_visibility: parsed.root.collectionVisibility,
+        p_root_share_financials: parsed.root.shareFinancials,
+        p_root_wishlist_visibility: parsed.root.wishlistVisibility,
+        p_wishlist_link_enabled: parsed.wishlistLinkEnabled,
+        p_wishlist_share_token: parsed.wishlistShareToken,
+        p_expected_revision: parsed.expectedRevision,
+      })
+      if (!result.ok) return result
+      const token = result.data.wishlistShareToken
+      const visibleCount = asCount(result.data.wishlistGuestVisibleCount)
+      const totalCount = asCount(result.data.wishlistGuestTotalCount)
+      if (!revision(result.data.revision) || !(token === null || (typeof token === "string" && tokenShape.test(token)))
+        || visibleCount === null || totalCount === null) return unavailable
+      return { ok: true, data: { revision: result.data.revision, wishlistShareToken: token, wishlistGuestVisibleCount: visibleCount, wishlistGuestTotalCount: totalCount } }
     },
   }
 }

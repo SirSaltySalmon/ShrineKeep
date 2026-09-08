@@ -48,6 +48,9 @@ import { useAgentSuggestions } from "@/lib/hooks/use-agent-suggestions"
 import AgentSuggestionReviewDialog from "@/components/agent-suggestion-review-dialog"
 import WebMcpStatusPanel from "@/components/webmcp-status-panel"
 import AgentStagingInbox from "@/components/agent-staging-inbox"
+import { ContainerAudienceFields } from "@/components/sharing/container-audience-fields"
+import { WishlistVisibilitySummary } from "@/components/sharing/wishlist-visibility-summary"
+import { PRIVATE_SHARING_DEFAULTS, type SharingSettings } from "@/lib/sharing/contracts"
 import {
   coachStorageKey,
   initialCoachState,
@@ -162,6 +165,12 @@ export default function DashboardClient({
     setShowItemCapUpsell,
     openEditBox,
   } = useDashboardDialogs()
+  const [boxSharing, setBoxSharing] = useState<SharingSettings>(PRIVATE_SHARING_DEFAULTS)
+  const [boxSharingRevision, setBoxSharingRevision] = useState("0")
+  const [boxDescendantCount, setBoxDescendantCount] = useState(0)
+  const [boxSharingLoaded, setBoxSharingLoaded] = useState(false)
+  const [wishlistVisibleCount, setWishlistVisibleCount] = useState<number | null>(null)
+  const [wishlistTotalCount, setWishlistTotalCount] = useState<number | null>(null)
   const [statsBoxId, setStatsBoxId] = useState<string>("root")
   const [statsBoxName, setStatsBoxName] = useState<string>("Root")
   const [showStatsDialog, setShowStatsDialog] = useState(false)
@@ -454,10 +463,87 @@ export default function DashboardClient({
     setCurrentBox(box)
   }
 
+  useEffect(() => {
+    if (!showEditBoxDialog || !editBox) {
+      setBoxSharingLoaded(false)
+      return
+    }
+    let cancelled = false
+    const boxId = editBox.id
+    setBoxSharingLoaded(false)
+    void (async () => {
+      try {
+        const [shareRes, ownerRes] = await Promise.all([
+          fetch(`/api/boxes/${boxId}/sharing`),
+          fetch("/api/settings/profile"),
+        ])
+        if (cancelled) return
+        if (shareRes.ok) {
+          const data = await shareRes.json() as {
+            settings?: SharingSettings
+            revision?: string
+            descendantCount?: number
+          }
+          const settings = data.settings ?? PRIVATE_SHARING_DEFAULTS
+          setBoxSharing(settings)
+          setBoxSharingRevision(data.revision ?? "0")
+          setBoxDescendantCount(data.descendantCount ?? 0)
+          setBoxSharingLoaded(true)
+        }
+        if (ownerRes.ok) {
+          const owner = await ownerRes.json() as {
+            wishlistGuestVisibleCount?: number
+            wishlistGuestTotalCount?: number
+          }
+          if (typeof owner.wishlistGuestVisibleCount === "number") setWishlistVisibleCount(owner.wishlistGuestVisibleCount)
+          if (typeof owner.wishlistGuestTotalCount === "number") setWishlistTotalCount(owner.wishlistGuestTotalCount)
+        }
+      } catch (error) {
+        console.error("Error loading box sharing:", error)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [showEditBoxDialog, editBox])
+
   const saveEditBox = async () => {
     if (!editBox || !editBoxName.trim()) return
     setSavingEditBox(true)
     try {
+      if (boxSharingLoaded) {
+        const shareRes = await fetch(`/api/boxes/${editBox.id}/sharing`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            collectionVisibility: boxSharing.collectionVisibility,
+            wishlistVisibility: boxSharing.wishlistVisibility,
+            shareFinancials: boxSharing.shareFinancials,
+            applyToDescendants: true,
+            expectedRevision: boxSharingRevision,
+            expectedDescendantCount: boxDescendantCount,
+          }),
+        })
+        const shareData = await shareRes.json().catch(() => ({}))
+        if (!shareRes.ok) {
+          const code = (shareData as { error?: { code?: string } })?.error?.code
+          throw new Error(code === "revision_conflict"
+            ? "Sharing settings changed in another tab. Reload and try again."
+            : "Failed to save sharing settings")
+        }
+        const next = shareData as { revision?: string }
+        if (next.revision) setBoxSharingRevision(next.revision)
+        const ownerRes = await fetch("/api/settings/profile")
+        if (ownerRes.ok) {
+          const owner = await ownerRes.json() as {
+            wishlistGuestVisibleCount?: number
+            wishlistGuestTotalCount?: number
+          }
+          if (typeof owner.wishlistGuestVisibleCount === "number") setWishlistVisibleCount(owner.wishlistGuestVisibleCount)
+          if (typeof owner.wishlistGuestTotalCount === "number") setWishlistTotalCount(owner.wishlistGuestTotalCount)
+        }
+      }
+
       const { error } = await supabase
         .from("boxes")
         .update({
@@ -479,7 +565,8 @@ export default function DashboardClient({
       setEditBox(null)
       loadBoxes()
     } catch (error) {
-      console.error("Error renaming box:", error)
+      console.error("Error saving box:", error)
+      alert(error instanceof Error ? error.message : "Failed to save box. Please try again.")
     } finally {
       setSavingEditBox(false)
     }
@@ -762,9 +849,9 @@ export default function DashboardClient({
             >
               <DialogContent className="sm:max-w-[500px] min-w-0">
                 <DialogHeader className="min-w-0">
-                  <DialogTitle>Rename box</DialogTitle>
+                  <DialogTitle>Edit box</DialogTitle>
                   <DialogDescription>
-                    Change the name and description of this box, or delete it.
+                    Change the name, description, and sharing of this box, or delete it.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4 layout-shrink-visible">
@@ -784,6 +871,23 @@ export default function DashboardClient({
                       placeholder="A brief description..."
                     />
                   </div>
+
+                  {boxSharingLoaded && editBox && (
+                    <div className="border-t pt-4 space-y-4 layout-shrink-visible">
+                      <ContainerAudienceFields
+                        containerLabel={editBoxName.trim() || editBox.name}
+                        value={boxSharing}
+                        onChange={setBoxSharing}
+                        idPrefix={`box-${editBox.id}`}
+                      />
+                      {wishlistVisibleCount != null && wishlistTotalCount != null && (
+                        <WishlistVisibilitySummary
+                          visibleCount={wishlistVisibleCount}
+                          totalCount={wishlistTotalCount}
+                        />
+                      )}
+                    </div>
+                  )}
 
                   <div className="border-t pt-4 space-y-3 layout-shrink-visible">
                     <div className="flex items-center gap-2 text-fluid-sm font-medium text-destructive">
