@@ -262,8 +262,8 @@ were never created. Deferred by decision, so this is expected — but see the na
   "exists but broke" from "not found", against plan §9.3.
 5. **Two storage leaks.** `lib/api/patch-item.ts:115-127` updates a photo's `storage_path` in place and
   abandons the old blob; `app/api/users/me/avatar/route.ts` DELETE clears `users.avatar_url` and leaves
-   `public_profiles.avatar_asset_id` dangling. An earlier revision of this list counted box delete in
-   move-to-root mode as a third leak because `lib/api/delete-box.ts` skips the cleanup helper unless mode is
+   `public_profiles.avatar_asset_id` dangling.    An earlier revision of this list counted box delete in
+   move-up mode as a third leak because `lib/api/delete-box.ts` skips the cleanup helper unless mode is
    `delete-all`. That is correct behaviour, not a leak: in that mode the items and their photo rows all
    survive the delete, so there is nothing unreferenced to collect.
 
@@ -617,18 +617,19 @@ are the one thing that cannot broaden. Further privacy guardrails on this path a
 
 ### Done when
 
-- [ ] Deleting a mid-level box moves its direct children and items to its parent, and nesting below those
+- [x] Deleting a mid-level box moves its direct children and items to its parent, and nesting below those
   children is unchanged. Assert depth, not just parentage — flattening would still pass a parentage-only
   check at the first level.
-- [ ] Deleting a box and one of its own ancestors in the same call lands the inner contents on the nearest
+- [x] Deleting a box and one of its own ancestors in the same call lands the inner contents on the nearest
   ancestor that survives, and never on a box that was also deleted.
-- [ ] Deleting a top-level box puts its contents at the collection root.
-- [ ] A Friends-only box deleted under a Public parent leaves its items and wishlist entries Public, with no
+- [x] Deleting a top-level box puts its contents at the collection root.
+- [x] A Friends-only box deleted under a Public parent leaves its items and wishlist entries Public, with no
   `privacy_conflict` raised and no rows rejected.
-- [ ] Wishlist items with the explicit Private flag are still Private afterwards.
-- [ ] Both delete dialogs state the visibility consequence before the owner confirms.
-- [ ] `rg move-to-root` returns nothing outside Git history.
-- [ ] `npm run test:db:native`, `npm run check:full`, and `npm run build` pass.
+- [x] Wishlist items with the explicit Private flag are still Private afterwards.
+- [x] Both delete dialogs state the visibility consequence before the owner confirms.
+- [x] `rg move-to-root` returns nothing in live contract, UI, or tests. The applied historical migration
+  `20260907172603_sharing_box_delete.sql` and the decision docs still name the retired mode.
+- [x] `npm run test:db:native`, `npm run check:full`, and `npm run build` pass.
 
 ---
 

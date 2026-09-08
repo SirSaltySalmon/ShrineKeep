@@ -41,6 +41,7 @@ try {
     'supabase/migrations/20260908120000_public_stats.sql',
     'supabase/migrations/20260908140000_revoke_legacy_public_reads.sql',
     'supabase/migrations/20260908150000_audience_ceiling.sql',
+    'supabase/migrations/20260908160000_sharing_box_move_up.sql',
     'supabase/tests/social-foundation.sql',
     'supabase/tests/social-transactions.sql',
     'supabase/tests/public-reads.sql',

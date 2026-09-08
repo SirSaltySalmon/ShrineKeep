@@ -809,17 +809,17 @@ export default function DashboardClient({
                               <strong>Delete all:</strong> Permanently delete this box and all child items, sub-boxes, and their data (value history, photos, etc.).
                             </span>
                           </Label>
-                          <Label htmlFor="delete-mode-move-to-root" className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
+                          <Label htmlFor="delete-mode-move-up" className="flex items-start gap-2 text-fluid-sm cursor-pointer min-w-0">
                             <input
-                              id="delete-mode-move-to-root"
+                              id="delete-mode-move-up"
                               type="radio"
                               name="delete-mode"
-                              checked={deleteMode === "move-to-root"}
-                              onChange={() => setDeleteMode("move-to-root")}
+                              checked={deleteMode === "move-up"}
+                              onChange={() => setDeleteMode("move-up")}
                               className="mt-1"
                             />
                             <span className="layout-shrink-visible">
-                              <strong>Move to root:</strong> Move all child items and sub-boxes to the root level, then delete this box.
+                              <strong>Move contents up:</strong> Move this box&apos;s items and sub-boxes {editBox?.parent_box_id ? "into the box above it" : "to the top level"}, then delete this box. Anything inside will follow the parent&apos;s sharing settings, which may make it visible to more people. Wishes you marked Private stay Private.
                             </span>
                           </Label>
                         </div>
@@ -829,7 +829,7 @@ export default function DashboardClient({
                         <p className="text-fluid-sm text-muted-foreground">
                           {deleteMode === "delete-all"
                             ? "All contents will be permanently deleted. This cannot be undone."
-                            : "Child boxes and items will become root-level, then this box will be removed."}
+                            : `Move this box's items and sub-boxes ${editBox?.parent_box_id ? "into the box above it" : "to the top level"}, then delete this box. Anything inside will follow the parent's sharing settings, which may make it visible to more people. Wishes you marked Private stay Private.`}
                         </p>
                         <div className="layout-shrink-visible">
                           <Label className="text-fluid-sm font-medium min-w-0">

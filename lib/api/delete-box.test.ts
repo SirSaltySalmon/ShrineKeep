@@ -53,13 +53,13 @@ describe("deleteBoxes", () => {
     ])
   })
 
-  it("does not touch storage when moving contents to root", async () => {
+  it("does not touch storage when moving contents up", async () => {
     mockRpc.mockResolvedValue({
       data: { ok: true, data: { deletedCount: 2, revision: "5", photos: [] } },
       error: null,
     })
 
-    await expect(deleteBoxes(userClient, "user-1", ["box-1", "box-2"], "move-to-root")).resolves.toEqual({
+    await expect(deleteBoxes(userClient, "user-1", ["box-1", "box-2"], "move-up")).resolves.toEqual({
       deletedCount: 2,
     })
     expect(mockRemoveUnreferenced).not.toHaveBeenCalled()

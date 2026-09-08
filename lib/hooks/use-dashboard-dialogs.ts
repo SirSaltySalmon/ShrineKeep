@@ -9,7 +9,7 @@ export function useDashboardDialogs() {
   const [editBoxDescription, setEditBoxDescription] = useState("")
   const [showEditBoxDialog, setShowEditBoxDialog] = useState(false)
   const [savingEditBox, setSavingEditBox] = useState(false)
-  const [deleteMode, setDeleteMode] = useState<"delete-all" | "move-to-root" | null>(null)
+  const [deleteMode, setDeleteMode] = useState<"delete-all" | "move-up" | null>(null)
   const [deleteConfirmName, setDeleteConfirmName] = useState("")
   const [deletingBox, setDeletingBox] = useState(false)
   const [showDemoOfferDialog, setShowDemoOfferDialog] = useState(false)

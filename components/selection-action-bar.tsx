@@ -89,7 +89,7 @@ export function SelectionActionBar({
   const [deleting, setDeleting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleteBoxConfirmNames, setDeleteBoxConfirmNames] = useState("")
-  const [deleteMode, setDeleteMode] = useState<"delete-all" | "move-to-root">("delete-all")
+  const [deleteMode, setDeleteMode] = useState<"delete-all" | "move-up">("delete-all")
 
   const hasSelection = selectedItems.length > 0 || selectedBoxes.length > 0
   const canCopy = hasSelection
@@ -434,24 +434,34 @@ export function SelectionActionBar({
                   placeholder="Box name, Box name 2, ..."
                   className="font-mono text-sm layout-shrink-visible"
                 />
-                <div className="flex gap-4 mt-2">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <div className="flex flex-col gap-2 mt-2">
+                  <label className="flex items-start gap-2 text-sm cursor-pointer">
                     <input
                       type="radio"
                       name="delete-mode"
                       checked={deleteMode === "delete-all"}
                       onChange={() => setDeleteMode("delete-all")}
+                      className="mt-1"
                     />
-                    Delete all contents
+                    <span>Delete all contents</span>
                   </label>
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <label className="flex items-start gap-2 text-sm cursor-pointer">
                     <input
                       type="radio"
                       name="delete-mode"
-                      checked={deleteMode === "move-to-root"}
-                      onChange={() => setDeleteMode("move-to-root")}
+                      checked={deleteMode === "move-up"}
+                      onChange={() => setDeleteMode("move-up")}
+                      className="mt-1"
                     />
-                    Move contents to root
+                    <span>
+                      <strong>Move contents up:</strong> Move this box&apos;s items and sub-boxes{" "}
+                      {selectedBoxes.every((box) => !box.parent_box_id)
+                        ? "to the top level"
+                        : "into the box above it"}
+                      , then delete this box. Anything inside will follow the parent&apos;s sharing
+                      settings, which may make it visible to more people. Wishes you marked Private
+                      stay Private.
+                    </span>
                   </label>
                 </div>
               </div>

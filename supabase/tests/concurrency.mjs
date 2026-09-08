@@ -177,10 +177,10 @@ try {
   await observer.query(`INSERT INTO public.boxes(id,user_id,name) VALUES ('${deleteTarget}','${uuid(7)}','Delete contention')`)
   const deleteWait = await contend(
     `SELECT public.sharing_preview_box('${uuid(7)}','${box}')`,
-    `SELECT public.sharing_delete_boxes('${uuid(7)}', ARRAY['${deleteTarget}']::uuid[], 'move-to-root')`)
+    `SELECT public.sharing_delete_boxes('${uuid(7)}', ARRAY['${deleteTarget}']::uuid[], 'move-up')`)
   assert.equal(deleteWait.ok, true)
   assert.equal((await observer.query(`SELECT count(*) FROM public.boxes WHERE id='${deleteTarget}'`)).at(-1), "0")
-  console.log("PASS delete/sharing contention: move-to-root waits for account lock")
+  console.log("PASS delete/sharing contention: move-up waits for account lock")
 } finally {
   for (const session of sessions) session.close()
 }

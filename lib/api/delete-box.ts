@@ -4,7 +4,7 @@ import { removeUnreferencedUnregisteredStorage, type PhotoStorageRow } from "./p
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>
 
-export type BoxDeleteMode = "delete-all" | "move-to-root"
+export type BoxDeleteMode = "delete-all" | "move-up"
 
 export class BoxMutationError extends Error {
   readonly code: string
