@@ -242,6 +242,9 @@ export default function SocialClient({ actorId, sandbox }: SocialClientProps) {
         <CardHeader>
           <CardTitle className="text-fluid-lg">Add by profile link</CardTitle>
           <CardDescription>Paste a user ID or a profile URL. There is no directory to browse.</CardDescription>
+          <Link href={`/users/${actorId}`} className="text-fluid-sm text-primary hover:underline w-fit">
+            Your public profile
+          </Link>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row">
