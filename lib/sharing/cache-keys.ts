@@ -1,6 +1,8 @@
 import type { PublishedViewer, SharingRevision } from "./contracts"
 
-export type PublicSurface = "profile" | "boxes" | "collection-items" | "wishlist" | "item-detail" | "stats" | "media"
+/** Paginated or keyed public surface used to partition browser caches. Aligns with RPC surface names. */
+export type PublicSurface = "profile" | "boxes" | "items" | "wishlist" | "item-detail" | "stats" | "media"
+/** Cache identity for one public read: surface plus optional box/item/query/revision. */
 export interface ReadScope {
   surface: PublicSurface
   boxId?: string
@@ -22,6 +24,7 @@ export const sharingKeys = {
   owner: (ownerId: string, scope: ReadScope) => ["sharing-owner", ownerId, scope] as const,
   public: (ownerId: string, viewer: PublishedViewer, scope: ReadScope) =>
     ["sharing-public", ownerId, viewer.kind === "guest" ? "guest" : viewer.userId, scope] as const,
+  /** `sessionOwnerId` is the verified account, never a public `ownerId` from the URL. */
   preview: (sessionOwnerId: string, scope: Omit<ReadScope, "surface">) =>
     ["sharing-preview", sessionOwnerId, "guest", { ...scope, surface: "wishlist" }] as const,
   social: (actorId: string, scope: SocialReadScope) => ["social", actorId, scope] as const,

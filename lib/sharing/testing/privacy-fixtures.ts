@@ -2,6 +2,7 @@ import type { Audience } from "../contracts"
 
 /** Reference model for SQL/service parity tests. Never use as a browser authorization layer. */
 export const VIEWER_CASES = ["owner", "friend", "stranger", "blocked", "guest"] as const
+/** Synthetic viewer used by privacy fixtures; not a session and not an authorization check. */
 export type FixtureViewer = (typeof VIEWER_CASES)[number]
 export interface FixtureAccount { active: boolean; sandbox: boolean; pendingDeletion: boolean }
 export const ACCOUNTS: Record<"owner" | "sandbox" | "inactive" | "deleting", FixtureAccount> = {
@@ -11,6 +12,7 @@ export const ACCOUNTS: Record<"owner" | "sandbox" | "inactive" | "deleting", Fix
   deleting: { active: true, sandbox: false, pendingDeletion: true },
 }
 
+/** Whether this fixture audience is visible to the given fixture viewer. */
 export function expectedAudience(audience: Audience, viewer: FixtureViewer, account = ACCOUNTS.owner): boolean {
   if (!account.active || account.sandbox || account.pendingDeletion || viewer === "blocked") return false
   return audience === "public" || (audience === "friends" && (viewer === "owner" || viewer === "friend"))

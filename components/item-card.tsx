@@ -1,51 +1,47 @@
 "use client"
 
-import { Item, type TagColor } from "@/lib/types"
 import { cn, getTagChipStyle, formatCurrency, formatDate } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Selectable, CARD_HOVER_MOTION_CLASS } from "@/components/selectable"
 import { Button } from "@/components/ui/button"
 import { Image as ImageIcon, Check } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
-import { ownerThumbnailSource } from "@/lib/media/presentation"
+import type { CollectionCapabilities } from "@/lib/sharing/presentation/capabilities"
+import type { PresentedItem } from "@/lib/sharing/presentation/models"
 
 const VALUE_COLOR_STYLE = { color: "hsl(var(--value-color))" } as const
 const ACQUISITION_COLOR_STYLE = { color: "hsl(var(--acquisition-color))" } as const
 
-
 interface ItemCardProps {
-  item: Item
+  item: PresentedItem
   variant: "collection" | "wishlist"
-  /** When true, show selection ring (focus ring). */
+  capabilities: CollectionCapabilities
   selected?: boolean
-  /** When true, show lighter ring on hover (selection mode). */
   selectionMode?: boolean
-  onClick: (item: Item, e: React.MouseEvent) => void
-  onMarkAcquired?: (item: Item) => void
-  /** Shared / public view: no click affordance, dialog, or mark-acquired. */
-  readOnly?: boolean
+  onClick?: (item: PresentedItem, e: React.MouseEvent) => void
+  onMarkAcquired?: (item: PresentedItem) => void
 }
 
 export default function ItemCard({
   item,
   variant,
+  capabilities,
   selected = false,
   selectionMode = false,
   onClick,
   onMarkAcquired,
-  readOnly = false,
 }: ItemCardProps) {
-  const itemMinHeightClass =
-    variant === "collection"
-      ? "min-h-[424px]"
-      : "min-h-[450px]"
+  const itemMinHeightClass = variant === "collection" ? "min-h-[424px]" : "min-h-[450px]"
   const isCollection = variant === "collection"
-  const thumbnailSource = readOnly ? item.thumbnail_url : ownerThumbnailSource(item)
-  const secondaryPrice = isCollection ? item.acquisition_price : item.expected_price
+  const thumbnailSource = item.thumbnailUrl
+  const secondaryPrice = isCollection ? item.acquisitionPrice : item.expectedPrice
   const secondaryLabel = isCollection ? "Acquired for" : "Expected"
+  const interactive = Boolean(onClick) && (capabilities.canEdit || capabilities.canSelect || capabilities.canOpenDetail)
+  const showAcquire = !isCollection && capabilities.canAcquire && onMarkAcquired
+  const showTags = capabilities.showTags && item.tags.length > 0
 
   const card = (
-      <Card className={itemMinHeightClass}>
+    <Card className={itemMinHeightClass}>
       <div className="relative w-full h-48 bg-muted rounded-t-lg overflow-hidden">
         {thumbnailSource ? (
           <ThumbnailImage
@@ -69,9 +65,9 @@ export default function ItemCard({
       </CardHeader>
       <CardContent onClick={(e) => e.stopPropagation()}>
         <div className="space-y-1 text-fluid-sm layout-shrink-visible">
-          {item.current_value !== null && item.current_value !== undefined && (
+          {item.currentValue !== null && item.currentValue !== undefined && (
             <div className="font-medium truncate" style={VALUE_COLOR_STYLE}>
-              Value: {formatCurrency(item.current_value)}
+              Value: {formatCurrency(item.currentValue)}
             </div>
           )}
           {secondaryPrice !== null && secondaryPrice !== undefined && (
@@ -79,13 +75,18 @@ export default function ItemCard({
               {secondaryLabel}: {formatCurrency(secondaryPrice)}
             </div>
           )}
-          {isCollection && item.acquisition_date && (
+          {isCollection && item.acquisitionDate && (
             <div className="text-muted-foreground text-fluid-xs truncate">
-              {formatDate(item.acquisition_date)}
+              {formatDate(item.acquisitionDate)}
+            </div>
+          )}
+          {!isCollection && item.visibleTargetName && (
+            <div className="text-muted-foreground text-fluid-xs truncate">
+              For {item.visibleTargetName}
             </div>
           )}
         </div>
-        {item.tags && item.tags.length > 0 && (
+        {showTags && (
           <div className="flex flex-wrap gap-1 mt-1">
             {item.tags.map((tag) => (
               <span
@@ -98,7 +99,7 @@ export default function ItemCard({
             ))}
           </div>
         )}
-        {!isCollection && onMarkAcquired && (
+        {showAcquire && (
           <Button
             size="sm"
             className="w-full mt-3"
@@ -115,7 +116,7 @@ export default function ItemCard({
     </Card>
   )
 
-  if (readOnly) {
+  if (!interactive) {
     return (
       <div className={cn(CARD_HOVER_MOTION_CLASS, "cursor-default")}>{card}</div>
     )
@@ -126,7 +127,7 @@ export default function ItemCard({
       selected={selected}
       selectionMode={selectionMode}
       className="item-card-no-select"
-      onClick={(e) => onClick(item, e)}
+      onClick={(e) => onClick?.(item, e)}
     >
       {card}
     </Selectable>

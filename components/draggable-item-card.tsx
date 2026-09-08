@@ -5,6 +5,8 @@ import { useDraggable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { Item } from "@/lib/types"
 import ItemCard from "./item-card"
+import { OWNER_CAPABILITIES } from "@/lib/sharing/presentation/capabilities"
+import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
 
 const DRAG_ID_PREFIX = "item-"
 
@@ -63,11 +65,12 @@ export default function DraggableItemCard({
       {...listeners}
     >
       <ItemCard
-        item={item}
+        item={presentOwnerItem(item)}
         variant="collection"
+        capabilities={OWNER_CAPABILITIES}
         selected={selected}
         selectionMode={selectionMode}
-        onClick={onClick}
+        onClick={(_, event) => onClick(item, event)}
       />
     </div>
   )

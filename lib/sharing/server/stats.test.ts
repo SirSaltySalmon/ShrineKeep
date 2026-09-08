@@ -51,6 +51,6 @@ describe("public stats boundaries", () => {
   ])("rejects malformed backend stats", async data => {
     const rpc = vi.fn().mockResolvedValue(response(data))
     expect(await createPublicReadCore(rpc, secret).stats(owner, { kind: "guest" }, {}))
-      .toEqual({ ok: false, error: { code: "temporarily_unavailable", status: 503 } })
+      .toEqual({ ok: false, error: { code: "not_found", status: 404 } })
   })
 })

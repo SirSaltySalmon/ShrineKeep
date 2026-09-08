@@ -8,6 +8,7 @@ export const AUDIENCES = ["private", "friends", "public"] as const
 export type Audience = (typeof AUDIENCES)[number]
 /** Decimal bigint string: database revisions must not lose JS number precision. */
 export type SharingRevision = string
+/** Verified session identity for a published read: guest, or an authenticated user id. Never taken from request JSON. */
 export type PublishedViewer =
   | { kind: "guest" }
   | { kind: "authenticated"; userId: string }
@@ -146,7 +147,7 @@ export interface PublicReadService {
   wishlist(ownerId: string, viewer: PublishedViewer, request: PublicPageRequest): Promise<OperationResult<CursorPage<PublicWishlistItem>>>
   wishlistItem(ownerId: string, viewer: PublishedViewer, itemId: string, request: PublicDetailRequest): Promise<OperationResult<PublicItemDetail<PublicWishlistItem>>>
   stats(ownerId: string, viewer: PublishedViewer, request: { boxId?: string; fromDate?: string; toDate?: string }): Promise<OperationResult<PublicBoxStats>>
-  /** Session owner supplied by route. Implementation MUST call wishlist with GUEST_VIEWER. */
+  /** Session owner supplied by the route from the verified session, never from query/body. Implementation MUST call wishlist with GUEST_VIEWER. */
   previewWishlist(sessionOwnerId: string, request: PublicPageRequest): Promise<OperationResult<CursorPage<PublicWishlistItem>>>
   tokenWishlist(token: string, viewer: PublishedViewer, request: PublicPageRequest): Promise<OperationResult<CursorPage<PublicWishlistItem>>>
 }
@@ -158,14 +159,15 @@ export interface SharingMutationService {
   update(actorId: string, input: SharingUpdate): Promise<OperationResult<{ revision: SharingRevision }>>
 }
 
-export type CopyJobState = "queued" | "running" | "retry_wait" | "completed" | "failed" | "cancelled"
+export const COPY_JOB_STATES = ["queued", "planning", "copying", "finalizing", "completed", "failed", "cancelled"] as const
+export type CopyJobState = (typeof COPY_JOB_STATES)[number]
 export type CopyFailureCode = "source_unavailable" | "source_changed" | "media_unavailable" | "quota_exceeded" | "retry_exhausted"
 export type CopyJobStatus = {
   id: string
   completedEntries: number
   totalEntries: number
 } & (
-  | { state: "queued" | "running" | "retry_wait"; resultRootId: null; failureCode: null }
+  | { state: "queued" | "planning" | "copying" | "finalizing"; resultRootId: null; failureCode: null }
   | { state: "completed"; resultRootId: string; failureCode: null }
   | { state: "failed"; resultRootId: null; failureCode: CopyFailureCode }
   | { state: "cancelled"; resultRootId: null; failureCode: null }

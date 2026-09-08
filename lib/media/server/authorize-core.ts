@@ -49,15 +49,15 @@ export function createMediaAuthorizeCore(
       const envelope = record(response.data)
       if (envelope?.ok !== true) return failure(response.data)
       const data = record(envelope.data)
-      if (!data || String(data.referenceId).toLowerCase() !== referenceId.toLowerCase()) return unavailable
+      if (!data || String(data.referenceId).toLowerCase() !== referenceId.toLowerCase()) return notFound
       if (data.kind === "external") {
-        if (typeof data.externalUrl !== "string" || !/^https:\/\//i.test(data.externalUrl) || /javascript:/i.test(data.externalUrl)) return unavailable
+        if (typeof data.externalUrl !== "string" || !/^https:\/\//i.test(data.externalUrl) || /javascript:/i.test(data.externalUrl)) return notFound
         return { ok: true, data: { referenceId, url: data.externalUrl, expiresAt: null } }
       }
-      if (data.kind !== "uploaded" || typeof data.bucket !== "string" || typeof data.objectPath !== "string") return unavailable
-      if ((data.bucket !== "item-photos" && data.bucket !== "avatars") || data.objectPath.includes("..")) return unavailable
+      if (data.kind !== "uploaded" || typeof data.bucket !== "string" || typeof data.objectPath !== "string") return notFound
+      if ((data.bucket !== "item-photos" && data.bucket !== "avatars") || data.objectPath.includes("..")) return notFound
       const signed = await sign(data.bucket, data.objectPath, SHARING_LIMITS.mediaLifetimeSeconds)
-      if (!signed || typeof signed.url !== "string" || signed.url.length === 0) return unavailable
+      if (!signed || typeof signed.url !== "string" || signed.url.length === 0) return notFound
       return {
         ok: true,
         data: {

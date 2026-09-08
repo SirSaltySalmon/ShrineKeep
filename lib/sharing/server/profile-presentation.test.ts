@@ -44,7 +44,7 @@ describe("public profile presentation", () => {
     expect(first.ok && first.data.avatar).toBeNull()
     missing.mockResolvedValue({ ok: false, error: { code: "temporarily_unavailable", status: 503 } })
     expect(await createPublicReadCore(rpc, secret, missing).profile(owner, { kind: "guest" }))
-      .toEqual({ ok: false, error: { code: "temporarily_unavailable", status: 503 } })
+      .toEqual({ ok: false, error: { code: "not_found", status: 404 } })
   })
   it("rejects avatar references that are not the owner id", async () => {
     const resolve = media()
@@ -53,7 +53,7 @@ describe("public profile presentation", () => {
       profile: { ...profile, avatarReferenceId: "b1000000-0000-4000-8000-000000000099" },
     }))
     expect(await createPublicReadCore(rpc, secret, resolve).profile(owner, { kind: "guest" }))
-      .toEqual({ ok: false, error: { code: "temporarily_unavailable", status: 503 } })
+      .toEqual({ ok: false, error: { code: "not_found", status: 404 } })
     expect(resolve).not.toHaveBeenCalled()
   })
 })
