@@ -11,6 +11,7 @@ export type PublicMediaResolver = (kind: "photo" | "avatar", referenceId: string
 type Surface = "boxes" | "items" | "wishlist"
 type Context = { revision: string; viewerCategory: CursorScope["viewerCategory"]; profile: PublicProfile; avatarReferenceId: string | null }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const tokenShape = /^[A-Za-z0-9_-]{8,128}$/
 const hsl = /^-?\d+(?:\.\d+)?(?:\s+-?\d+(?:\.\d+)?%){2}$/
 const fonts = new Set<string>(FONT_OPTIONS.map(option => option.value))
 const radii = new Set(["0", "0.25rem", "0.5rem", "0.75rem"])
@@ -91,8 +92,8 @@ function failure(value: unknown): OperationResult<never> {
   return unavailable
 }
 
-/** T02 safe projections. Stats, styles and token resolution remain separate work. */
-export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, media?: PublicMediaResolver): Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "collectionItem" | "wishlistItem" | "wishlist" | "previewWishlist"> {
+/** T02 safe projections. Stats remain T07. */
+export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, media?: PublicMediaResolver): Pick<PublicReadService, "profile" | "boxes" | "collectionItems" | "collectionItem" | "wishlistItem" | "wishlist" | "previewWishlist" | "tokenWishlist"> {
   async function resolveMedia(kind: "photo" | "avatar", referenceId: unknown, viewer: PublishedViewer): Promise<PublicMedia | null> {
     if (referenceId === null || referenceId === undefined) return null
     if (!identity(referenceId) || !media) throw new Error("Invalid media reference")
@@ -225,6 +226,18 @@ export function createPublicReadCore(rpc: SharingRpc, cursorSecret: string, medi
     wishlistItem: (ownerId, viewer, itemId, request) => detail(ownerId, viewer, itemId, "wishlist", request, parseWishlist),
     wishlist: (ownerId, viewer, request) => page(ownerId, viewer, "wishlist", undefined, request.cursor, parseWishlist),
     previewWishlist: (sessionOwnerId, request) => page(sessionOwnerId, GUEST_VIEWER, "wishlist", undefined, request.cursor, parseWishlist),
+    async tokenWishlist(token, viewer, request) {
+      try {
+        if (typeof token !== "string" || !tokenShape.test(token) || (viewer.kind === "authenticated" && !identity(viewer.userId))) return invalid
+        const response = await rpc("sharing_resolve_wishlist_token", { p_token: token, p_viewer_id: viewer.kind === "guest" ? null : viewer.userId })
+        if (response.error) return unavailable
+        const envelope = object(response.data)
+        if (envelope?.ok !== true) return failure(response.data)
+        const ownerId = object(envelope.data)?.ownerId
+        if (!identity(ownerId)) return unavailable
+        return page(ownerId, viewer, "wishlist", undefined, request.cursor, parseWishlist)
+      } catch { return unavailable }
+    },
   }
 }
 

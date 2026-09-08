@@ -4,6 +4,7 @@ import { publicReadResponse } from "./http"
 import { GET as preview } from "@/app/api/wishlist/preview/route"
 import { GET as collectionDetail } from "@/app/api/public/users/[userId]/items/[itemId]/route"
 import { GET as wishlistDetail } from "@/app/api/public/users/[userId]/wishlist/[itemId]/route"
+import { GET as tokenWishlist } from "@/app/api/public/wishlist/[token]/route"
 import { GET as profile } from "@/app/api/public/users/[userId]/route"
 
 const mocks = vi.hoisted(() => ({ cookies: vi.fn(), getUser: vi.fn(), rpc: vi.fn(), service: vi.fn() }))
@@ -60,6 +61,20 @@ describe("public HTTP boundaries", () => {
     expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ p_owner_id: owner, p_viewer_id: null })
     expect(mocks.rpc.mock.calls[1][0]).toBe("media_authorize_reference")
     expect(mocks.rpc.mock.calls[1][1]).toMatchObject({ p_kind: "avatar", p_reference_id: owner, p_viewer_id: null })
+  })
+
+  it("aliases a wishlist token through verified guest resolution", async () => {
+    const token = "c4000000-0000-4000-8000-000000000001"
+    const profile = { id: owner, nickname: "Collector", bio: "", avatar: null, sharedStyle: null, relationship: "none" }
+    mocks.rpc.mockResolvedValueOnce({ data: { ok: true, data: { ownerId: owner } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "guest", profile } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { revision: "0", viewerCategory: "guest", rows: [] } }, error: null })
+    const result = await tokenWishlist(new NextRequest(`http://localhost/api/public/wishlist/${token}?viewerId=${owner}`), { params: Promise.resolve({ token }) })
+    expect(result.status).toBe(200)
+    expect(result.headers.get("cache-control")).toContain("no-store")
+    expect(mocks.rpc.mock.calls[0]).toEqual(["sharing_resolve_wishlist_token", { p_token: token, p_viewer_id: null }])
+    expect(mocks.rpc.mock.calls[2][1]).toMatchObject({ p_owner_id: owner, p_surface: "wishlist", p_viewer_id: null })
+    expect(await result.json()).toEqual({ entries: [], nextCursor: null, hasMore: false })
   })
 
   it("defaults feature off without touching auth or service client", async () => {
