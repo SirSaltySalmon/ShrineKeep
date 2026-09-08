@@ -6,11 +6,18 @@ import { ItemCapExceededError } from "@/lib/api/item-cap-error"
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>
 
+type ItemPhotoInput = {
+  url: string
+  storage_path?: string | null
+  asset_id?: string | null
+  is_thumbnail: boolean
+}
+
 interface CreateItemParams {
   supabase: Supabase
   userId: string
   itemData: Record<string, unknown>
-  photos?: { url: string; storage_path?: string | null; is_thumbnail: boolean }[]
+  photos?: ItemPhotoInput[]
   tagIds?: string[]
   valueHistory?: { value: number; recorded_at: string }[]
   currentValue?: number | null
@@ -28,7 +35,7 @@ interface CreateItemsParams {
   userId: string
   items: Array<{
     itemData: Record<string, unknown>
-    photos?: { url: string; storage_path?: string | null; is_thumbnail: boolean }[]
+    photos?: ItemPhotoInput[]
     tagIds?: string[]
     valueHistory?: { value: number; recorded_at: string }[]
     currentValue?: number | null
@@ -54,11 +61,12 @@ interface CreateItemsResult {
  */
 function buildPhotosInsertData(
   itemId: string,
-  photos: { url: string; storage_path?: string | null; is_thumbnail: boolean }[]
+  photos: ItemPhotoInput[]
 ): Array<{
   item_id: string
   url: string
   storage_path: string | null
+  asset_id: string | null
   is_thumbnail: boolean
 }> {
   if (photos.length === 0) return []
@@ -67,6 +75,7 @@ function buildPhotosInsertData(
     item_id: itemId,
     url: p.url,
     storage_path: p.storage_path ?? null,
+    asset_id: p.asset_id ?? null,
     is_thumbnail: p.is_thumbnail,
   }))
 }
@@ -151,6 +160,7 @@ interface RelatedData {
     item_id: string
     url: string
     storage_path: string | null
+    asset_id: string | null
     is_thumbnail: boolean
   }>
   valueHistory: Array<{
@@ -165,7 +175,7 @@ interface RelatedData {
 
 interface ItemWithId {
   itemId: string
-  photos?: { url: string; storage_path?: string | null; is_thumbnail: boolean }[]
+  photos?: ItemPhotoInput[]
   tagIds?: string[]
   valueHistory?: { value: number; recorded_at: string }[]
   currentValue?: number | null
@@ -318,7 +328,7 @@ async function processCreates(
   userId: string,
   creates: Array<{
     itemData: Record<string, unknown>
-    photos?: { url: string; storage_path?: string | null; is_thumbnail: boolean }[]
+    photos?: ItemPhotoInput[]
     tagIds?: string[]
     valueHistory?: { value: number; recorded_at: string }[]
     currentValue?: number | null
@@ -370,7 +380,7 @@ async function processUpdates(
   updates: Array<{
     itemId: string
     itemData: Record<string, unknown>
-    photos?: { url: string; storage_path?: string | null; is_thumbnail: boolean }[]
+    photos?: ItemPhotoInput[]
     tagIds?: string[]
     valueHistory?: { value: number; recorded_at: string }[]
     currentValue?: number | null
@@ -435,7 +445,7 @@ export async function createItems({
   // Separate items into creates and updates
   const creates: Array<{
     itemData: Record<string, unknown>
-    photos?: { url: string; storage_path?: string | null; is_thumbnail: boolean }[]
+    photos?: ItemPhotoInput[]
     tagIds?: string[]
     valueHistory?: { value: number; recorded_at: string }[]
     currentValue?: number | null
@@ -443,7 +453,7 @@ export async function createItems({
   const updates: Array<{
     itemId: string
     itemData: Record<string, unknown>
-    photos?: { url: string; storage_path?: string | null; is_thumbnail: boolean }[]
+    photos?: ItemPhotoInput[]
     tagIds?: string[]
     valueHistory?: { value: number; recorded_at: string }[]
     currentValue?: number | null

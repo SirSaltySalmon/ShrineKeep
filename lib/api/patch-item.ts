@@ -115,7 +115,10 @@ async function applyPhotoOps(
     const fields: Record<string, unknown> = {}
     if (update.is_thumbnail !== undefined) fields.is_thumbnail = update.is_thumbnail
     if (update.url !== undefined) fields.url = update.url
-    if (update.storage_path !== undefined) fields.storage_path = update.storage_path ?? null
+    if (update.asset_id !== undefined) {
+      fields.asset_id = update.asset_id
+      if (update.storage_path !== undefined) fields.storage_path = update.storage_path ?? null
+    }
     if (Object.keys(fields).length === 0) continue
 
     const { error } = await supabase
@@ -136,6 +139,7 @@ async function applyPhotoOps(
         item_id: itemId,
         url: photo.url,
         storage_path: photo.storage_path ?? null,
+        asset_id: photo.asset_id ?? null,
         is_thumbnail: photo.is_thumbnail,
       }))
     )

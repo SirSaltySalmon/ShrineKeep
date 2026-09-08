@@ -2,6 +2,7 @@ export interface ItemFormPhoto {
   id?: string
   url: string
   storage_path?: string | null
+  asset_id?: string | null
   is_thumbnail: boolean
 }
 
@@ -21,12 +22,13 @@ export interface ItemFormSnapshot {
 }
 
 export interface ItemPhotoOps {
-  create?: Array<{ url: string; storage_path?: string | null; is_thumbnail: boolean }>
+  create?: Array<{ url: string; storage_path?: string | null; asset_id?: string | null; is_thumbnail: boolean }>
   update?: Array<{
     id: string
     is_thumbnail?: boolean
     url?: string
     storage_path?: string | null
+    asset_id?: string | null
   }>
   delete?: string[]
 }
@@ -66,7 +68,8 @@ function photosEqual(a: ItemFormPhoto, b: ItemFormPhoto): boolean {
   return (
     a.url === b.url &&
     a.is_thumbnail === b.is_thumbnail &&
-    normalizeStoragePath(a.storage_path) === normalizeStoragePath(b.storage_path)
+    normalizeStoragePath(a.storage_path) === normalizeStoragePath(b.storage_path) &&
+    (a.asset_id ?? null) === (b.asset_id ?? null)
   )
 }
 
@@ -106,6 +109,7 @@ export function buildItemFormSnapshot(input: {
       id: photo.id,
       url: photo.url,
       storage_path: normalizeStoragePath(photo.storage_path),
+      asset_id: photo.asset_id ?? null,
       is_thumbnail: photo.is_thumbnail,
     })),
     tag_ids: [...input.tag_ids],
@@ -140,6 +144,7 @@ function diffPhotos(baseline: ItemFormPhoto[], current: ItemFormPhoto[]): ItemPh
       create.push({
         url: photo.url,
         storage_path: normalizeStoragePath(photo.storage_path),
+        asset_id: photo.asset_id ?? null,
         is_thumbnail: photo.is_thumbnail,
       })
       continue
@@ -152,6 +157,9 @@ function diffPhotos(baseline: ItemFormPhoto[], current: ItemFormPhoto[]): ItemPh
     if (previous.url !== photo.url) patch.url = photo.url
     if (normalizeStoragePath(previous.storage_path) !== normalizeStoragePath(photo.storage_path)) {
       patch.storage_path = normalizeStoragePath(photo.storage_path)
+    }
+    if ((previous.asset_id ?? null) !== (photo.asset_id ?? null)) {
+      patch.asset_id = photo.asset_id ?? null
     }
     update.push(patch)
   }

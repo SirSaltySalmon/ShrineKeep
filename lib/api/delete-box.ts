@@ -70,6 +70,7 @@ export async function deleteBoxes(
     if (mode === "delete-all") {
       await removeUnreferencedUnregisteredStorage(supabase, userId, photoRows(payload.photos))
     }
+    // move-up keeps photo rows on surviving items; do not eager-delete those blobs.
     return { deletedCount }
   }
 

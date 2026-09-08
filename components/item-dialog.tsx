@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Upload, Search as SearchIcon, Trash2, LayoutGrid, Plus, X, Link as LinkIcon } from "lucide-react"
 import ThumbnailImage from "./thumbnail-image"
 import { ownerPhotoSource } from "@/lib/media/presentation"
+import { uploadOwnedMedia, discardOwnedMedia } from "@/lib/media/upload-client"
 import { ThumbnailBadge, ThumbnailActionButtons } from "./thumbnail-content"
 import ImageSearch from "./image-search"
 import ImageGalleryCarousel from "./image-gallery-carousel"
@@ -27,7 +28,8 @@ interface LocalPhoto {
   id?: string
   url: string
   previewUrl?: string
-  storage_path?: string // Storage path for Supabase storage files
+  storage_path?: string
+  asset_id?: string | null
   is_thumbnail: boolean
 }
 
@@ -42,7 +44,8 @@ function toLocalPhotos(item: Item | null): LocalPhoto[] {
     return sorted.map((p) => ({
       id: p.id,
       url: p.url,
-      storage_path: (p as any).storage_path,
+      storage_path: (p as Photo).storage_path,
+      asset_id: (p as Photo).asset_id ?? null,
       is_thumbnail: p.is_thumbnail || (!hasThumb && p === sorted[0]),
     }))
   }
@@ -177,28 +180,16 @@ export default function ItemDialog({
 
   // Cleanup function to delete unsaved uploaded files via server API
   const cleanupUnsavedUploads = useCallback(async () => {
-    const pathsToDelete = Array.from(unsavedUploadsRef.current)
-    if (pathsToDelete.length === 0) return
-    
+    const assetIds = Array.from(unsavedUploadsRef.current)
+    if (assetIds.length === 0) return
+
     setUnsavedUploadedPhotos(new Set())
     unsavedUploadsRef.current = new Set()
-    
-    // Call server API to cleanup unsaved uploads
-    try {
-      const response = await fetch("/api/storage/cleanup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ storage_paths: pathsToDelete }),
-      })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error("Failed to cleanup storage:", errorData.error)
-      }
+    try {
+      await discardOwnedMedia(assetIds)
     } catch (error) {
-      console.error("Error calling cleanup API:", error)
+      console.error("Error discarding unsaved uploads:", error)
       Sentry.captureException(error, {
         tags: {
           area: "items",
@@ -402,28 +393,14 @@ export default function ItemDialog({
               photos: baselineRef.current.photos.filter((p) => p.id !== photoToRemove.id),
             }
           }
-        } else {
-          // Unsaved photo: delete from storage only
-          const response = await fetch("/api/storage/cleanup", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ storage_paths: [photoToRemove.storage_path] }),
+        } else if (photoToRemove.asset_id) {
+          await discardOwnedMedia([photoToRemove.asset_id])
+          setUnsavedUploadedPhotos((prev) => {
+            const next = new Set(prev)
+            next.delete(photoToRemove.asset_id!)
+            unsavedUploadsRef.current = next
+            return next
           })
-
-          if (!response.ok) {
-            console.error("Failed to delete photo from storage")
-            // Still remove from UI even if storage deletion fails (it's unsaved)
-          } else {
-            // Remove from unsaved uploads tracking
-            setUnsavedUploadedPhotos((prev) => {
-              const next = new Set(prev)
-              next.delete(photoToRemove.storage_path!)
-              unsavedUploadsRef.current = next
-              return next
-            })
-          }
         }
       } catch (error) {
         console.error("Failed to delete photo:", error)
@@ -474,16 +451,32 @@ export default function ItemDialog({
     const newPhotos: LocalPhoto[] = []
     for (let i = 0; i < toAdd; i++) {
       const file = files[i]
+      if (!file) continue
       if (file.size > 4 * 1024 * 1024) {
         alert(`"${file.name}" is larger than 4MB and was skipped.`)
         continue
       }
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${Math.random()}.${fileExt}`
-      // Use user-specific path: {user_id}/items/{filename}
-      const filePath = `${user.id}/items/${fileName}`
-      const { error } = await supabase.storage.from("item-photos").upload(filePath, file)
-      if (error) {
+      if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+        alert(`"${file.name}" is not a JPEG, PNG, WebP, or GIF and was skipped.`)
+        continue
+      }
+      try {
+        const uploaded = await uploadOwnedMedia(file, "photo")
+        const previewUrl = URL.createObjectURL(file)
+        uploadPreviewUrls.current.add(previewUrl)
+        newPhotos.push({
+          url: uploaded.objectPath,
+          previewUrl,
+          storage_path: uploaded.objectPath,
+          asset_id: uploaded.assetId,
+          is_thumbnail: false,
+        })
+        setUnsavedUploadedPhotos((prev) => {
+          const next = new Set(prev).add(uploaded.assetId)
+          unsavedUploadsRef.current = next
+          return next
+        })
+      } catch (error) {
         console.error("Upload error:", error)
         Sentry.captureException(error, {
           tags: {
@@ -491,28 +484,8 @@ export default function ItemDialog({
             operation: "upload_photo",
           },
         })
-        alert(`Failed to upload "${file.name}": ${error.message}`)
-        continue
+        alert(`Failed to upload "${file.name}".`)
       }
-      
-      // Persist a canonical object URL, never a long-lived bearer token.
-      // Unsaved objects render from a local preview until a photo reference exists.
-      const { data: publicUrlData } = supabase.storage.from("item-photos").getPublicUrl(filePath)
-      const url = publicUrlData.publicUrl
-      const previewUrl = URL.createObjectURL(file)
-      uploadPreviewUrls.current.add(previewUrl)
-      newPhotos.push({ 
-        url, 
-        previewUrl,
-        storage_path: filePath,
-        is_thumbnail: false 
-      })
-      // Track this as an unsaved upload
-      setUnsavedUploadedPhotos((prev) => {
-        const next = new Set(prev).add(filePath)
-        unsavedUploadsRef.current = next
-        return next
-      })
     }
     setPhotos((prev) => {
       const next = [...prev]
@@ -571,6 +544,7 @@ export default function ItemDialog({
             photos: currentSnapshot.photos.map((p) => ({
               url: p.url,
               storage_path: p.storage_path,
+              asset_id: p.asset_id ?? null,
               is_thumbnail: p.is_thumbnail,
             })),
             tag_ids: currentSnapshot.tag_ids,

@@ -57,7 +57,7 @@ export interface ItemCopyPayload {
   thumbnail_url?: string | null
   is_wishlist: boolean
   wishlist_target_box_id?: string | null
-  photos: { url: string; storage_path?: string; is_thumbnail: boolean }[]
+  photos: { url: string; storage_path?: string; asset_id?: string | null; is_thumbnail: boolean }[]
   tag_ids: string[]
   value_history?: { value: number; recorded_at: string }[]
 }
@@ -76,6 +76,7 @@ export interface Photo {
   item_id: string
   url: string
   storage_path?: string // Storage path for Supabase storage files
+  asset_id?: string | null
   is_thumbnail: boolean
   uploaded_at: string
 }

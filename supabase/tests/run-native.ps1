@@ -43,6 +43,8 @@ try {
     'supabase/migrations/20260908150000_audience_ceiling.sql',
     'supabase/migrations/20260908160000_sharing_box_move_up.sql',
     'supabase/migrations/20260908170000_drop_wishlist_item_private.sql',
+    'supabase/migrations/20260908180000_backfill_media_assets.sql',
+    'supabase/migrations/20260908181000_restrict_direct_storage_writes.sql',
     'supabase/tests/social-foundation.sql',
     'supabase/tests/social-transactions.sql',
     'supabase/tests/public-reads.sql',
@@ -62,7 +64,9 @@ try {
     'supabase/tests/owner-media.sql',
     'supabase/tests/box-paste-inheritance.sql',
     'supabase/tests/legacy-revocation.sql',
-    'supabase/tests/audience-ceiling.sql'
+    'supabase/tests/audience-ceiling.sql',
+    'supabase/tests/media-backfill.sql',
+    'supabase/tests/media-storage-writes.sql'
   )
   foreach ($relativePath in $sqlFiles) {
     & (Join-Path $pgBin 'psql.exe') -X -h 127.0.0.1 -p $testPort -U postgres -v ON_ERROR_STOP=1 -f (Join-Path $repoRoot $relativePath) | Out-Null

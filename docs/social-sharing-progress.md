@@ -677,13 +677,19 @@ then `media_finalize_upload` and `media_attach_photo` / `media_attach_avatar`
 
 ### Done when
 
-- [ ] A fresh upload produces a `ready` `media_assets` row and a `photos.asset_id` before any read occurs.
-- [ ] Backfill leaves zero `photos` rows with a Supabase `storage_path` and a null `asset_id`, or reports each
+- [x] A fresh upload produces a `ready` `media_assets` row and a `photos.asset_id` before any read occurs.
+- [x] Backfill leaves zero `photos` rows with a Supabase `storage_path` and a null `asset_id`, or reports each
   exception by ID.
-- [ ] Direct browser Storage writes to `item-photos` are denied and uploading still works.
-- [ ] The GC schedule is in the repo and observed to drain the queue on the clone without manual invocation.
-- [ ] Deleting a box in move-up mode leaves every surviving item's photo blob in place and reachable.
-- [ ] `media-lifecycle.sql`, `owner-media.sql`, `media-gc-worker.sql`, and `media-gc-storage.mjs` all pass.
+- [x] Direct browser Storage writes to `item-photos` are denied and uploading still works.
+- [x] The GC schedule is in the repo and observed to drain the queue on the clone without manual invocation.
+- [x] Deleting a box in move-up mode leaves every surviving item's photo blob in place and reachable.
+- [x] `media-lifecycle.sql`, `owner-media.sql`, `media-gc-worker.sql`, and `media-gc-storage.mjs` all pass.
+
+Chosen trigger: `vercel.json` GET `/api/media/gc` with `CRON_SECRET`. Clone wakeup is `instrumentation.ts`
+every minute against `http://127.0.0.1:3000` while `npm run dev` is running. Observed 2026-09-08: queued
+asset `9dc3a1ce-7620-4373-9464-e1b3da92e0a9` reached `deleted` and left the queue after the Next minute
+tick, with no hand-run POST. Direct `item-photos` writes are denied (`media-write-path.mjs`). Clone
+backfill of existing rows reported zero remaining storage paths without `asset_id`.
 
 ---
 

@@ -107,6 +107,7 @@ describe("diffItemPatch", () => {
           {
             url: "https://example.com/c.jpg",
             storage_path: "user-1/items/c.jpg",
+            asset_id: null,
             is_thumbnail: true,
           },
         ],

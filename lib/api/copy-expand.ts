@@ -26,7 +26,7 @@ export interface ExpandedItemCreateInput {
   box_id?: string | null
   wishlist_target_box_id?: string | null
   is_wishlist: boolean
-  photos: { url: string; storage_path?: string; is_thumbnail: boolean }[]
+  photos: { url: string; storage_path?: string; asset_id?: string | null; is_thumbnail: boolean }[]
   tag_ids?: string[]
   value_history?: { value: number; recorded_at: string }[]
 }
@@ -43,7 +43,7 @@ interface SourceItemRow {
   thumbnail_url: string | null
   is_wishlist: boolean
   wishlist_target_box_id: string | null
-  photos?: { url: string; storage_path?: string | null; is_thumbnail: boolean }[]
+  photos?: { url: string; storage_path?: string | null; asset_id?: string | null; is_thumbnail: boolean }[]
   item_tags?: Array<{ tag?: { id?: string } }>
 }
 
@@ -77,7 +77,7 @@ export interface AtomicBoxItemInput {
   acquisition_date: string | null
   acquisition_price: number | null
   thumbnail_url: string | null
-  photos: { url: string; storage_path?: string; is_thumbnail: boolean }[]
+  photos: { url: string; storage_path?: string; asset_id?: string | null; is_thumbnail: boolean }[]
   tag_ids: string[]
   value_history?: { value: number; recorded_at: string }[]
 }
@@ -90,7 +90,7 @@ export interface AtomicWishlistItemInput {
   current_value: number | null
   expected_price: number | null
   thumbnail_url: string | null
-  photos: { url: string; storage_path?: string; is_thumbnail: boolean }[]
+  photos: { url: string; storage_path?: string; asset_id?: string | null; is_thumbnail: boolean }[]
   tag_ids: string[]
   value_history?: { value: number; recorded_at: string }[]
 }
@@ -130,6 +130,7 @@ function buildItemCopyPayloadFromRow(
   const photos = (item.photos ?? []).map((p) => ({
     url: p.url,
     storage_path: p.storage_path ?? undefined,
+    asset_id: p.asset_id ?? null,
     is_thumbnail: p.is_thumbnail,
   }))
   const tagIds = (item.item_tags ?? [])
@@ -179,7 +180,7 @@ export async function expandItemRefsToCreateInputs(
       thumbnail_url,
       is_wishlist,
       wishlist_target_box_id,
-      photos (url, storage_path, is_thumbnail),
+      photos (url, storage_path, asset_id, is_thumbnail),
       item_tags (
         tag:tags (id)
       )
@@ -234,6 +235,7 @@ export async function expandItemRefsToCreateInputs(
     const photos = (item.photos ?? []).map((p) => ({
       url: p.url,
       storage_path: p.storage_path ?? undefined,
+      asset_id: p.asset_id ?? null,
       is_thumbnail: p.is_thumbnail,
     }))
     const tagIds = (item.item_tags ?? [])
@@ -357,7 +359,7 @@ export async function expandBoxRefsToTrees(
       is_wishlist,
       wishlist_target_box_id,
       position,
-      photos (url, storage_path, is_thumbnail),
+      photos (url, storage_path, asset_id, is_thumbnail),
       item_tags (
         tag:tags (id)
       )
@@ -382,7 +384,7 @@ export async function expandBoxRefsToTrees(
       thumbnail_url,
       is_wishlist,
       position,
-      photos (url, storage_path, is_thumbnail),
+      photos (url, storage_path, asset_id, is_thumbnail),
       item_tags (
         tag:tags (id)
       )

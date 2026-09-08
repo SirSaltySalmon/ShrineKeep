@@ -13,6 +13,7 @@ import { isPrivacyConflictError, PRIVACY_CONFLICT_CODE, PRIVACY_CONFLICT_MESSAGE
 interface PhotoData {
   url: string
   storage_path?: string
+  asset_id?: string | null
   is_thumbnail: boolean
 }
 

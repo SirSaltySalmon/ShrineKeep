@@ -1,6 +1,7 @@
--- Run only after deploying/testing media-gc and installing pg_cron + pg_net.
+-- Clone/hosted optional wakeup for the Edge function.
+-- Chosen production trigger is vercel.json GET /api/media/gc (W2).
+-- Run this only after deploying media-gc and installing pg_cron + pg_net.
 -- Provision media_gc_url and media_gc_worker_secret in Vault via the secret store.
--- This script never contains an invocation credential or enables social reads.
 BEGIN;
 DO $$
 DECLARE worker_url text; worker_secret text;

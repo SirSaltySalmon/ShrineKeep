@@ -1,64 +1,53 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { requireMutableUser } from "@/lib/judge/require-mutable-user"
+import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 /**
- * Cleanup endpoint for deleting unsaved uploaded files from storage.
- * Validates that the user owns the files before deletion.
+ * Discard unsaved uploads by asset id. Paths are accepted only to look up the
+ * matching owned asset; the server never deletes Storage objects here.
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createSupabaseServerClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const session = await requireMutableUser()
+    if (!session.ok) return session.response
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const body = await request.json() as { asset_ids?: unknown; storage_paths?: unknown }
+    const assetIds = Array.isArray(body.asset_ids)
+      ? body.asset_ids.filter((value): value is string => typeof value === "string")
+      : []
+    const storagePaths = Array.isArray(body.storage_paths)
+      ? body.storage_paths.filter((value): value is string => typeof value === "string")
+      : []
+
+    const service = createSupabaseServiceClient()
+    const ids = new Set(assetIds)
+    if (storagePaths.length > 0) {
+      const owned = storagePaths.filter((path) => path.split("/")[0] === session.user.id)
+      if (owned.length > 0) {
+        const { data } = await service
+          .from("media_assets")
+          .select("id")
+          .eq("owner_id", session.user.id)
+          .in("object_path", owned)
+        for (const row of data ?? []) ids.add(row.id)
+      }
     }
 
-    const { storage_paths } = await request.json() as { storage_paths: string[] }
-
-    if (!storage_paths || !Array.isArray(storage_paths) || storage_paths.length === 0) {
-      return NextResponse.json({ error: "storage_paths array is required" }, { status: 400 })
+    if (ids.size === 0) {
+      return NextResponse.json({ error: "No valid uploads provided" }, { status: 400 })
     }
 
-    // Validate that all paths belong to the current user
-    // Path format: {user_id}/items/{filename}
-    const userId = user.id
-    const validPaths = storage_paths.filter((path) => {
-      if (!path || typeof path !== "string") return false
-      const pathParts = path.split("/")
-      return pathParts.length >= 2 && pathParts[0] === userId
-    })
-
-    if (validPaths.length === 0) {
-      return NextResponse.json({ error: "No valid storage paths provided" }, { status: 400 })
+    for (const assetId of Array.from(ids)) {
+      await service.rpc("media_discard_upload", {
+        p_owner_id: session.user.id,
+        p_asset_id: assetId,
+      })
     }
 
-    // Delete files from storage
-    const { error, data } = await supabase.storage
-      .from("item-photos")
-      .remove(validPaths)
-
-    if (error) {
-      console.error("Error deleting files from storage:", error)
-      return NextResponse.json({ error: "Failed to delete files" }, { status: 500 })
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      deleted: validPaths.length,
-      failed: storage_paths.length - validPaths.length 
-    })
+    return NextResponse.json({ success: true, discarded: ids.size })
   } catch (error: unknown) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : typeof error === "object" && error !== null && "message" in error
-          ? String((error as { message: unknown }).message)
-          : "Failed to cleanup storage"
-
+    const message = error instanceof Error ? error.message : "Failed to cleanup storage"
     console.error("Error cleaning up storage:", message, error)
     return NextResponse.json({ error: message }, { status: 500 })
   }

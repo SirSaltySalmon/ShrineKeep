@@ -271,6 +271,21 @@ describe("applyItemPatch", () => {
     expect(calls.tagsQueried).toBe(true)
   })
 
+  it("does not rewrite storage_path in place without a new asset", async () => {
+    const { supabase, calls } = makeSupabase({ item: { id: "item-1" } })
+    await applyItemPatch({
+      supabase,
+      userId: "user-1",
+      patch: {
+        id: "item-1",
+        photos: {
+          update: [{ id: "photo-1", storage_path: "user-1/items/replaced.jpg" }],
+        },
+      },
+    })
+    expect(calls.photosUpdate).toEqual([])
+  })
+
   it("skips tag validation when tag_ids are omitted", async () => {
     const { supabase, calls } = makeSupabase({ item: { id: "item-1" } })
     await applyItemPatch({

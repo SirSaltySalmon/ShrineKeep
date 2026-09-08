@@ -15,6 +15,7 @@ import {
   PASSWORD_LENGTH_MESSAGE,
 } from "@/lib/validation"
 import TurnstileWidget, { type TurnstileWidgetRef } from "@/components/turnstile-widget"
+import { uploadOwnedMedia } from "@/lib/media/upload-client"
 import { User } from "lucide-react"
 
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024 // 2MB
@@ -90,7 +91,7 @@ export interface PersonalSettingsProps {
   avatarUrl: string | null
   /** Incremented when avatar changes; used to cache-bust the image URL. */
   avatarVersion?: number
-  /** Current user id (for storage path). */
+  /** Current user id. Avatar uploads now infer owner from the session. */
   userId: string
   onDisplayNameChange: (value: string) => void
   onUseCustomDisplayNameChange: (value: boolean) => void
@@ -111,6 +112,7 @@ export function PersonalSettings({
   onUseCustomDisplayNameChange,
   onAvatarChange,
 }: PersonalSettingsProps) {
+  void userId
   const supabase = createSupabaseClient()
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
@@ -245,29 +247,13 @@ export function PersonalSettings({
     setAvatarUploading(true)
     try {
       const croppedFile = await cropImageToSquare(file)
-      const path = `${userId}/avatar.jpg`
-      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, croppedFile, {
-        upsert: true,
-        contentType: "image/jpeg",
-      })
-      if (uploadError) {
-        setAvatarError(uploadError.message)
-        setAvatarUploading(false)
-        return
-      }
-      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path)
-      const url = urlData.publicUrl
-      const res = await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatar_url: url }),
-      })
-      if (!res.ok) {
+      const uploaded = await uploadOwnedMedia(croppedFile, "avatar")
+      if (!uploaded.publicUrl) {
         setAvatarError("Failed to save avatar.")
         setAvatarUploading(false)
         return
       }
-      onAvatarChange(url)
+      onAvatarChange(uploaded.publicUrl)
     } catch {
       setAvatarError("Something went wrong. Please try again.")
     } finally {
