@@ -1,6 +1,6 @@
 # Social sharing — work orders
 
-Updated 2026-09-08. Replaces the previous summary ledger, which had drifted out of agreement with the
+Updated 2026-09-09. Replaces the previous summary ledger, which had drifted out of agreement with the
 working tree. Scope and product rules stay in the [implementation plan](social-sharing-implementation-plan.md);
 this file says what is true today and what to do next.
 
@@ -224,7 +224,16 @@ legacy `/api/wishlist/[token]` JSON route is deleted. Client pagination uses `/a
 - Authenticated Social UI at `/social` (friends, incoming/outgoing, inbox, blocked), gated by
   `SOCIAL_MUTATIONS_ENABLED`. AppNav includes Social. List keys are `sharingKeys.social(actorId, …)`; a local
   block evicts `sharing-public` and `public` caches for that owner; logout calls `queryClient.clear()`.
-  Friend rows still link to `/users/[id]`, which 404s until W6.
+  Friend rows link to `/users/[id]`.
+- Public profile HTML at `/users/[userId]` (`loadPublicProfilePage`, `components/public-profile/*`). Showcase
+  and Wishlist tabs always render. Guest nav is signed-out; signed-in nav uses the viewer's `users.name`, never
+  the profile owner's unless they are the same account. Theme is route-scoped (`PublicTheme` /
+  `publicStyleProperties`), not `document.documentElement`. Copy affordances are omitted. Empty tabs use
+  `PUBLIC_EMPTY_COPY` ("Nothing is visible here.").
+- Root collection items at `GET /api/public/users/[userId]/items`. When the collection root is not visible the
+  RPC 404s; Showcase maps that at root only to an empty page (`emptyRootCollectionPage`).
+- Owner Wishlist "Preview public wishlist" against `/api/wishlist/preview` with `sharingKeys.preview`. The token
+  page links to `/users/[ownerId]?tab=wishlist` and uses the same `PublicTheme` wrapper.
 - Social migrations of predicates, invariants, triggers, and service-only RPCs, with SQL tests that pass
 on the clone. `npm run test:db:native` runs them against a fresh cluster. Latest: `20260908210000_unify_display_name.sql`.
 - A fenced GC worker with proven Storage retry behaviour: `node --env-file=.env.local supabase/tests/media-gc-storage.mjs`.
@@ -243,9 +252,9 @@ were never created. Deferred by decision, so this is expected — but see the na
 
 ### What does not exist
 
-`app/users/[userId]/*`, `components/public-profile/*`,
-`lib/copy/*`, `supabase/functions/copy-worker/*`. T10–T12 public profile UI is unstarted. T08 presentation
-lives in `lib/sharing/presentation/`. T09 Social UI lives in `app/social/*` and `components/social/*`.
+`lib/copy/*`, `supabase/functions/copy-worker/*`. T06 copy UI remains deferred. T12 public-identity settings
+are in `components/settings/personal-settings.tsx`. T10–T11 public profile UI lives in `app/users/[userId]/*`
+and `components/public-profile/*`.
 
 ### Open defects, recorded so they are not rediscovered
 
@@ -828,13 +837,13 @@ Copy to own dashboard is deferred, so render no copy affordance at all rather th
   the ceiling makes the state unrepresentable, so rendering it correctly is no longer a passing result.
 - [ ] Owner preview and a genuinely signed-out browser show identical entries, order, fields, empty state,
   and theme. Compare in two isolated sessions, not by reasoning about the code.
-- [ ] Page titles, Open Graph metadata, and the hydration payload carry only the safe projection.
+- [x] Page titles, Open Graph metadata, and the hydration payload carry only the safe projection.
 - [ ] Visiting a profile does not alter the visitor's saved theme or the owner's editor data.
 - [ ] Both tabs are always present and each fetches only its own data when opened. Verify with the network
   panel, not by reading the hook.
-- [ ] Empty tabs show neutral empty states. No string anywhere claims a wishlist or collection is not public.
-- [ ] A profile with nothing public renders normally with two empty tabs rather than a 404.
-- [ ] The token page links through to the profile (W1 step 6, deferred to here).
+- [x] Empty tabs show neutral empty states. No string anywhere claims a wishlist or collection is not public.
+- [x] A profile with nothing public renders normally with two empty tabs rather than a 404.
+- [x] The token page links through to the profile (W1 step 6, deferred to here).
 
 ---
 
