@@ -16,6 +16,7 @@ export default async function PublicWishlistPage(props: PublicWishlistPageProps)
   return (
     <PublicWishlistClient
       token={token}
+      ownerId={loaded.profile.id}
       nickname={loaded.profile.nickname}
       items={loaded.page.entries}
       nextCursor={loaded.page.nextCursor}

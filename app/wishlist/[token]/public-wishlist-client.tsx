@@ -1,29 +1,19 @@
 "use client"
 
-import { useLayoutEffect, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { Sparkle } from "lucide-react"
 import { SiteLogo } from "@/components/site-logo"
 import { Button } from "@/components/ui/button"
 import ItemCard from "@/components/item-card"
+import { PublicTheme } from "@/components/public-profile/public-theme"
 import { READ_ONLY_CAPABILITIES, assertPublicCapabilities } from "@/lib/sharing/presentation/capabilities"
 import { presentPublicWishlistItem } from "@/lib/sharing/presentation/adapters"
 import type { CursorPage, PublicStyle, PublicWishlistItem } from "@/lib/sharing/contracts"
-import { applyColorScheme } from "@/lib/settings"
-import {
-  FONT_FAMILY_CSS,
-  DEFAULT_BODY_FONT_FAMILY,
-  DEFAULT_HEADER_FONT_FAMILY,
-  type FontFamilyId,
-} from "@/lib/fonts"
-
-function fontStackForKey(key: string | null | undefined): string | undefined {
-  if (!key) return undefined
-  return FONT_FAMILY_CSS[key as FontFamilyId]
-}
 
 interface PublicWishlistClientProps {
   token: string
+  ownerId: string
   nickname: string
   items: PublicWishlistItem[]
   nextCursor: string | null
@@ -33,6 +23,7 @@ interface PublicWishlistClientProps {
 
 export default function PublicWishlistClient({
   token,
+  ownerId,
   nickname,
   items: initialItems,
   nextCursor: initialCursor,
@@ -46,31 +37,6 @@ export default function PublicWishlistClient({
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [loadingMore, setLoadingMore] = useState(false)
   if (capabilities.canCopyToOwnDashboard) throw new Error("public token wishlist must stay read-only")
-
-  useLayoutEffect(() => {
-    const root = document.documentElement
-    const scheme = sharedStyle?.colorScheme
-    if (!scheme || Object.keys(scheme).length === 0) return
-
-    const cssVars = applyColorScheme(scheme)
-    const headerCss = fontStackForKey(sharedStyle.headerFontFamily) ?? FONT_FAMILY_CSS[DEFAULT_HEADER_FONT_FAMILY]
-    const bodyCss = fontStackForKey(sharedStyle.bodyFontFamily) ?? FONT_FAMILY_CSS[DEFAULT_BODY_FONT_FAMILY]
-    const properties = [...Object.keys(cssVars), "--font-heading", "--font-sans"]
-    const previous = new Map(properties.map(property => [property, root.style.getPropertyValue(property)]))
-
-    Object.entries(cssVars).forEach(([property, value]) => {
-      root.style.setProperty(property, value)
-    })
-    root.style.setProperty("--font-heading", headerCss)
-    root.style.setProperty("--font-sans", bodyCss)
-
-    return () => {
-      previous.forEach((value, property) => {
-        if (value) root.style.setProperty(property, value)
-        else root.style.removeProperty(property)
-      })
-    }
-  }, [sharedStyle])
 
   async function loadMore() {
     if (!hasMore || !nextCursor || loadingMore) return
@@ -96,7 +62,8 @@ export default function PublicWishlistClient({
   const pageTitle = `${nickname}'s Wishlist`
 
   return (
-    <div className="min-h-screen bg-background min-w-0 overflow-hidden">
+    <PublicTheme style={sharedStyle}>
+      <div className="min-h-screen bg-background min-w-0 overflow-hidden">
       <header className="border-b min-w-0">
         <div className="container mx-auto px-4 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6 min-w-0">
           <div className="flex flex-row gap-2 items-center">
@@ -112,9 +79,14 @@ export default function PublicWishlistClient({
               </span>
             </Link>
           </div>
-          <h2 className="font-semibold text-foreground sm:text-right sm:max-w-xl sm:ml-auto truncate min-w-0">
-            {pageTitle}
-          </h2>
+          <div className="min-w-0 sm:text-right sm:max-w-xl sm:ml-auto">
+            <h2 className="font-semibold text-foreground truncate">
+              {pageTitle}
+            </h2>
+            <Link href={`/users/${ownerId}?tab=wishlist`} className="text-fluid-sm text-muted-foreground hover:underline">
+              View profile
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -150,6 +122,7 @@ export default function PublicWishlistClient({
           ) : null}
         </div>
       </main>
-    </div>
+      </div>
+    </PublicTheme>
   )
 }

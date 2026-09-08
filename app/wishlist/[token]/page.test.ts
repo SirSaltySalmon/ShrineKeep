@@ -36,6 +36,7 @@ describe("token wishlist page", () => {
     const page = await PublicWishlistPage({ params: Promise.resolve({ token }) })
     expect(page.type).toBe(PublicWishlistClient)
     expect(page.props.token).toBe(token)
+    expect(page.props.ownerId).toBe(owner)
     expect(page.props.nickname).toBe("Collector")
     expect(page.props.items).toEqual([wish])
     expect(page.props.items[0]).not.toHaveProperty("acquisition_price")

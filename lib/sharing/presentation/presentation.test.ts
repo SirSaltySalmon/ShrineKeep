@@ -44,8 +44,36 @@ describe("owner containers still own their chrome", () => {
     expect(src).toContain("presentPublicWishlistItem")
     expect(src).toContain("READ_ONLY_CAPABILITIES")
     expect(src).not.toMatch(/useCopiedItem|ItemDialog|use-webmcp|agent-staging|useSubscription/)
-    expect(src).toContain("applyColorScheme")
+    expect(src).not.toMatch(/document\.documentElement/)
+    expect(src).toContain("PublicTheme")
     expect(src).toContain("bg-background")
+    expect(src).toContain("/users/${ownerId}")
+  })
+
+  it("public profile UI reuses cards/stats and never mounts owner editors or copy", () => {
+    const files = [
+      "../../../app/users/[userId]/public-profile-client.tsx",
+      "../../../components/public-profile/showcase-tab.tsx",
+      "../../../components/public-profile/wishlist-tab.tsx",
+      "../../../components/public-profile/public-theme.tsx",
+      "../../../components/public-profile/box-stats-dialog.tsx",
+      "../../../components/public-profile/public-nav.tsx",
+    ].map((relative) => readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8"))
+    const src = files.join("\n")
+    expect(src).toContain("presentPublicBox")
+    expect(src).toContain("presentPublicCollectionItem")
+    expect(src).toContain("presentPublicWishlistItem")
+    expect(src).toContain("BoxStatsPresentation")
+    expect(src).toContain("publishedCapabilities(false)")
+    expect(src).toContain("PUBLIC_EMPTY_COPY")
+    expect(src).toContain("sharingKeys.public")
+    expect(src).toContain("surface: \"wishlist\"")
+    expect(src).toContain("surface: \"boxes\"")
+    expect(src).not.toMatch(/useCopiedItem|ItemDialog|use-webmcp|agent-staging|useSubscription|Copy to own dashboard/)
+    expect(src).not.toMatch(/not public|unpublished|collection is private/)
+    expect(src).not.toMatch(/document\.documentElement|applyPublicWishlistColors/)
+    expect(src).toContain("publicStyleProperties")
+    expect(src).toContain("emptyRootCollectionPage")
   })
 
   it("item and box cards use theme tokens and touch-safe hover, not hex palettes", () => {

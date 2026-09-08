@@ -12,4 +12,20 @@ describe("wishlist owner sharing", () => {
     expect(src).not.toContain("<ContainerAudienceFields")
     expect(src).toContain("<WishlistSharingPanel")
   })
+
+  it("previews the guest projection on a separate cache key", () => {
+    expect(src).toContain("GuestWishlistPreview")
+    expect(src).toContain("Preview public wishlist")
+    expect(src).toContain("Exit preview")
+    const preview = readFileSync(
+      fileURLToPath(new URL("../../components/wishlist/guest-preview.tsx", import.meta.url)),
+      "utf8",
+    )
+    expect(preview).toContain("sharingKeys.preview")
+    expect(preview).toContain("fetchPreviewWishlist")
+    expect(preview).toContain("publishedCapabilities(false)")
+    expect(preview).not.toMatch(/ItemDialog|onMarkAcquired|canEdit/)
+    expect(preview).toContain("visibleCount")
+    expect(preview).toContain("PUBLIC_EMPTY_COPY")
+  })
 })
