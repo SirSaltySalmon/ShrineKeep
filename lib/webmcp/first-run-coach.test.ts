@@ -9,6 +9,28 @@ import {
 } from "./first-run-coach"
 
 describe("reduceCoach", () => {
+  it.each([null, "created-box"])("skips the box requirement with createdBoxId %s, including after reload", (createdBoxId) => {
+    let state = reduceCoach({
+      ...initialCoachState("u1"), step: "open_box", createdBoxId,
+    }, { type: "skip_step", boxId: null })
+    expect(state).toMatchObject({ step: "copy_prices", boxCheckSkipped: true })
+
+    state = parseCoachState(JSON.stringify(state), "u1")
+    for (const boxId of [null, "other-box", createdBoxId]) {
+      state = reduceCoach(state, { type: "box_opened", boxId })
+      expect(state.step).toBe("copy_prices")
+    }
+    state = reduceCoach(state, { type: "tool_start", name: "stage_item_edits" })
+    state = reduceCoach(state, { type: "box_opened", boxId: null })
+    expect(state.step).toBe("wait_price_approve")
+    state = reduceCoach(state, {
+      type: "apply_success", sourceTool: "stage_item_edits", boxId: null, appliedCount: 1,
+    })
+    expect(state.step).toBe("done")
+    expect(initialCoachState("u1").boxCheckSkipped).toBeFalsy()
+    expect(parseCoachState(JSON.stringify(state), "other-user").boxCheckSkipped).toBeFalsy()
+  })
+
   it("advances name, init tool, apply with box id, open box, price tool, priced apply", () => {
     let state = initialCoachState("u1")
     state = reduceCoach(state, { type: "set_name", name: "  Pokemon  " })

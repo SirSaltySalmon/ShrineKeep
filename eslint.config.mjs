@@ -1,3 +1,8 @@
 import nextVitals from "eslint-config-next/core-web-vitals"
 
-export default [...nextVitals]
+const eslintConfig = [
+  { ignores: [".agents/**", ".claude/**"] },
+  ...nextVitals,
+]
+
+export default eslintConfig

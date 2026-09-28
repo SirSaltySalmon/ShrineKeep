@@ -51,7 +51,6 @@ export async function createBoxes(
     parent_box_id: box.parent_box_id || null,
     position: box.position ?? 0,
     user_id: userId,
-    is_public: false,
   }))
 
   const { data: newBoxes, error } = await supabase

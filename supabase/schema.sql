@@ -138,6 +138,8 @@ CREATE TABLE IF NOT EXISTS public.user_settings (
   wishlist_apply_colors BOOLEAN DEFAULT false NOT NULL,
   use_custom_display_name BOOLEAN DEFAULT true NOT NULL,
   dashboard_demo_prompt_dismissed BOOLEAN DEFAULT false NOT NULL,
+  ai_widget_visible BOOLEAN DEFAULT true NOT NULL,
+  ai_tutorial_reset_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()) NOT NULL
 );
@@ -489,7 +491,7 @@ CREATE POLICY "Users can manage items in own wish lists"
     )
   );
 
--- Function to automatically create user profile on signup (name from Google/full_name or username)
+-- Function to automatically create user profile on signup (name from Google/full_name, else Collector-<uuid suffix>)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -501,8 +503,7 @@ BEGIN
     COALESCE(
       NULLIF(TRIM(NEW.raw_user_meta_data->>'name'), ''),
       NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''),
-      NULLIF(TRIM(NEW.raw_user_meta_data->>'username'), ''),
-      'user_' || substr(NEW.id::text, 1, 8)
+      'Collector-' || right(NEW.id::text, 8)
     )
   );
   INSERT INTO public.user_settings (user_id)

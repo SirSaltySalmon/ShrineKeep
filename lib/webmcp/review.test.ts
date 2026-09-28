@@ -82,6 +82,16 @@ describe("buildApprovedCreatedItems", () => {
 })
 
 describe("switchCreateItemKind", () => {
+  it.each([0, null])("retains a zero or absent research estimate (%s) without using valuation", (retailEstimate) => {
+    const entry = suggestion({ key: "card", name: "Aerial", itemKind: "wishlist", retailEstimate, currentValue: 99 })
+    const owned = switchCreateItemKind(entry, "collection")
+    expect(owned.acquisitionPrice).toBe(retailEstimate)
+    const wishlist = switchCreateItemKind(owned, "wishlist")
+    expect(wishlist.expectedPrice).toBe(retailEstimate)
+    expect(wishlist.currentValue).toBe(99)
+    expect(switchCreateItemKind(wishlist, "wishlist")).toBe(wishlist)
+  })
+
   it("copies expected price into acquisition when moving wishlist to owned", () => {
     const next = switchCreateItemKind(
       suggestion({ key: "card", name: "Aerial", itemKind: "wishlist", expectedPrice: 27.95, currentValue: 30 }),
@@ -125,6 +135,6 @@ describe("persistAgentReviewDraft", () => {
   })
 
   it("defaults first-open selection to skip existing matches", () => {
-    expect([...initialSelectedKeys(batch)]).toEqual(["drop"])
+    expect(Array.from(initialSelectedKeys(batch))).toEqual(["drop"])
   })
 })

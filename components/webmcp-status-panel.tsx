@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Activity,
   Bot,
@@ -47,6 +48,7 @@ interface VisibleTool extends WebMcpVisibleTool {
 }
 
 interface Props {
+  visible?: boolean
   page: "dashboard" | "wishlist"
   status: "ready" | "checking" | "unsupported" | "error" | "disabled"
   registeredToolCount: number
@@ -117,6 +119,7 @@ function ActivityStatus({ item }: { item: WebMcpActivityItem }) {
 }
 
 export default function WebMcpStatusPanel({
+  visible = true,
   page,
   status,
   registeredToolCount,
@@ -129,6 +132,11 @@ export default function WebMcpStatusPanel({
   completionNotice = false,
   onDismissCompletion,
 }: Props) {
+  const router = useRouter()
+  const [hideDialogOpen, setHideDialogOpen] = useState(false)
+  const [savingVisibility, setSavingVisibility] = useState(false)
+  const [visibilityError, setVisibilityError] = useState<string | null>(null)
+  const [hiddenLocally, setHiddenLocally] = useState(false)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(completionNotice)
   const [spotlight, setSpotlight] = useState(Boolean(coach))
@@ -154,6 +162,30 @@ export default function WebMcpStatusPanel({
     const id = window.setTimeout(() => setSpotlight(false), 3000)
     return () => window.clearTimeout(id)
   }, [coachUserId])
+
+  useEffect(() => { setHiddenLocally(false) }, [visible])
+
+  const hideWidget = async () => {
+    setSavingVisibility(true)
+    setVisibilityError(null)
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ai_widget_visible: false }),
+      })
+      if (!response.ok) throw new Error("Could not hide the widget. Please try again.")
+      setHideDialogOpen(false)
+      setHiddenLocally(true)
+      router.refresh()
+    } catch (error) {
+      setVisibilityError(error instanceof Error ? error.message : "Could not save preference.")
+    } finally {
+      setSavingVisibility(false)
+    }
+  }
+
+  if ((!visible || hiddenLocally) && !coach) return null
 
   return <>
     {spotlight ? <div className="sk-coach-scrim" aria-hidden="true" /> : null}
@@ -197,11 +229,11 @@ export default function WebMcpStatusPanel({
               </a>
             </p>
           </div>
-          <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-controls="agent-feature-details">
-            {expanded ? <><ChevronUp className="mr-1 h-4 w-4" />Collapse</> : <><ChevronDown className="mr-1 h-4 w-4" />Expand</>}
+          <Button type="button" variant="ghost" size="sm" className="shrink-0" disabled={Boolean(coach)} onClick={() => setExpanded((value) => !value)} aria-expanded={Boolean(coach) || expanded} aria-controls={coach ? "agent-tutorial" : "agent-feature-details"} title={coach ? "The tutorial stays expanded until you finish or skip it." : undefined}>
+            {coach || expanded ? <><ChevronUp className="mr-1 h-4 w-4" />Collapse</> : <><ChevronDown className="mr-1 h-4 w-4" />Expand</>}
           </Button>
         </div>
-        {coach ? <CoachSteps coach={coach} /> : null}
+        {coach ? <div id="agent-tutorial"><CoachSteps coach={coach} /></div> : null}
         {completionNotice ? (
           <div className="mt-4 flex items-start justify-between gap-3 rounded-md border border-primary/25 bg-primary/5 p-3 sm:p-4">
             <p className="min-w-0 text-fluid-sm font-medium text-foreground">
@@ -239,8 +271,27 @@ export default function WebMcpStatusPanel({
             <p className="border-t border-border px-3 py-2.5 text-fluid-xs leading-relaxed text-muted-foreground">{prompt.detail}</p>
           </details>)}
         </div>
+        <Button type="button" variant="ghost" size="sm" onClick={() => { setVisibilityError(null); setHideDialogOpen(true) }}>
+          Don&apos;t show this widget again
+        </Button>
       </div>}
     </section>
+
+    <Dialog open={hideDialogOpen} onOpenChange={(value) => { if (!savingVisibility) setHideDialogOpen(value) }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Hide the AI widget?</DialogTitle>
+          <DialogDescription>
+            This hides the widget on your Dashboard and Wishlist. You can show it again in Settings → Personal.
+          </DialogDescription>
+        </DialogHeader>
+        {visibilityError && <p role="alert" className="text-fluid-sm text-destructive">{visibilityError}</p>}
+        <DialogFooter>
+          <Button variant="outline" disabled={savingVisibility} onClick={() => setHideDialogOpen(false)}>Cancel</Button>
+          <Button disabled={savingVisibility} onClick={() => void hideWidget()}>{savingVisibility ? "Saving…" : "Hide widget"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="left-auto right-0 top-0 flex h-[100dvh] w-full max-w-md translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-y-0 border-r-0 p-0 data-[state=open]:!slide-in-from-right-full data-[state=open]:!slide-in-from-top-0 data-[state=open]:!zoom-in-100 data-[state=closed]:!slide-out-to-right-full data-[state=closed]:!slide-out-to-top-0 data-[state=closed]:!zoom-out-100 sm:w-[28rem] sm:rounded-none">
@@ -464,7 +515,7 @@ function CoachSteps({ coach }: { coach: NonNullable<Props["coach"]> }) {
           <DialogHeader>
             <DialogTitle>Skip this setup?</DialogTitle>
             <DialogDescription>
-              This tutorial will not show again for this account.
+              You can restart this tutorial in Settings → Personal.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

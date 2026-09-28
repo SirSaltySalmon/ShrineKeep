@@ -20,6 +20,8 @@ export interface AgentItemEditSuggestion {
 }
 
 export interface AgentCreateItemSuggestion {
+  /** Research reference retained independently of editable status-specific prices. */
+  retailEstimate?: number | null
   description?: string | null
   key: string
   name: string

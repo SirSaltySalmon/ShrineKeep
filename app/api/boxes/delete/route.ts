@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { startRouteSpan } from "@/lib/monitoring/sentry"
 import { deleteBoxesForUser, type DeleteBoxesRequestBody } from "@/lib/services/boxes/delete-boxes"
+import { BoxMutationError } from "@/lib/api/delete-box"
 
 /**
  * Delete one or more boxes. Body: { boxId, mode } or { boxes: { boxId, mode }[] }.
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
         const { deletedCount } = await deleteBoxesForUser(supabase, user.id, body)
         return NextResponse.json({ success: true, deletedCount })
       } catch (error: unknown) {
+        if (error instanceof BoxMutationError) {
+          return NextResponse.json({ error: error.code }, { status: error.status })
+        }
         if (
           error instanceof Error &&
           (error.message === "boxId and mode, or boxes array, required" ||

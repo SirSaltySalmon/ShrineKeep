@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { startRouteSpan } from "@/lib/monitoring/sentry"
 import { moveItemsForUser, type MoveItemsRequestBody } from "@/lib/services/items/move-items"
+import { isPrivacyConflictError, PRIVACY_CONFLICT_CODE, PRIVACY_CONFLICT_MESSAGE } from "@/lib/api/privacy-conflict"
 
 /**
  * Move one or more items to a target box.
@@ -25,6 +26,12 @@ export async function POST(request: NextRequest) {
         const { movedCount } = await moveItemsForUser(supabase, user.id, body)
         return NextResponse.json({ success: true, movedCount })
       } catch (error: unknown) {
+        if (isPrivacyConflictError(error)) {
+          return NextResponse.json(
+            { error: PRIVACY_CONFLICT_MESSAGE, code: PRIVACY_CONFLICT_CODE },
+            { status: 409 }
+          )
+        }
         if (
           error instanceof Error &&
           error.message === "itemId or itemIds array is required"

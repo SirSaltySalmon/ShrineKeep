@@ -72,4 +72,16 @@ describe("POST /api/boxes/delete", () => {
       mode: "delete-all",
     })
   })
+
+  it("maps box mutation failures to their status", async () => {
+    const { BoxMutationError } = await import("@/lib/api/delete-box")
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+    })
+    mockDeleteBoxesForUser.mockRejectedValue(new BoxMutationError("not_found", 404))
+
+    const response = await POST(makeRequest({ boxId: "box-1", mode: "delete-all" }) as any)
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({ error: "not_found" })
+  })
 })

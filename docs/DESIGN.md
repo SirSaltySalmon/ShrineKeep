@@ -27,7 +27,7 @@ Live product: [shrinekeep.com](https://www.shrinekeep.com)
 
 | Surface | Theme source | Look |
 |---|---|---|
-| `/dashboard`, `/settings`, `/wishlist` (owned) | User `color_scheme` + fonts from `/api/colors` | Fully custom |
+| `/dashboard`, `/settings`, `/wishlist` (owned), `/social` | User `color_scheme` + fonts from `/api/colors` | Fully custom |
 | `/wishlist/[token]` (public share) | Owner theme when `wishlist_apply_colors` is on | Owner's shrine, or defaults |
 | `/landing`, `/`, `/auth/*`, `/legal/*` | Built-in `:root` defaults only | Product marketing / auth |
 
@@ -193,7 +193,7 @@ Use fluid utilities from `app/globals.css` so type survives small viewports:
 | `text-fluid-2xl` | 1.125rem → 1.5rem |
 | `text-fluid-3xl` | 1.25rem → 1.875rem |
 
-Prefer `text-fluid-*` in dashboard/settings/wishlist chrome. Fixed `text-sm` / `text-lg` is fine for tight controls (buttons, inputs) that already have fixed heights.
+Prefer `text-fluid-*` in dashboard/settings/wishlist/social chrome. Fixed `text-sm` / `text-lg` is fine for tight controls (buttons, inputs) that already have fixed heights.
 
 ### Marketing exception
 

@@ -2,18 +2,21 @@
 
 import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { createSupabaseClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   NAME_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
   PASSWORD_MAX_LENGTH,
   PASSWORD_LENGTH_MESSAGE,
 } from "@/lib/validation"
+import { SHARING_LIMITS } from "@/lib/sharing/contracts"
+import { Textarea } from "@/components/ui/textarea"
 import TurnstileWidget, { type TurnstileWidgetRef } from "@/components/turnstile-widget"
+import { uploadOwnedMedia } from "@/lib/media/upload-client"
 import { User } from "lucide-react"
 
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024 // 2MB
@@ -74,12 +77,9 @@ function cropImageToSquare(file: File): Promise<File> {
 }
 
 export interface PersonalSettingsProps {
-  /** Display name stored in public.users (editable). */
+  aiWidgetVisible?: boolean
+  /** Display name stored in public.users; also the public profile label. */
   displayName: string
-  /** Whether to show custom display name (true) or provider name (false). */
-  useCustomDisplayName: boolean
-  /** Name from auth provider (e.g. Google); shown when useCustomDisplayName is false. */
-  providerName: string | null
   /** Current email (for display). */
   email: string
   /** True if user signed up with email/password (can change password). */
@@ -88,27 +88,42 @@ export interface PersonalSettingsProps {
   avatarUrl: string | null
   /** Incremented when avatar changes; used to cache-bust the image URL. */
   avatarVersion?: number
-  /** Current user id (for storage path). */
+  /** Current user id. Avatar uploads now infer owner from the session. */
   userId: string
+  publicBio: string
+  profileShareStyle: boolean
+  publicFallbackLabel: string
   onDisplayNameChange: (value: string) => void
-  onUseCustomDisplayNameChange: (value: boolean) => void
+  onPublicBioChange: (value: string) => void
+  onProfileShareStyleChange: (value: boolean) => void
+  onSavePublicProfile: () => Promise<void>
+  onCancelPublicProfile: () => void
+  savingPublicProfile?: boolean
+  savedPublicProfile?: boolean
   onAvatarChange: (url: string | null) => void
 }
 
 export function PersonalSettings({
+  aiWidgetVisible = true,
   displayName,
-  useCustomDisplayName,
-  providerName,
   email,
   isEmailProvider,
   avatarUrl,
   avatarVersion,
   userId,
+  publicBio,
+  profileShareStyle,
+  publicFallbackLabel,
   onDisplayNameChange,
-  onUseCustomDisplayNameChange,
+  onPublicBioChange,
+  onProfileShareStyleChange,
+  onSavePublicProfile,
+  onCancelPublicProfile,
+  savingPublicProfile = false,
+  savedPublicProfile = false,
   onAvatarChange,
 }: PersonalSettingsProps) {
-  const supabase = createSupabaseClient()
+  void userId
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
   const [avatarUploading, setAvatarUploading] = useState(false)
@@ -124,31 +139,29 @@ export function PersonalSettings({
   const turnstileRef = useRef<TurnstileWidgetRef>(null)
 
   const router = useRouter()
-  const [savingProfile, setSavingProfile] = useState(false)
-  const [savedProfile, setSavedProfile] = useState(false)
+  const [widgetVisible, setWidgetVisible] = useState(aiWidgetVisible)
+  const [savingAi, setSavingAi] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
+  const [restartOpen, setRestartOpen] = useState(false)
 
-  const handleSaveProfile = async () => {
-    setSavingProfile(true)
-    setSavedProfile(false)
+  const saveAiPreferences = async (visible: boolean, restart = false) => {
+    setSavingAi(true)
+    setAiError(null)
     try {
-      const res = await fetch("/api/settings", {
+      const response = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          use_custom_display_name: useCustomDisplayName,
-          name: displayName,
-        }),
+        body: JSON.stringify({ ai_widget_visible: visible, restart_ai_tutorial: restart }),
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.error ?? "Failed to save profile")
-      setSavedProfile(true)
-      setTimeout(() => setSavedProfile(false), 3000)
+      if (!response.ok) throw new Error("Could not save AI preferences. Please try again.")
+      setWidgetVisible(visible)
+      setRestartOpen(false)
+      if (restart) router.push("/dashboard")
       router.refresh()
-    } catch (err) {
-      console.error("Error saving profile:", err)
-      alert(err instanceof Error ? err.message : "Failed to save profile. Please try again.")
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "Could not save AI preferences.")
     } finally {
-      setSavingProfile(false)
+      setSavingAi(false)
     }
   }
 
@@ -217,29 +230,13 @@ export function PersonalSettings({
     setAvatarUploading(true)
     try {
       const croppedFile = await cropImageToSquare(file)
-      const path = `${userId}/avatar.jpg`
-      const { error: uploadError } = await supabase.storage.from("avatars").upload(path, croppedFile, {
-        upsert: true,
-        contentType: "image/jpeg",
-      })
-      if (uploadError) {
-        setAvatarError(uploadError.message)
-        setAvatarUploading(false)
-        return
-      }
-      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path)
-      const url = urlData.publicUrl
-      const res = await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ avatar_url: url }),
-      })
-      if (!res.ok) {
+      const uploaded = await uploadOwnedMedia(croppedFile, "avatar")
+      if (!uploaded.publicUrl) {
         setAvatarError("Failed to save avatar.")
         setAvatarUploading(false)
         return
       }
-      onAvatarChange(url)
+      onAvatarChange(uploaded.publicUrl)
     } catch {
       setAvatarError("Something went wrong. Please try again.")
     } finally {
@@ -268,6 +265,32 @@ export function PersonalSettings({
 
   return (
     <div className="space-y-6">
+      <div className="space-y-4">
+        <h3 className="text-fluid-lg font-semibold">AI widget and tutorial</h3>
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="ai-widget-visible">Show the “Use AI with ShrineKeep” widget</Label>
+            <p className="text-fluid-sm text-muted-foreground">Show the widget on your Dashboard and Wishlist. An active tutorial stays visible until you finish or skip it.</p>
+          </div>
+          <Switch id="ai-widget-visible" checked={widgetVisible} disabled={savingAi} onCheckedChange={(value) => void saveAiPreferences(value)} />
+        </div>
+        <p className="text-fluid-sm text-muted-foreground">Replay the guided tutorial anytime. Restarting also shows the widget again.</p>
+        <Button type="button" variant="outline" disabled={savingAi} onClick={() => { setAiError(null); setRestartOpen(true) }}>Restart tutorial</Button>
+        {aiError && !restartOpen && <p role="alert" className="text-fluid-sm text-destructive">{aiError}</p>}
+        <Dialog open={restartOpen} onOpenChange={(value) => { if (!savingAi) setRestartOpen(value) }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Restart the AI tutorial?</DialogTitle>
+              <DialogDescription>The tutorial will start from the beginning on your Dashboard, and the AI widget will be visible again. Your existing boxes and items will stay as they are.</DialogDescription>
+            </DialogHeader>
+            {aiError && <p role="alert" className="text-fluid-sm text-destructive">{aiError}</p>}
+            <DialogFooter>
+              <Button variant="outline" disabled={savingAi} onClick={() => setRestartOpen(false)}>Cancel</Button>
+              <Button disabled={savingAi} onClick={() => void saveAiPreferences(true, true)}>{savingAi ? "Saving…" : "Restart tutorial"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
       <div>
         <h3 className="text-fluid-lg font-semibold mb-2">Profile photo</h3>
         {isEmailProvider ? (
@@ -346,57 +369,73 @@ export function PersonalSettings({
       </div>
 
       <div>
-        <h3 className="text-fluid-lg font-semibold mb-2">Display name</h3>
-        {isEmailProvider ? (
-          <>
-            <p className="text-fluid-sm text-muted-foreground mb-4">
-              This is the name you set when you signed up. Change it below and click Save profile to
-              update it everywhere.
+        <h3 className="text-fluid-lg font-semibold mb-2">Public profile</h3>
+        <p className="text-fluid-sm text-muted-foreground mb-4">
+          Your display name and bio are what other people see on your profile. Signing in with
+          Google uses that account name unless you change it here.
+        </p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="display-name">Display name</Label>
+            <Input
+              id="display-name"
+              type="text"
+              value={displayName}
+              onChange={(e) => onDisplayNameChange(e.target.value)}
+              placeholder={publicFallbackLabel}
+              className="max-w-sm"
+              maxLength={NAME_MAX_LENGTH}
+            />
+            <p className="text-fluid-xs text-muted-foreground">
+              Leave blank to show {publicFallbackLabel}.
             </p>
-          </>
-        ) : (
-          <>
-            <p className="text-fluid-sm text-muted-foreground mb-4">
-              Choose whether to show a custom name or the name from your sign-in account (e.g.
-              Google).
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="public-bio">Bio</Label>
+            <Textarea
+              id="public-bio"
+              value={publicBio}
+              onChange={(e) => onPublicBioChange(e.target.value)}
+              maxLength={SHARING_LIMITS.bioCharacters}
+              className="max-w-xl"
+            />
+            <p className="text-fluid-xs text-muted-foreground">
+              Plain text, {SHARING_LIMITS.bioCharacters} characters or fewer. Shown as written, not as HTML or Markdown.
             </p>
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <div className="space-y-0.5">
-                <span className="text-fluid-sm font-medium">Use custom display name</span>
-                <p className="text-fluid-xs text-muted-foreground">
-                  {useCustomDisplayName
-                    ? "Showing your custom name below."
-                    : `Showing provider name${providerName ? `: ${providerName}` : ""}.`}
-                </p>
-              </div>
-              <Switch
-                checked={useCustomDisplayName}
-                onCheckedChange={onUseCustomDisplayNameChange}
-                aria-label="Use custom display name"
-              />
+          </div>
+          <div className="flex items-center justify-between gap-4 max-w-xl">
+            <div className="space-y-0.5 min-w-0">
+              <Label htmlFor="profile-share-style">Share my theme on my public profile</Label>
+              <p className="text-fluid-xs text-muted-foreground">
+                Visitors see your colors and fonts on your profile when this is on.
+              </p>
             </div>
-          </>
-        )}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="display-name">Display name</Label>
-        <Input
-          id="display-name"
-          type="text"
-          value={displayName}
-          onChange={(e) => onDisplayNameChange(e.target.value)}
-          placeholder={providerName || "Your name"}
-          className="max-w-sm"
-          maxLength={NAME_MAX_LENGTH}
-        />
-      </div>
-      <div className="flex gap-2">
-        {savedProfile && (
-          <span className="text-fluid-sm text-muted-foreground self-center">Profile saved!</span>
-        )}
-        <Button type="button" onClick={handleSaveProfile} disabled={savingProfile}>
-          {savingProfile ? "Saving..." : "Save profile"}
-        </Button>
+            <Switch
+              id="profile-share-style"
+              checked={profileShareStyle}
+              onCheckedChange={onProfileShareStyleChange}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {savedPublicProfile && (
+              <span className="text-fluid-sm text-muted-foreground self-center">Public profile saved.</span>
+            )}
+            <Button type="button" variant="outline" onClick={onCancelPublicProfile} disabled={savingPublicProfile}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                void onSavePublicProfile().catch((err: unknown) => {
+                  alert(err instanceof Error ? err.message : "Failed to save public profile. Please try again.")
+                })
+              }}
+              disabled={savingPublicProfile}
+            >
+              {savingPublicProfile ? "Saving..." : "Save public profile"}
+            </Button>
+          </div>
+        </div>
       </div>
 
       {isEmailProvider && (

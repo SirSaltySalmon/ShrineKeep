@@ -61,7 +61,7 @@ This plan is based on a full-pass review of the current Next.js + Supabase codeb
    - `lib/api/create-item.test.ts`
 7. Added API performance groundwork:
    - Route timing spans added for `/api/items/paste`, `/api/items/move`, and `/api/boxes/move`
-   - Supabase migration: `20260413133000_add_collection_query_indexes.sql`
+   - Collection query indexes live in `supabase/schema.sql`
 8. Started dashboard modularization:
    - Extracted live subscription synchronization into `lib/hooks/use-live-subscription.ts`
 9. Added E2E smoke-test scaffold:

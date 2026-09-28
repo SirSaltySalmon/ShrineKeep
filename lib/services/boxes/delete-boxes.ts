@@ -23,7 +23,7 @@ export function parseDeleteBoxesRequest(body: DeleteBoxesRequestBody): {
   }
 
   for (const { mode } of list) {
-    if (mode !== "delete-all" && mode !== "move-to-root") {
+    if (mode !== "delete-all" && mode !== "move-up") {
       throw new Error("Invalid mode")
     }
   }

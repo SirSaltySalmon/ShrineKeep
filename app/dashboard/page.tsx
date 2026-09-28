@@ -1,9 +1,28 @@
 import { redirect } from "next/navigation"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { createSupabaseServiceClient } from "@/lib/supabase/service"
+import { createSharingMutationCore } from "@/lib/sharing/server/mutation-core"
+import type { DashboardOwnerSharing } from "@/lib/sharing/box-editor"
 import type { Theme } from "@/lib/types"
 import DashboardClient from "./dashboard-client"
 import { getSubscriptionStatus, getItemCount, getEffectiveCap, FREE_TIER_CAP } from "@/lib/subscription"
 import { loadDashboardRootData } from "@/lib/services/dashboard/load-dashboard-root"
+
+async function loadOwnerSharing(userId: string): Promise<DashboardOwnerSharing | undefined> {
+  if (process.env.SOCIAL_SHARING_EDITS_ENABLED !== "true") return { available: false }
+  try {
+    const service = createSupabaseServiceClient()
+    const core = createSharingMutationCore((name, args) => service.rpc(name, args))
+    const sharing = await core.readOwnerSettings(userId)
+    if (!sharing.ok) return undefined
+    return {
+      available: true,
+      ...sharing.data,
+    }
+  } catch {
+    return undefined
+  }
+}
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient()
@@ -15,16 +34,17 @@ export default async function DashboardPage() {
     redirect("/auth/login")
   }
 
-  const [{ data: user }, { data: settings }, rootData, subscription, itemCount] = await Promise.all([
+  const [{ data: user }, { data: settings }, rootData, subscription, itemCount, initialOwnerSharing] = await Promise.all([
     supabase.from("users").select("*").eq("id", authUser.id).single(),
     supabase
       .from("user_settings")
-      .select("color_scheme, graph_overlay, dashboard_demo_prompt_dismissed")
+      .select("*")
       .eq("user_id", authUser.id)
       .maybeSingle(),
     loadDashboardRootData(supabase, authUser.id),
     getSubscriptionStatus(supabase, authUser.id),
     getItemCount(supabase, authUser.id),
+    loadOwnerSharing(authUser.id),
   ])
 
   const cap = await getEffectiveCap(supabase, authUser.id, subscription.isPro)
@@ -37,6 +57,9 @@ export default async function DashboardPage() {
 
   return (
     <DashboardClient
+      key={`${authUser.id}:${settings?.ai_tutorial_reset_at ?? "initial"}`}
+      aiWidgetVisible={settings?.ai_widget_visible ?? true}
+      tutorialResetAt={settings?.ai_tutorial_reset_at ?? null}
       user={user}
       initialTheme={theme}
       initialGraphOverlay={graphOverlay}
@@ -50,6 +73,8 @@ export default async function DashboardPage() {
       initialBoxes={rootData.initialBoxes}
       initialItems={rootData.initialItems}
       initialUserTags={rootData.initialTags}
+      initialDescendantCounts={rootData.descendantCounts}
+      initialOwnerSharing={initialOwnerSharing}
     />
   )
 }

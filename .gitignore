@@ -7,6 +7,10 @@
 
 # testing
 /coverage
+/test-results
+/playwright-report
+/blob-report
+
 
 # next.js
 /.next/
@@ -49,6 +53,9 @@ stripe.exe
 # local editor config, QA output, empty skill stubs
 .claude/
 .gstack/
+
+# Supabase local CLI state
+/supabase/.temp/
 
 # Sentry Config File
 .env.sentry-build-plugin

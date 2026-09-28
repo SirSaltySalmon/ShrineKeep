@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -24,11 +24,12 @@ export function DateRangeFilter({
 }: DateRangeFilterProps) {
   const [draftFrom, setDraftFrom] = useState(fromDate)
   const [draftTo, setDraftTo] = useState(toDate)
-
-  useEffect(() => {
+  const [syncedRange, setSyncedRange] = useState({ fromDate, toDate })
+  if (fromDate !== syncedRange.fromDate || toDate !== syncedRange.toDate) {
+    setSyncedRange({ fromDate, toDate })
     setDraftFrom(fromDate)
     setDraftTo(toDate)
-  }, [fromDate, toDate])
+  }
 
   const matchesCommitted = draftFrom === fromDate && draftTo === toDate
 

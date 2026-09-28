@@ -6,6 +6,7 @@ import { Item } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import ThumbnailImage from "./thumbnail-image"
+import { ownerThumbnailSource } from "@/lib/media/presentation"
 import { Image as ImageIcon } from "lucide-react"
 
 // Get colors from CSS variables
@@ -29,6 +30,7 @@ interface DraggableItemProps {
 }
 
 export default function DraggableItem({ item, onClick }: DraggableItemProps) {
+  const thumbnailSource = ownerThumbnailSource(item)
   const {
     attributes,
     listeners,
@@ -53,9 +55,9 @@ export default function DraggableItem({ item, onClick }: DraggableItemProps) {
         {...listeners}
       >
         <div className="relative w-full h-48 bg-muted rounded-t-lg overflow-hidden">
-          {item.thumbnail_url ? (
+          {thumbnailSource ? (
             <ThumbnailImage
-              src={item.thumbnail_url}
+              src={thumbnailSource}
               alt={item.name}
               className="object-cover"
             />

@@ -1,72 +1,45 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server"
-import { validateBoxesBelongToUser } from "./validation"
-import { getPhotosToDeleteFromStorage } from "./delete-item"
+import { createSupabaseServiceClient } from "@/lib/supabase/service"
+import { removeUnreferencedUnregisteredStorage, type PhotoStorageRow } from "./photo-storage"
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>
 
-export type BoxDeleteMode = "delete-all" | "move-to-root"
+export type BoxDeleteMode = "delete-all" | "move-up"
 
-/**
- * Collect all descendant box IDs for a given box (recursively).
- */
-export async function collectBoxDescendants(
-  supabase: Supabase,
-  userId: string,
-  boxId: string
-): Promise<string[]> {
-  const descendantIds: string[] = []
-  let currentLevel: string[] = [boxId]
+export class BoxMutationError extends Error {
+  readonly code: string
+  readonly status: number
 
-  while (currentLevel.length > 0) {
-    const { data: children, error } = await supabase
-      .from("boxes")
-      .select("id")
-      .in("parent_box_id", currentLevel)
-      .eq("user_id", userId)
-
-    if (error) throw error
-    if (!children?.length) break
-
-    const ids = children.map((c) => c.id)
-    descendantIds.push(...ids)
-    currentLevel = ids
+  constructor(code: string, status: number, message = code) {
+    super(message)
+    this.name = "BoxMutationError"
+    this.code = code
+    this.status = status
   }
-
-  return descendantIds
 }
 
-/**
- * Collect all item IDs that belong to the given boxes (including descendants).
- */
-async function collectItemIdsFromBoxes(
-  supabase: Supabase,
-  userId: string,
-  boxIds: string[]
-): Promise<string[]> {
-  // Collect all descendant boxes
-  const allDescendantIds = new Set<string>()
-  for (const boxId of boxIds) {
-    const descendants = await collectBoxDescendants(supabase, userId, boxId)
-    descendants.forEach((id) => allDescendantIds.add(id))
-  }
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
 
-  const allBoxIds = Array.from(new Set(boxIds.concat(Array.from(allDescendantIds))))
-
-  // Fetch all items in these boxes
-  const { data: items, error } = await supabase
-    .from("items")
-    .select("id")
-    .in("box_id", allBoxIds)
-    .eq("user_id", userId)
-
-  if (error) throw error
-
-  return (items ?? []).map((item) => item.id)
+function photoRows(value: unknown): PhotoStorageRow[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((row) => {
+    const photo = record(row)
+    if (!photo || typeof photo.id !== "string") return []
+    return [{
+      id: photo.id,
+      storage_path: typeof photo.storage_path === "string" ? photo.storage_path : null,
+      asset_id: typeof photo.asset_id === "string" ? photo.asset_id : null,
+    }]
+  })
 }
 
 /**
  * Delete boxes (unified function for single or batch).
- * Processes all boxes together instead of sequentially.
+ * Unbox, reparent, wishlist detach, and delete run in one locked RPC.
  */
 export async function deleteBoxes(
   supabase: Supabase,
@@ -78,93 +51,31 @@ export async function deleteBoxes(
     return { deletedCount: 0 }
   }
 
-  // Validate all boxes belong to user (for better error messages)
-  const validBoxIds = await validateBoxesBelongToUser(supabase, userId, boxIds)
-  if (validBoxIds.size !== boxIds.length) {
-    throw new Error("Some boxes not found or do not belong to user")
-  }
+  const uniqueIds = Array.from(new Set(boxIds))
+  const service = createSupabaseServiceClient()
+  const { data, error } = await service.rpc("sharing_delete_boxes", {
+    p_actor_id: userId,
+    p_box_ids: uniqueIds,
+    p_mode: mode,
+  })
+  if (error) throw error
 
-  if (mode === "delete-all") {
-    // Collect all item IDs that will be deleted (including descendants)
-    const itemIds = await collectItemIdsFromBoxes(supabase, userId, boxIds)
-
-    // Clean up photo storage before CASCADE deletion
-    if (itemIds.length > 0) {
-      const { data: allPhotos, error: photosError } = await supabase
-        .from("photos")
-        .select("storage_path, item_id")
-        .in("item_id", itemIds)
-
-      if (photosError) {
-        console.error("Error fetching photos:", photosError)
-      } else {
-        const storagePaths = (allPhotos ?? [])
-          .map((p) => p.storage_path)
-          .filter((path): path is string => path != null && path !== "")
-
-        if (storagePaths.length > 0) {
-          const toDeleteFromStorage = await getPhotosToDeleteFromStorage(
-            supabase,
-            userId,
-            itemIds,
-            storagePaths
-          )
-
-          if (toDeleteFromStorage.length > 0) {
-            const { error: storageError } = await supabase.storage
-              .from("item-photos")
-              .remove(toDeleteFromStorage)
-            if (storageError) {
-              console.error("Error deleting photos from storage:", storageError)
-            }
-          }
-        }
-      }
+  const envelope = record(data)
+  if (envelope?.ok === true) {
+    const payload = record(envelope.data)
+    const deletedCount = payload?.deletedCount
+    if (!payload || typeof deletedCount !== "number" || !Number.isSafeInteger(deletedCount) || deletedCount < 0) {
+      throw new BoxMutationError("temporarily_unavailable", 503)
     }
-
-    // Batch delete all boxes (CASCADE will handle children)
-    const { error } = await supabase
-      .from("boxes")
-      .delete()
-      .in("id", boxIds)
-      .eq("user_id", userId)
-    if (error) throw error
-    return { deletedCount: boxIds.length }
+    if (mode === "delete-all") {
+      await removeUnreferencedUnregisteredStorage(supabase, userId, photoRows(payload.photos))
+    }
+    // move-up keeps photo rows on surviving items; do not eager-delete those blobs.
+    return { deletedCount }
   }
 
-  // move-to-root mode: collect all descendants for all boxes
-  const allDescendantIds = new Set<string>()
-  for (const boxId of boxIds) {
-    const descendants = await collectBoxDescendants(supabase, userId, boxId)
-    descendants.forEach((id) => allDescendantIds.add(id))
-  }
-
-  const allBoxIds = Array.from(new Set(boxIds.concat(Array.from(allDescendantIds))))
-
-  // Batch move all boxes and their descendants to root
-  const { error: errBoxes } = await supabase
-    .from("boxes")
-    .update({ parent_box_id: null })
-    .in("id", allBoxIds)
-    .eq("user_id", userId)
-  if (errBoxes) throw errBoxes
-
-  // Batch move all items in these boxes to root
-  const { error: errItems } = await supabase
-    .from("items")
-    .update({ box_id: null })
-    .in("box_id", allBoxIds)
-    .eq("user_id", userId)
-  if (errItems) throw errItems
-
-  // Batch delete the target boxes
-  const { error: errDelete } = await supabase
-    .from("boxes")
-    .delete()
-    .in("id", boxIds)
-    .eq("user_id", userId)
-  if (errDelete) throw errDelete
-
-  return { deletedCount: boxIds.length }
+  const failure = record(envelope?.error)
+  const code = typeof failure?.code === "string" ? failure.code : "temporarily_unavailable"
+  const status = typeof failure?.status === "number" ? failure.status : 503
+  throw new BoxMutationError(code, status)
 }
-

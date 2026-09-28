@@ -52,7 +52,7 @@ export default function SignupPage() {
         captchaToken,
         data: {
           username: name.trim() || `user_${Date.now()}`,
-          name: name.trim() || `user_${Date.now()}`,
+          ...(name.trim() ? { name: name.trim() } : {}),
         },
       },
     })
@@ -114,7 +114,6 @@ export default function SignupPage() {
                 placeholder="Your display name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                required
                 maxLength={NAME_MAX_LENGTH}
               />
             </div>

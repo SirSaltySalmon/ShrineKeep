@@ -8,10 +8,12 @@ import { ItemCapExceededError } from "@/lib/api/item-cap-error"
 import { getOwnedBoxIdSet } from "@/lib/api/validate-box-ownership"
 import { captureRouteException } from "@/lib/monitoring/sentry"
 import type { ItemPatch, ItemPhotoOps } from "@/lib/item-patch"
+import { isPrivacyConflictError, PRIVACY_CONFLICT_CODE, PRIVACY_CONFLICT_MESSAGE } from "@/lib/api/privacy-conflict"
 
 interface PhotoData {
   url: string
   storage_path?: string
+  asset_id?: string | null
   is_thumbnail: boolean
 }
 
@@ -196,6 +198,16 @@ export async function PATCH(request: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof ItemNotFoundError) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 })
+    }
+
+    if (isPrivacyConflictError(error)) {
+      return NextResponse.json(
+        {
+          error: PRIVACY_CONFLICT_MESSAGE,
+          code: PRIVACY_CONFLICT_CODE,
+        },
+        { status: 409 }
+      )
     }
 
     const message = errorMessage(error, "Failed to update item")

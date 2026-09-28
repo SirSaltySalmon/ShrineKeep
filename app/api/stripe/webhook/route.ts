@@ -30,7 +30,7 @@ function subscriptionPeriodEndToIso(sub: Stripe.Subscription): string | null {
   return null
 }
 
-/** Map Stripe subscription.status to our CHECK constraint (add_subscriptions.sql). */
+/** Map Stripe subscription.status to the CHECK constraint in supabase/schema.sql. */
 function stripeSubscriptionStatusToDb(status: Stripe.Subscription.Status): DbSubscriptionStatus {
   switch (status) {
     case "active":

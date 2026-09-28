@@ -1,5 +1,9 @@
 export const COACH_STORAGE_KEY = "sk.webmcpCoach.v1"
 
+export function coachStorageKey(resetAt: string | null): string {
+  return resetAt ? `${COACH_STORAGE_KEY}:${resetAt}` : COACH_STORAGE_KEY
+}
+
 export const INIT_TOOL = "stage_collection_initialization"
 export const PRICE_TOOLS = ["stage_item_edits", "stage_wishlist_edits"] as const
 
@@ -25,6 +29,7 @@ export interface CoachState {
   collectionName: string
   createdBoxId: string | null
   createdBoxName: string | null
+  boxCheckSkipped?: boolean
 }
 
 export function initialCoachState(userId: string): CoachState {
@@ -48,6 +53,7 @@ export function parseCoachState(raw: string | null, userId: string): CoachState 
       collectionName: typeof parsed.collectionName === "string" ? parsed.collectionName : "",
       createdBoxId: parsed.createdBoxId ?? null,
       createdBoxName: parsed.createdBoxName ?? null,
+      boxCheckSkipped: parsed.boxCheckSkipped === true,
     }
   } catch {
     return initialCoachState(userId)
@@ -99,6 +105,7 @@ export function reduceCoach(state: CoachState, event: CoachEvent): CoachState {
   }
 
   if (event.type === "box_opened") {
+    if (state.boxCheckSkipped) return state
     if (state.createdBoxId) {
       if (event.boxId === state.createdBoxId) {
         if (state.step === "open_box") return { ...state, step: "copy_prices" }
@@ -133,8 +140,7 @@ export function reduceCoach(state: CoachState, event: CoachEvent): CoachState {
       }
     }
     if (state.step === "open_box") {
-      if (!state.createdBoxId && !event.boxId) return state
-      return { ...state, step: "copy_prices" }
+      return { ...state, step: "copy_prices", boxCheckSkipped: true }
     }
     if (state.step === "copy_prices" || state.step === "wait_price_approve") {
       return { ...state, step: "done" }

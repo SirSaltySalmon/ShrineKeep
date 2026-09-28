@@ -1,3 +1,5 @@
+import type { SharingSettings } from "@/lib/sharing/contracts"
+
 export interface User {
   id: string
   username: string
@@ -15,7 +17,6 @@ export interface Box {
   parent_box_id?: string
   name: string
   description?: string
-  is_public: boolean
   position: number
   created_at: string
   updated_at: string
@@ -23,6 +24,8 @@ export interface Box {
   total_value?: number
   total_acquisition_cost?: number
   item_count?: number
+  sharing?: SharingSettings
+  descendant_count?: number
 }
 
 export interface Item {
@@ -57,7 +60,7 @@ export interface ItemCopyPayload {
   thumbnail_url?: string | null
   is_wishlist: boolean
   wishlist_target_box_id?: string | null
-  photos: { url: string; storage_path?: string; is_thumbnail: boolean }[]
+  photos: { url: string; storage_path?: string; asset_id?: string | null; is_thumbnail: boolean }[]
   tag_ids: string[]
   value_history?: { value: number; recorded_at: string }[]
 }
@@ -76,6 +79,7 @@ export interface Photo {
   item_id: string
   url: string
   storage_path?: string // Storage path for Supabase storage files
+  asset_id?: string | null
   is_thumbnail: boolean
   uploaded_at: string
 }
@@ -206,6 +210,9 @@ export function hasAnySearchFilter(f: SearchFiltersState): boolean {
 }
 
 export interface UserSettings {
+  ai_widget_visible?: boolean
+  dashboard_demo_prompt_dismissed?: boolean
+  ai_tutorial_reset_at?: string | null
   user_id: string
   color_scheme?: Theme | null
   /** Heading typography key (e.g. Inter, Playfair Display). */
@@ -216,11 +223,18 @@ export interface UserSettings {
   border_radius?: string | null
   /** When true, draw value and acquisition on one chart; when false, two separate. Stored separately from theme colors. */
   graph_overlay?: boolean | null
-  wishlist_is_public: boolean
+  /** Share-link toggle only. Does not publish wishlist items. */
+  wishlist_link_enabled: boolean
   wishlist_share_token?: string | null
   wishlist_apply_colors: boolean
-  /** When true, show public.users.name; when false, show provider name (e.g. Google). */
-  use_custom_display_name?: boolean
+  root_collection_visibility?: "private" | "friends" | "public"
+  root_share_financials?: boolean
+  root_wishlist_visibility?: "private" | "friends" | "public"
+  profile_share_style?: boolean
+  public_bio?: string
+  sharing_revision?: string
+  wishlist_guest_visible_count?: number
+  wishlist_guest_total_count?: number
   created_at: string
   updated_at: string
 }

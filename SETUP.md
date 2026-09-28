@@ -51,7 +51,7 @@ npm install
 3. Make it **Public** (so profile photos can be shown without signed URLs)
 4. Optionally set **File size limit** to 2 MB and **Allowed MIME types** to `image/jpeg`, `image/png`, `image/gif`, `image/webp`
 5. Click **Create bucket**
-6. Run the migration that adds storage policies for `avatars`: `supabase/migrations/20250215000000_add_avatars_bucket.sql`
+6. The `avatars` storage policies live in `supabase/schema.sql`. Apply that file on a new project before using profile photos.
 
 ### Enable Google Sign-In (Optional)
 
@@ -188,15 +188,15 @@ If you want to access your site from the internet, you can use cloud deployment 
 ### Settings not saving
 - Make sure you ran the `migration_add_user_settings.sql` script if upgrading
 - Ensure the `user_settings` table exists in your database
-- For **Personal** settings (display name switch), run `supabase/migrations/20250214000000_add_use_custom_display_name.sql` if the column is missing
+- For **Personal → AI widget and tutorial**, run `supabase/migrations/20260906192956_add_ai_widget_preferences.sql` before deploying the UI. It adds the account-wide widget visibility preference (visible by default) and a tutorial restart timestamp. Existing completion flags are preserved. Application status and verification steps are recorded in `docs/ai-widget-preferences.md`.
 
 ### Public wishlist link not working
 - Ensure `user_settings` table exists and has RLS policies enabled
 - Make sure the wishlist is set to public in Settings
 - Verify the share token is valid
 
-### Header shows "user_xxxx" instead of Google name
-- The app prefers `public.users.name` and falls back to session metadata when the stored name looks like `user_xxxxxxxx`. If it still shows the default: run the **"Re-backfill names from auth"** SQL below (overwrites `name` from Google/auth for all users). If you never added the column, run the full **"Add name column"** block first.
+### Header shows Collector-xxxxxxxx instead of Google name
+- Nav and public profile both use `public.users.name`. Google/OAuth names are stored there at signup. An empty name falls back to `Collector-<last 8 of user id>` without using email or username. Edit **Settings → Personal → Display name** to change what other people see.
 
 ## Next Steps
 

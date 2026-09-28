@@ -58,7 +58,7 @@ describe("service request parsing", () => {
         parseDeleteBoxesRequest({
           boxes: [
             { boxId: "box-1", mode: "delete-all" },
-            { boxId: "box-2", mode: "move-to-root" },
+            { boxId: "box-2", mode: "move-up" },
           ],
         })
       ).toThrow("All boxes must have the same delete mode in batch operations")

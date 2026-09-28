@@ -19,4 +19,24 @@ describe("dashboard local item search", () => {
     expect(src).toContain("Wishlist ({unacquiredItems.length} remaining)")
     expect(src).toContain("No wishlist items in this box match your search.")
   })
+
+  it("uses the shared box dialog for rename and sharing", () => {
+    expect(src).toContain('from "@/components/box-dialog"')
+    expect(src).toContain("<BoxDialog")
+    expect(src).not.toContain("<ContainerAudienceFields")
+    expect(src).toContain("parentSharing=")
+  })
+
+  it("edits root audience at the bottom of the dashboard root", () => {
+    expect(src).toContain("<RootAudiencePanel")
+    expect(src).toContain("currentBoxId == null")
+    expect(src).toContain("ownerSharing?.available")
+  })
+
+  it("opens the box editor from folder-loaded sharing instead of fetching after open", () => {
+    expect(src).toContain("handleOpenEditBox")
+    expect(src).toContain("openEditBox(latest)")
+    expect(src).not.toContain("setBoxSharingLoaded")
+    expect(src).not.toMatch(/showEditBoxDialog[\s\S]*\/api\/boxes\/\$\{boxId\}\/sharing/)
+  })
 })

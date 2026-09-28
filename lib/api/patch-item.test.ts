@@ -3,6 +3,7 @@ import { applyItemPatch, ItemNotFoundError } from "./patch-item"
 
 function makeSupabase(opts: {
   item?: { id: string } | null
+  itemUpdateError?: { code: string; message: string }
   photosToDelete?: Array<{ id: string; storage_path: string | null }>
   remainingRefs?: Array<{ id: string; storage_path: string }>
   remainingPhotos?: Array<{ id: string; url: string; is_thumbnail: boolean }>
@@ -36,7 +37,7 @@ function makeSupabase(opts: {
       if (table === "items") {
         if (state.op === "select") return { data: opts.item ?? null, error: null }
         calls.itemsUpdate.push(state.payload)
-        return { error: null }
+        return { error: opts.itemUpdateError ?? null }
       }
       if (table === "photos") {
         if (state.op === "delete") {
@@ -162,6 +163,27 @@ describe("applyItemPatch", () => {
     expect(calls.itemsUpdate).toContainEqual({ name: "Lens" })
   })
 
+  it("stops before photo, storage, tag, or history writes when the move conflicts", async () => {
+    const conflict = { code: "P0001", message: "privacy_conflict" }
+    const { supabase, remove, calls } = makeSupabase({
+      item: { id: "item-1" }, itemUpdateError: conflict,
+    })
+    await expect(applyItemPatch({
+      supabase, userId: "user-1",
+      patch: {
+        id: "item-1", wishlist_target_box_id: "public-box", current_value: 10,
+        photos: { delete: ["photo-1"] }, tag_ids: ["tag-1"],
+      },
+    })).rejects.toEqual(conflict)
+    expect(calls.photosDelete).toEqual([])
+    expect(calls.photosUpdate).toEqual([])
+    expect(calls.photosInsert).toEqual([])
+    expect(remove).not.toHaveBeenCalled()
+    expect(calls.itemTagsDelete).toEqual([])
+    expect(calls.itemTagsInsert).toEqual([])
+    expect(calls.valueHistoryInsert).toEqual([])
+  })
+
   it("updates photo flags without removing storage", async () => {
     const { supabase, remove, calls } = makeSupabase({
       item: { id: "item-1" },
@@ -247,6 +269,21 @@ describe("applyItemPatch", () => {
     expect(calls.itemTagsDelete).toEqual([["tag-2"]])
     expect(calls.itemTagsInsert).toEqual([[{ item_id: "item-1", tag_id: "tag-3" }]])
     expect(calls.tagsQueried).toBe(true)
+  })
+
+  it("does not rewrite storage_path in place without a new asset", async () => {
+    const { supabase, calls } = makeSupabase({ item: { id: "item-1" } })
+    await applyItemPatch({
+      supabase,
+      userId: "user-1",
+      patch: {
+        id: "item-1",
+        photos: {
+          update: [{ id: "photo-1", storage_path: "user-1/items/replaced.jpg" }],
+        },
+      },
+    })
+    expect(calls.photosUpdate).toEqual([])
   })
 
   it("skips tag validation when tag_ids are omitted", async () => {

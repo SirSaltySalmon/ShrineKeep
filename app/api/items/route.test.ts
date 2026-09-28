@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { POST, PATCH } from "./route"
 import { ItemCapExceededError } from "@/lib/api/item-cap-error"
 import { ItemNotFoundError } from "@/lib/api/patch-item"
@@ -69,6 +69,8 @@ function liveUserClient() {
 }
 
 describe("POST /api/items", () => {
+  afterEach(() => vi.unstubAllEnvs())
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -213,6 +215,8 @@ describe("POST /api/items", () => {
 })
 
 describe("PATCH /api/items", () => {
+  afterEach(() => vi.unstubAllEnvs())
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -267,5 +271,26 @@ describe("PATCH /api/items", () => {
       })
     )
     expect(mockCreateItems).not.toHaveBeenCalled()
+  })
+
+  it("returns an actionable conflict when a wishlist move broadens visibility", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
+    mockGetOwnedBoxIdSet.mockResolvedValue(new Set(["public-box"]))
+    mockApplyItemPatch.mockRejectedValue({
+      code: "P0001",
+      message: "privacy_conflict",
+      details: "Internal database details",
+    })
+
+    const response = await PATCH(makeRequest({
+      id: "item-1", wishlist_target_box_id: "public-box",
+    }, "PATCH") as any)
+
+    expect(response.status).toBe(409)
+    const body = await response.json()
+    expect(body.code).toBe("privacy_conflict")
+    expect(body.error).toContain("visible to more people")
+    expect(JSON.stringify(body)).not.toContain("Internal database details")
+    expect(mockCaptureRouteException).not.toHaveBeenCalled()
   })
 })

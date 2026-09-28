@@ -34,7 +34,6 @@ export const BOX_SKELETON_FIXTURES: Box[] = DEMO_BOX_ROWS.map((row) => ({
   parent_box_id: undefined,
   name: row.name,
   description: row.description,
-  is_public: false,
   position: row.position,
   created_at: nowIso,
   updated_at: nowIso,

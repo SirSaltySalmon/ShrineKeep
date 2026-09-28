@@ -10,10 +10,11 @@ export function switchCreateItemKind(
   itemKind: "collection" | "wishlist"
 ): AgentCreateItemSuggestion {
   if (entry.itemKind === itemKind) return entry
+  const retailEstimate = entry.retailEstimate ?? entry.expectedPrice ?? entry.acquisitionPrice
   if (itemKind === "collection") {
-    return { ...entry, itemKind, acquisitionPrice: entry.expectedPrice }
+    return { ...entry, itemKind, retailEstimate, acquisitionPrice: entry.acquisitionPrice ?? retailEstimate }
   }
-  return { ...entry, itemKind, expectedPrice: entry.acquisitionPrice }
+  return { ...entry, itemKind, retailEstimate, expectedPrice: entry.expectedPrice ?? retailEstimate }
 }
 
 export function persistAgentReviewDraft(
