@@ -2,7 +2,7 @@
 
 Requires the media lifecycle migrations through `20260908181000_restrict_direct_storage_writes.sql`. Deploy `media-gc` with JWT gateway verification disabled (`--no-verify-jwt`): the handler requires `MEDIA_GC_WORKER_SECRET`, at least 32 characters.
 
-**Chosen trigger (W2):** Vercel cron GET `/api/media/gc` with `Authorization: Bearer CRON_SECRET`, implemented in `vercel.json`. That route calls the same `runMediaGc` core as this Edge function. Hobby cron is daily; Pro can keep the every-minute schedule. `/api/judge/sweep` shares the same `CRON_SECRET` mechanism.
+**Chosen trigger (W2):** Vercel cron GET `/api/media/gc` with `Authorization: Bearer CRON_SECRET`, implemented in `vercel.json` as `0 5 * * *`. That route calls the same `runMediaGc` core as this Edge function. This Vercel project is on Hobby, which rejects cron expressions that run more than once per day, so production GC is daily at 05:00 UTC. `/api/judge/sweep` shares the same `CRON_SECRET` mechanism.
 
 The Edge function remains a valid wakeup target. After `pg_cron` and `pg_net` are available, `supabase/operations/schedule-media-gc.sql` can POST here instead of (or as well as) the Next route.
 
