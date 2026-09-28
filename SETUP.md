@@ -51,7 +51,7 @@ npm install
 3. Make it **Public** (so profile photos can be shown without signed URLs)
 4. Optionally set **File size limit** to 2 MB and **Allowed MIME types** to `image/jpeg`, `image/png`, `image/gif`, `image/webp`
 5. Click **Create bucket**
-6. Run the migration that adds storage policies for `avatars`: `supabase/migrations/20250215000000_add_avatars_bucket.sql`
+6. The `avatars` storage policies live in `supabase/schema.sql`. Apply that file on a new project before using profile photos.
 
 ### Enable Google Sign-In (Optional)
 
