@@ -13,3 +13,16 @@ export class ItemCapExceededError extends Error {
     this.cap = cap
   }
 }
+
+/**
+ * Map the database trigger's `item_limit_reached:<count>:<cap>` error (raised by
+ * `sharing_private.enforce_item_cap` and `paste_box_trees_atomic`) to ItemCapExceededError.
+ */
+export function itemCapErrorFromDb(error: unknown): ItemCapExceededError | null {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message: unknown }).message)
+      : ""
+  const match = /item_limit_reached:(\d+):(\d+)/.exec(message)
+  return match ? new ItemCapExceededError(Number(match[1]), Number(match[2])) : null
+}

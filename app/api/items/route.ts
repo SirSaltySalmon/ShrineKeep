@@ -200,6 +200,13 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 })
     }
 
+    if (error instanceof ItemCapExceededError) {
+      return NextResponse.json(
+        { error: "item_limit_reached", currentCount: error.currentCount, cap: error.cap },
+        { status: 403 }
+      )
+    }
+
     if (isPrivacyConflictError(error)) {
       return NextResponse.json(
         {

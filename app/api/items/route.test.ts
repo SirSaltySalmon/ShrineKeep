@@ -247,6 +247,23 @@ describe("PATCH /api/items", () => {
     expect(response.status).toBe(404)
   })
 
+  it("returns 403 when a wishlist -> collection move hits the item cap", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
+    mockGetOwnedBoxIdSet.mockResolvedValue(new Set(["box-1"]))
+    mockApplyItemPatch.mockRejectedValue(new ItemCapExceededError(100, 100))
+
+    const response = await PATCH(makeRequest({
+      id: "item-1", is_wishlist: false, box_id: "box-1",
+    }, "PATCH") as any)
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: "item_limit_reached",
+      currentCount: 100,
+      cap: 100,
+    })
+  })
+
   it("applies a sparse patch body", async () => {
     mockCreateSupabaseServerClient.mockResolvedValue(liveUserClient())
     mockGetOwnedBoxIdSet.mockResolvedValue(new Set<string>())

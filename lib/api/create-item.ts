@@ -2,7 +2,7 @@ import type { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { ItemCopyPayload } from "@/lib/types"
 import { validateTags } from "./validation"
 import { isProUser, getEffectiveCap, getItemCount } from "@/lib/subscription"
-import { ItemCapExceededError } from "@/lib/api/item-cap-error"
+import { ItemCapExceededError, itemCapErrorFromDb } from "@/lib/api/item-cap-error"
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>
 
@@ -348,7 +348,7 @@ async function processCreates(
     .insert(itemDataArray)
     .select("id")
 
-  if (itemsError) throw itemsError
+  if (itemsError) throw itemCapErrorFromDb(itemsError) ?? itemsError
   if (!newItems || newItems.length !== creates.length) {
     throw new Error(`Failed to create all items: expected ${creates.length}, got ${newItems?.length ?? 0}`)
   }
@@ -406,7 +406,7 @@ async function processUpdates(
       .update(update.itemData)
       .eq("id", update.itemId)
       .eq("user_id", userId)
-    if (error) throw error
+    if (error) throw itemCapErrorFromDb(error) ?? error
   }
 
   operations.push(`updated ${updateItemIds.length} item(s)`)

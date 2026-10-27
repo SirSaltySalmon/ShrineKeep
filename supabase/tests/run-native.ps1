@@ -49,6 +49,7 @@ try {
     'supabase/migrations/20260908201000_drop_boxes_is_public.sql',
     'supabase/migrations/20260908210000_unify_display_name.sql',
     'supabase/migrations/20260909010000_public_profile_avatar_url.sql',
+    'supabase/migrations/20261027000000_lock_user_columns_and_item_cap.sql',
     'supabase/tests/social-foundation.sql',
     'supabase/tests/social-transactions.sql',
     'supabase/tests/public-reads.sql',
@@ -71,7 +72,8 @@ try {
     'supabase/tests/audience-ceiling.sql',
     'supabase/tests/media-backfill.sql',
     'supabase/tests/media-storage-writes.sql',
-    'supabase/tests/owner-profile-settings.sql'
+    'supabase/tests/owner-profile-settings.sql',
+    'supabase/tests/account-column-lockdown.sql'
   )
   foreach ($relativePath in $sqlFiles) {
     & (Join-Path $pgBin 'psql.exe') -X -h 127.0.0.1 -p $testPort -U postgres -v ON_ERROR_STOP=1 -f (Join-Path $repoRoot $relativePath) | Out-Null
