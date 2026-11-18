@@ -124,14 +124,17 @@ export default function LandingPage() {
 
         {/* CTA Section */}
         <ScrollReveal delayMs={520} className="w-full">
-          <div className="mt-10 sm:mt-14 md:mt-16 flex flex-wrap gap-3 sm:gap-6 items-center justify-center">
-            <Button
-              asChild
-              size="lg"
-              className="rounded-lg text-fluid-base sm:text-fluid-lg px-6 sm:px-8 py-3 sm:py-4 text-primary-foreground transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg"
-            >
-              <Link href="/auth/signup">Get Started</Link>
-            </Button>
+          <div className="mt-10 sm:mt-14 md:mt-16 flex flex-wrap gap-3 sm:gap-6 items-start justify-center">
+            <div className="flex flex-col items-center gap-1.5">
+              <Button
+                asChild
+                size="lg"
+                className="rounded-lg text-fluid-base sm:text-fluid-lg px-6 sm:px-8 py-3 sm:py-4 text-primary-foreground transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+              >
+                <Link href="/judge">Try ShrineKeep</Link>
+              </Button>
+              <p className="text-fluid-sm text-muted-foreground">No signup required</p>
+            </div>
             <Button
               asChild
               size="lg"
