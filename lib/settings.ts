@@ -4,18 +4,29 @@ import {
   DEFAULT_COLOR_SCHEME,
   DARK_COLOR_SCHEME,
   PINK_COLOR_SCHEME,
+  MATCHA_COLOR_SCHEME,
+  ARCADE_COLOR_SCHEME,
   THEME_COLOR_KEYS,
   THEME_KEY_TO_CSS_VAR,
 } from "./theme-colors"
-import { FONT_OPTIONS } from "./fonts"
+import { DEFAULT_BODY_FONT_FAMILY, DEFAULT_HEADER_FONT_FAMILY, FONT_OPTIONS } from "./fonts"
 import type { FontFamilyId } from "./fonts"
 
 // Re-export for consumers that import from settings
 export { DEFAULT_COLOR_SCHEME, DARK_COLOR_SCHEME }
 
-export type ThemePreset = "light" | "dark" | "pink" | "custom"
+export type ThemePreset = "light" | "dark" | "pink" | "matcha" | "arcade" | "custom"
 
-export const COLOR_SCHEME_PRESETS: Record<ThemePreset, { name: string; scheme: Theme }> = {
+export interface ThemePresetDefinition {
+  name: string
+  /** Colors plus `radius`. */
+  scheme: Theme
+  /** Fonts the preset sets. Omitted means the app default (same fields a theme file carries). */
+  headerFontFamily?: FontFamilyId
+  bodyFontFamily?: FontFamilyId
+}
+
+export const COLOR_SCHEME_PRESETS: Record<ThemePreset, ThemePresetDefinition> = {
   light: {
     name: "Light Mode",
     scheme: DEFAULT_COLOR_SCHEME,
@@ -27,6 +38,18 @@ export const COLOR_SCHEME_PRESETS: Record<ThemePreset, { name: string; scheme: T
   pink: {
     name: "Pink Mode",
     scheme: PINK_COLOR_SCHEME,
+  },
+  matcha: {
+    name: "Matcha",
+    scheme: MATCHA_COLOR_SCHEME,
+    headerFontFamily: "Lora",
+    bodyFontFamily: "Figtree",
+  },
+  arcade: {
+    name: "Arcade",
+    scheme: ARCADE_COLOR_SCHEME,
+    headerFontFamily: "JetBrains Mono",
+    bodyFontFamily: "JetBrains Mono",
   },
   custom: {
     name: "Custom",
@@ -47,6 +70,53 @@ export function getDefaultColorScheme(): Theme {
 export function getColorSchemeByPreset(preset: ThemePreset): Theme {
   if (preset === "custom") return getDefaultColorScheme()
   return { ...COLOR_SCHEME_PRESETS[preset].scheme }
+}
+
+/** Everything a preset applies: colors, radius, and both fonts, with app defaults filled in. */
+export interface ResolvedThemePreset {
+  scheme: Theme
+  headerFontFamily: FontFamilyId
+  bodyFontFamily: FontFamilyId
+}
+
+export function resolveThemePreset(preset: ThemePreset): ResolvedThemePreset {
+  const definition = COLOR_SCHEME_PRESETS[preset]
+  const scheme = getColorSchemeByPreset(preset)
+  return {
+    scheme: { ...scheme, radius: scheme.radius ?? "0.5rem" },
+    headerFontFamily: definition.headerFontFamily ?? DEFAULT_HEADER_FONT_FAMILY,
+    bodyFontFamily: definition.bodyFontFamily ?? DEFAULT_BODY_FONT_FAMILY,
+  }
+}
+
+const normalizeThemeValue = (value: string | undefined) => (value ?? "").trim().replace(/\s+/g, " ")
+
+/**
+ * Which built-in preset a saved look is, or "custom" if it is none of them.
+ *
+ * The preset's name is never stored, only its values, so this compares them: a theme is
+ * a given preset exactly as long as every color, the radius, and both fonts still equal
+ * that preset's. Change any one and it is custom.
+ */
+export function detectThemePreset(
+  theme: Theme | null | undefined,
+  headerFontFamily: FontFamilyId,
+  bodyFontFamily: FontFamilyId
+): ThemePreset {
+  const current = mergeColorScheme(theme)
+  const currentRadius = normalizeThemeValue(current.radius) || "0.5rem"
+
+  for (const preset of Object.keys(COLOR_SCHEME_PRESETS) as ThemePreset[]) {
+    if (preset === "custom") continue
+    const resolved = resolveThemePreset(preset)
+    if (resolved.headerFontFamily !== headerFontFamily || resolved.bodyFontFamily !== bodyFontFamily) continue
+    if (normalizeThemeValue(resolved.scheme.radius) !== currentRadius) continue
+    const sameColors = THEME_COLOR_KEYS.every(
+      (key) => normalizeThemeValue(current[key]) === normalizeThemeValue(resolved.scheme[key])
+    )
+    if (sameColors) return preset
+  }
+  return "custom"
 }
 
 /** Result of parsing an imported theme JSON (colors, radius, fonts; no graph_overlay). */
