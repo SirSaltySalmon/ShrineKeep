@@ -43,14 +43,14 @@ Live product: [shrinekeep.com](https://www.shrinekeep.com)
 - **Do not** use `bg-green-50`, `text-blue-600`, `#1a1f2e`, `rgb()`, or hardcoded `hsl(...)` in components that render under a user theme.
 - **Do not** invent a new color for one screen. If the role does not exist, add it to the registry (see below) so every theme, including imports/exports, gets it.
 
-Default light/dark/pink values in `THEME_COLOR_REGISTRY` are **seeds**, not the brand. Pink Mode exists to prove the same structure can look like a different product.
+Default light/dark values in `THEME_COLOR_REGISTRY` are **seeds**, not the brand. Pink Mode, Matcha and Arcade exist to prove the same structure can look like a different product.
 
 ## Color
 
 - **Approach:** Named roles. Values are user-chosen HSL triples stored as `"H S% L%"` (no `hsl()` wrapper) so CSS can do `hsl(var(--token))` and opacity modifiers like `bg-primary/90`.
 - **Canonical source:** `THEME_COLOR_REGISTRY` in `lib/theme-colors.ts`. Keys match `Theme` in `lib/types.ts`. CSS names are kebab-case (`cardForeground` → `--card-foreground`).
 - **Tailwind bridge:** `tailwind.config.ts` maps shadcn tokens to `hsl(var(--...))`. Product-only tokens (value, graph, thumbnail, tags) are usually used as CSS variables directly.
-- **Presets:** Light, Dark, Pink, Custom (`lib/settings.ts`). Custom is any saved `user_settings.color_scheme`.
+- **Presets:** Light, Dark, Pink, Matcha, Arcade, Custom (`COLOR_SCHEME_PRESETS` in `lib/settings.ts`; schemes in `lib/theme-colors.ts`). Custom is any saved `user_settings.color_scheme`. A preset is a whole look: colors and `radius` in its scheme, plus optional heading/body fonts. Apply one through `resolveThemePreset()`, which fills in default fonts. Light, Dark and Pink use the defaults; Matcha is Lora + Figtree at `0.25rem`, Arcade is JetBrains Mono at `0`. The landing demo lists these same presets, so adding one here adds it there.
 - **Import/export:** JSON of color keys + `radius` + `header_font_family` + `body_font_family`. Chart overlay is **not** part of a theme file.
 
 ### Token catalog
@@ -199,6 +199,17 @@ Prefer `text-fluid-*` in dashboard/settings/wishlist/social chrome. Fixed `text-
 
 `/landing` may set display fonts per word (Bebas Neue, Playfair, Roboto, Merriweather, etc.). That is the product poster, not the in-app system. Do not copy that mixed-font trick into dashboard components.
 
+The motto ("Consumerism has never been this organized.") is always set in mixed faces. Its fit table lives in `components/landing/hero-motto.tsx`; true italic cuts for it are loaded only on the route (`app/landing/fonts.ts`).
+
+### Landing kit
+
+Landing-only pieces live in `components/landing/`. The page is louder than the app but still paints with tokens: hard `border-foreground` rules, offset `foreground` shadows, tag colours as flat fills.
+
+- `hero-motto.tsx`: the poster. Words and shelf figures load scattered and settle into place.
+- `keeper.tsx`: the Keepers, nine token-coloured SVG figures used on the hero shelf and in the game.
+- `mock-dashboard.tsx`: a working miniature of the dashboard, client state only. Its theme switcher scopes `applyColorScheme()` output to the mock's own wrapper, so the page around it stays on built-in defaults. It follows the dashboard's model: an item lives in one box or the root, and items and boxes are dragged onto box cards, the move-to-parent zone, or breadcrumbs (same sensors and collision detection as `use-dashboard-dnd.ts`). Draggables use `touch-action: manipulation`, not `none`, so the landing page still scrolls under a finger.
+- `blind-box-game.tsx`: the capsule-machine game. Pretend money only.
+
 ## Spacing
 
 - **Base unit:** 4px (Tailwind default). Common steps: 1, 2, 3, 4, 6, 8 (4/8/12/16/24/32px).
@@ -229,7 +240,7 @@ Prefer `rounded-md` / `rounded-lg` so user roundedness actually changes the UI. 
 - **Approach:** Intentional and small. Comprehension and hover feedback, not choreography.
 - **Buttons:** `transition-colors` / shadow / transform. `motion-safe:hover:-translate-y-0.5` with `motion-reduce` disabling movement (`components/ui/button.tsx`).
 - **Accordions:** 200ms ease-out height (`tailwind.config.ts`).
-- **Landing:** `ScrollReveal`, `Floating` (`float-slow` keyframes, amplitude via `--float-amp`). Keep this on marketing unless a product surface already uses it.
+- **Landing:** `ScrollReveal` plus the `sk-landing-*` keyframes in `app/globals.css` (hero settle, marquee, stamp spin, figure hop, blind-box machine). All of them switch off under `prefers-reduced-motion`. Keep this on marketing unless a product surface already uses it.
 - **iOS:** `html.mobile-safari-drag-active` contains overscroll during drag so Safari chrome does not cancel DnD.
 
 ## Components
@@ -260,3 +271,5 @@ Flag in review or QA if code:
 | 2026-09-02 | Design system is token/role based; look is user-owned | Theme editor, import/export, and per-user CSS variables are the product. Documenting a single aesthetic would fight the app. |
 | 2026-09-02 | Canonical file is `docs/DESIGN.md` | Project docs live in `docs/`. |
 | 2026-09-02 | Marketing/auth stay on built-in defaults | Prevents shrine leak onto public pages (`shouldResetDocumentToDefaults`). |
+| 2026-11-18 | Landing rebuilt as an interactive poster (live mock dashboard, Keepers, blind-box game) | Screenshots undersold a product whose point is customization. Demo themes are scoped to the mock, so the defaults-only rule for `/landing` still holds. |
+| 2026-11-18 | Matcha and Arcade added as presets; presets may carry fonts and radius | The landing demo's themes should be things a user can actually pick. Theme files already carry fonts and radius, so presets now can too. |
