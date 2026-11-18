@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { proUpgradeCtaLabel } from "@/lib/subscription"
+import { FREE_TIER_CAP, proUpgradeCtaLabel } from "@/lib/subscription"
 
 export type UpsellReason = "cap_hit" | "ebay_feature_gate"
 
@@ -22,7 +22,7 @@ interface UpsellModalProps {
 const COPY: Record<UpsellReason, { title: string; body: string }> = {
   cap_hit: {
     title: "You've built a real collection.",
-    body: "Free accounts hold 50 items. Yours is full. Upgrade to Pro for unlimited items.",
+    body: `Free accounts hold ${FREE_TIER_CAP} items. Yours is full. Upgrade to Pro for unlimited items.`,
   },
   ebay_feature_gate: {
     title: "eBay price lookup is Pro-only.",
