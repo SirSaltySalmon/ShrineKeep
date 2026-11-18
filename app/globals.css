@@ -114,6 +114,179 @@
   }
 }
 
+/*
+ * Outline style (Theme.outline). See docs/DESIGN.md → Outline.
+ *
+ * applyColorScheme() leaves --outline-width, --outline-color and --outline-shadow undefined
+ * for a soft theme and sets all three for a hard one. Every fallback below is therefore the
+ * soft look, and that is also what unthemed routes (landing, auth, legal) get.
+ *
+ * These are single-class rules in the components layer on purpose: a utility passed by a
+ * caller (border-0, border-primary, shadow-none) still wins, exactly as it did when the
+ * primitives used plain `border` / `shadow` utilities. components/ui is where they belong;
+ * a hand-rolled surface follows the outline style only if it uses these instead of
+ * `border` / `shadow-*`.
+ */
+@layer components {
+  /* Surfaces: cards, dialogs, menus, popovers. */
+  .sk-outline {
+    border-width: var(--outline-width, 1px);
+    border-color: var(--outline-color, hsl(var(--border)));
+  }
+  /* Form controls and the outline button, whose soft border is --input. */
+  .sk-outline-control {
+    border-width: var(--outline-width, 1px);
+    border-color: var(--outline-color, hsl(var(--input)));
+  }
+  /* Filled buttons, which have no border when soft. */
+  .sk-outline-filled {
+    border-width: var(--outline-width, 0px);
+    border-color: var(--outline-color, hsl(var(--border)));
+  }
+
+  /*
+   * Raised surfaces. Soft is Tailwind's shadow for that elevation; hard is the offset shadow.
+   * The shadow goes through --tw-shadow so focus and selection rings still stack on top of it.
+   */
+  .sk-raised,
+  .sk-raised-md,
+  .sk-raised-lg,
+  .sk-raised-xl,
+  .sk-flat-sm,
+  .sk-btn {
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+  }
+  .sk-raised {
+    --tw-shadow: var(--outline-shadow, theme("boxShadow.DEFAULT"));
+  }
+  .sk-raised-md {
+    --tw-shadow: var(--outline-shadow, theme("boxShadow.md"));
+  }
+  .sk-raised-lg {
+    --tw-shadow: var(--outline-shadow, theme("boxShadow.lg"));
+  }
+  .sk-raised-xl {
+    --tw-shadow: var(--outline-shadow, theme("boxShadow.xl"));
+  }
+
+  /*
+   * Buttons. Soft: flat at rest, shadow-sm on hover when motion is allowed (unchanged).
+   * Hard: primary, destructive and outline buttons (sk-btn-raised) carry the offset shadow
+   * at rest and keep it on hover instead of swapping to the blurred one.
+   */
+  .sk-btn {
+    --tw-shadow: 0 0 #0000;
+  }
+  .sk-btn-raised {
+    --tw-shadow: var(--outline-shadow, 0 0 #0000);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .sk-btn:hover {
+      --tw-shadow: theme("boxShadow.sm");
+    }
+    .sk-btn-raised:hover {
+      --tw-shadow: var(--outline-shadow, theme("boxShadow.sm"));
+    }
+  }
+
+  /*
+   * Item and box card wrappers (components/selectable.tsx). The wrapper carries the hover
+   * shadow and the selection ring; the Card inside it carries sk-raised.
+   *
+   * Soft: no shadow at rest, shadow-lg on hover when motion is allowed (unchanged).
+   * Hard: the hover shadow is the same offset shadow the card already has, on a box of the
+   * same size, so it sits exactly under the card's and nothing blurred appears.
+   */
+  .sk-card-hover {
+    --tw-shadow: 0 0 #0000;
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .sk-card-hover:hover {
+      --tw-shadow: var(--outline-shadow, theme("boxShadow.lg"));
+    }
+  }
+
+  /*
+   * Hard only. The wrapper's selection / drop-target ring is a box-shadow, and the card's
+   * offset shadow is painted over its right and bottom edges. An outline is drawn above
+   * descendants, so repeat the ring as one: same colour and footprint as ring-2 with
+   * ring-offset-2 (and as the hover ring, ring-2 with no offset). The width falls back to
+   * 0, so a soft theme shows the box-shadow ring alone, as before.
+   */
+  .sk-ring-selected {
+    outline: var(--outline-width, 0px) solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+  .sk-ring-hover:hover {
+    outline: var(--outline-width, 0px) solid hsl(var(--selectable-hover-ring));
+    outline-offset: 0px;
+  }
+
+  /*
+   * Rules: nav bars, panel headers and footers, section dividers. Soft is the 1px --border
+   * hairline. Hard is the same ink line as every other outline, so a hard page has one line
+   * weight and one line colour instead of ink sitting next to grey hairlines.
+   */
+  .sk-rule-t {
+    border-top-width: var(--outline-width, 1px);
+    border-top-color: var(--outline-color, hsl(var(--border)));
+  }
+  .sk-rule-b {
+    border-bottom-width: var(--outline-width, 1px);
+    border-bottom-color: var(--outline-color, hsl(var(--border)));
+  }
+  .sk-rule-l {
+    border-left-width: var(--outline-width, 1px);
+    border-left-color: var(--outline-color, hsl(var(--border)));
+  }
+  .sk-rule-r {
+    border-right-width: var(--outline-width, 1px);
+    border-right-color: var(--outline-color, hsl(var(--border)));
+  }
+  .sk-rule-x {
+    border-left-width: var(--outline-width, 1px);
+    border-right-width: var(--outline-width, 1px);
+    border-left-color: var(--outline-color, hsl(var(--border)));
+    border-right-color: var(--outline-color, hsl(var(--border)));
+  }
+  .sk-rule-y {
+    border-top-width: var(--outline-width, 1px);
+    border-bottom-width: var(--outline-width, 1px);
+    border-top-color: var(--outline-color, hsl(var(--border)));
+    border-bottom-color: var(--outline-color, hsl(var(--border)));
+  }
+
+  /*
+   * Backdrops. A hard page raises objects only (cards, buttons, dialogs, floating chrome);
+   * the panels they sit on are ruled with sk-outline and stay flat. sk-flat-* is for a panel
+   * or bar that has a faint soft shadow: unchanged when soft, none when hard.
+   */
+  .sk-flat-sm {
+    --tw-shadow: var(--outline-flat, theme("boxShadow.sm"));
+  }
+  .sk-flat-bar {
+    box-shadow: var(--outline-flat, 0 -4px 20px rgb(0 0 0 / 0.08));
+  }
+
+  /* A floating control whose soft shadow grows on hover; hard keeps its offset shadow. */
+  @media (hover: hover) {
+    .sk-raised-hover-xl:hover {
+      --tw-shadow: var(--outline-shadow, theme("boxShadow.xl"));
+    }
+  }
+
+  /*
+   * One raised level. Inside a raised surface the offset shadow is switched off, so a button
+   * in a card, or a card in a dialog, is outlined but flat: no shadow inside a shadow.
+   * Soft: --outline-flat is undefined, which makes this declaration invalid at computed-value
+   * time and leaves --outline-shadow undefined as well, so every soft fallback still applies.
+   */
+  :where(.sk-raised, .sk-raised-md, .sk-raised-lg, .sk-raised-xl) > * {
+    --outline-shadow: var(--outline-flat);
+  }
+}
+
 /* Fluid typography: scale with viewport to prevent clipping on small screens */
 @layer utilities {
   .text-fluid-xs {

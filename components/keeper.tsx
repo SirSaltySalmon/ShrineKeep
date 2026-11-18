@@ -1,9 +1,11 @@
 import { cn } from "@/lib/utils"
 
 /**
- * "Keepers" are the landing page's blind-box figures: one parametric SVG,
- * nine variants. They paint only with theme tokens so they follow whatever
- * scheme is in scope (the mock dashboard re-themes them live).
+ * "Keepers" are ShrineKeep's blind-box figures: one parametric SVG, nine
+ * variants. The landing page uses them on the hero shelf and in the game; the
+ * product uses one per empty state (see `components/empty-state.tsx`).
+ * They paint only with theme tokens, so they follow whatever scheme is in
+ * scope: a user's theme, a shared public theme, or the landing mock's.
  */
 
 export type KeeperTopper =

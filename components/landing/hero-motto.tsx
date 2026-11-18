@@ -4,7 +4,7 @@ import * as React from "react"
 import { Shuffle, Sparkles, Wind } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SiteLogoMark } from "@/components/site-logo"
-import { Keeper, KEEPERS } from "@/components/landing/keeper"
+import { Keeper, KEEPERS } from "@/components/keeper"
 
 /**
  * The motto is the one fixed thing on this page: six words, six typefaces.
@@ -275,7 +275,7 @@ export function HeroMotto({ freeItemCap }: { freeItemCap: number }) {
           style={{ fontFamily: "var(--font-jetbrains-mono), ui-monospace, monospace" }}
         >
           <p>
-            Series 01 <span aria-hidden>/</span> The Keepers <span aria-hidden>/</span>{" "}
+            Put your ducks in a row <span aria-hidden>/</span>{" "}
             <a href="#blind-box" className="text-foreground underline underline-offset-4 hover:no-underline">
               win all nine below
             </a>

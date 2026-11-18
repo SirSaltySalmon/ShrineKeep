@@ -10,6 +10,7 @@ import {
 import { format } from "date-fns"
 import { formatCurrency } from "@/lib/utils"
 import type { ValueChartPoint, AcquisitionChartPoint } from "@/lib/hooks/use-box-stats"
+import { mergeStatsSeries } from "@/lib/stats/box-stats-series"
 import {
   ChartContainer,
   ChartTooltip,
@@ -91,34 +92,19 @@ function dateRangeToDomain(fromDate: string, toDate: string): [number, number] {
 
 type MergedChartPoint = { date: string; dateMs: number; value: number; cumulativeAcquisition: number }
 
+/**
+ * Both series on one shared set of dates, zero-filled before each series starts and carried
+ * forward after its last figure (`mergeStatsSeries`). Every chart here draws this, overlay
+ * or separate, so a line never starts or stops partway across the axis.
+ */
 function getMergedChartData(
   valueData: ValueChartPoint[],
   acquisitionData: AcquisitionChartPoint[]
 ): MergedChartPoint[] {
-  const allDates = Array.from(
-    new Set([
-      ...valueData.map((p) => p.date),
-      ...acquisitionData.map((p) => p.date),
-    ])
-  ).filter(Boolean).sort()
-  if (allDates.length === 0) return []
-  const valueByDate = new Map(valueData.map((p) => [p.date, p.value]))
-  const acquisitionSorted = [...acquisitionData].sort((a, b) => a.date.localeCompare(b.date))
-  let lastAcquisition = 0
-  return allDates.map((date) => {
-    const value =
-      valueByDate.get(date) ??
-      valueData.filter((p) => p.date <= date).sort((a, b) => a.date.localeCompare(b.date)).pop()?.value ??
-      0
-    const acqPoint = acquisitionSorted.filter((p) => p.date <= date).pop()
-    if (acqPoint) lastAcquisition = acqPoint.cumulativeAcquisition
-    return {
-      date,
-      dateMs: new Date(date).getTime(),
-      value: Number(value),
-      cumulativeAcquisition: lastAcquisition,
-    }
-  })
+  return mergeStatsSeries(valueData, acquisitionData).map((point) => ({
+    ...point,
+    dateMs: new Date(point.date).getTime(),
+  }))
 }
 
 const tooltipWrapperStyle = { maxWidth: "90vw", minWidth: 120, overflowX: "auto" as const }
@@ -228,8 +214,9 @@ export function ValueAcquisitionCharts({
   const hasAcquisition = acquisitionChartData.length > 0
   const hasAny = hasValue || hasAcquisition
 
+  const mergedData = hasAny ? getMergedChartData(valueChartData, acquisitionChartData) : []
+
   if (graphOverlay && hasAny) {
-    const mergedData = getMergedChartData(valueChartData, acquisitionChartData)
     return (
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">Value & acquisition over time</h3>
@@ -279,8 +266,12 @@ export function ValueAcquisitionCharts({
 
   return (
     <div className="space-y-6">
+      {/*
+        Separate charts draw the same merged, zero-filled series as the overlay chart, one line
+        each. A series with no figures of its own still shows its empty message, not a flat 0.
+      */}
       <CurrencyLineChart
-        data={valueChartData}
+        data={hasValue ? mergedData : []}
         dataKey="value"
         title="Total value over time"
         emptyMessage="No value history. Update item values to see the graph."
@@ -290,7 +281,7 @@ export function ValueAcquisitionCharts({
         height={height}
       />
       <CurrencyLineChart
-        data={acquisitionChartData}
+        data={hasAcquisition ? mergedData : []}
         dataKey="cumulativeAcquisition"
         title="Cumulative acquisition cost"
         emptyMessage="No acquisition data. Add acquisition date and price to items to see the graph."

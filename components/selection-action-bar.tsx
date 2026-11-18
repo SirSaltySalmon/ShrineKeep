@@ -336,7 +336,7 @@ export function SelectionActionBar({
     <>
       <div
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between gap-4 border-t border-border bg-card/95 backdrop-blur px-4 py-3.5 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] rounded-t-2xl",
+          "fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between gap-4 sk-rule-t bg-card/95 backdrop-blur px-4 py-3.5 sk-flat-bar rounded-t-2xl",
           "animate-in slide-in-from-bottom duration-200",
           className
         )}

@@ -16,7 +16,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { Theme } from "@/lib/types"
-import { THEME_EDITOR_GROUPS, getThemeColorMeta, type ThemeColorKey } from "@/lib/theme-colors"
+import {
+  THEME_EDITOR_GROUPS,
+  THEME_OUTLINE_OPTIONS,
+  getThemeColorMeta,
+  getThemeOutlineCssVars,
+  normalizeThemeOutline,
+  type ThemeColorKey,
+} from "@/lib/theme-colors"
 import {
   FONT_OPTIONS,
   FONT_FAMILY_CSS,
@@ -73,7 +80,7 @@ function PreviewBox({ children, className }: { children: React.ReactNode; classN
   return (
     <div
       className={cn(
-        "flex items-center justify-center min-h-[2.5rem] p-3 rounded-lg border border-border bg-light-muted",
+        "flex items-center justify-center min-h-[2.5rem] p-3 rounded-lg sk-outline bg-light-muted",
         className
       )}
     >
@@ -189,11 +196,18 @@ export function ThemeEditor({
     setSelectedPreset("custom")
   }
 
+  const outline = normalizeThemeOutline(theme.outline)
+
+  const handleOutlineChange = (value: string) => {
+    setTheme((prev) => ({ ...prev, outline: normalizeThemeOutline(value) }))
+    setSelectedPreset("custom")
+  }
+
   const [inputPreviewValue, setInputPreviewValue] = useState("")
 
   const GROUP_PREVIEWS: (React.ReactNode | null)[] = [
     <div key="page" className="flex flex-wrap items-center gap-3">
-      <div className="rounded-lg border border-border p-4 bg-background text-foreground text-fluid-sm">
+      <div className="rounded-lg sk-outline p-4 bg-background text-foreground text-fluid-sm">
         Page
       </div>
       <Card className="min-w-[200px]">
@@ -379,6 +393,54 @@ export function ThemeEditor({
             Preview
           </Card>
         </div>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <h3 className="text-fluid-lg font-semibold">Outline</h3>
+          <p className="text-fluid-sm text-muted-foreground mt-0.5">
+            Soft keeps thin borders and blurred shadows. Hard gives cards, buttons, inputs, dialogs,
+            and menus a 2px border in the foreground color, with a solid offset shadow on raised
+            surfaces. Exported with theme files.
+          </p>
+        </div>
+        <div className="space-y-4">
+          <PreviewBox className="w-full min-w-0">
+            <div
+              className="flex flex-wrap items-center gap-4"
+              style={getThemeOutlineCssVars(outline) as CSSProperties}
+            >
+              <Card className="min-w-[160px]">
+                <CardHeader className="p-4">
+                  <CardTitle className="text-fluid-sm">Card title</CardTitle>
+                </CardHeader>
+              </Card>
+              <Button type="button" onClick={(e) => e.preventDefault()}>
+                Save
+              </Button>
+              <Button type="button" variant="outline" onClick={(e) => e.preventDefault()}>
+                Cancel
+              </Button>
+              <Input
+                className="h-10 w-[160px]"
+                placeholder="Input text"
+                aria-label="Outline preview input"
+              />
+            </div>
+          </PreviewBox>
+          <Select value={outline} onValueChange={handleOutlineChange}>
+            <SelectTrigger className="w-[180px]" aria-label="Outline style">
+              <SelectValue placeholder="Soft" />
+            </SelectTrigger>
+            <SelectContent>
+              {THEME_OUTLINE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div 
           className="rounded-md"
           style={
@@ -394,7 +456,7 @@ export function ThemeEditor({
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 border-t pt-4">
+      <div className="flex justify-end gap-2 sk-rule-t pt-4">
         {savedTheme && (
           <span className="text-fluid-sm text-muted-foreground self-center">Theme saved!</span>
         )}

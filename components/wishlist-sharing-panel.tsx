@@ -201,7 +201,7 @@ export function WishlistSharingPanel({
       )}
 
       {isCard && (
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+        <div className="flex flex-wrap items-center justify-end gap-2 sk-rule-t pt-4">
           {(saved || savedSharing) && (
             <span className="text-fluid-sm text-muted-foreground mr-auto">Sharing settings saved.</span>
           )}
@@ -222,7 +222,7 @@ export function WishlistSharingPanel({
     return (
       <div
         className={cn(
-          "w-full rounded-lg border border-border bg-card text-card-foreground shadow-sm",
+          "w-full rounded-lg sk-outline bg-card text-card-foreground sk-flat-sm",
           "p-4 sm:p-5 mb-8"
         )}
       >

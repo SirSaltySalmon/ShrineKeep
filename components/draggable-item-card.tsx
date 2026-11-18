@@ -7,6 +7,7 @@ import { Item } from "@/lib/types"
 import ItemCard from "./item-card"
 import { OWNER_CAPABILITIES } from "@/lib/sharing/presentation/capabilities"
 import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
+import type { CardDensity } from "@/lib/card-density"
 
 const DRAG_ID_PREFIX = "item-"
 
@@ -22,6 +23,8 @@ interface DraggableItemCardProps {
   onClick: (item: Item, e: React.MouseEvent) => void
   /** Register this card's root element for marquee intersection. */
   registerCardRef?: (id: string, el: HTMLDivElement | null) => void
+  /** Forwarded to `ItemCard`. */
+  density?: CardDensity
 }
 
 export default function DraggableItemCard({
@@ -30,6 +33,7 @@ export default function DraggableItemCard({
   selectionMode = false,
   onClick,
   registerCardRef,
+  density,
 }: DraggableItemCardProps) {
   const {
     attributes,
@@ -70,6 +74,8 @@ export default function DraggableItemCard({
         capabilities={OWNER_CAPABILITIES}
         selected={selected}
         selectionMode={selectionMode}
+        draggable
+        density={density}
         onClick={(_, event) => onClick(item, event)}
       />
     </div>

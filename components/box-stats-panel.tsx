@@ -53,7 +53,7 @@ export default function BoxStatsPanel({
   const isRefreshingDisplay = previewData ? false : isRefreshing
 
   const panelContent = (
-    <div className="rounded-lg border bg-card mb-6 overflow-visible min-w-0">
+    <div className="rounded-lg sk-outline bg-card mb-6 overflow-visible min-w-0">
       <div className="p-4 layout-shrink-visible">
         <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
           <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-x-auto overflow-y-hidden">
@@ -86,7 +86,7 @@ export default function BoxStatsPanel({
       </div>
 
       {expanded && (
-        <div className="border-t bg-light-muted px-4 py-4 space-y-4">
+        <div className="sk-rule-t bg-light-muted px-4 py-4 space-y-4">
           <DateRangeFilter
             fromDate={fromDate}
             toDate={toDate}

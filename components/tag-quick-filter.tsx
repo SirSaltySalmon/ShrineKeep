@@ -1,0 +1,68 @@
+"use client"
+
+import type { CSSProperties } from "react"
+import type { Tag, TagColor } from "@/lib/types"
+import { cn, FOCUS_RING_CLASS } from "@/lib/utils"
+
+interface TagQuickFilterProps {
+  /** Tags carried by the items in the current view, already in canonical order. */
+  tags: Tag[]
+  /** Include-tags from the shared search filters. Ids that are not in `tags` are ignored. */
+  activeTagIds: readonly string[]
+  onToggle: (tagId: string) => void
+  className?: string
+}
+
+/**
+ * Painted with the tag tokens directly (not the resolved values from `getTagChipStyle`) so the
+ * server render and the client agree and a theme change repaints the chips without a re-render.
+ */
+function chipStyle(color: TagColor, filled: boolean): CSSProperties {
+  const tagColor = `hsl(var(--tag-${color}))`
+  return filled
+    ? { background: tagColor, borderColor: tagColor, color: "hsl(var(--tag-foreground))" }
+    : { borderColor: tagColor }
+}
+
+/**
+ * One-tap tag filter above the item grid. Each chip toggles that tag in the include-tags
+ * filter, the same state the Filters panel edits. Renders nothing when the view has no tags.
+ */
+export default function TagQuickFilter({ tags, activeTagIds, onToggle, className }: TagQuickFilterProps) {
+  if (tags.length === 0) return null
+
+  const active = new Set(activeTagIds)
+  const anyActive = tags.some((tag) => active.has(tag.id))
+
+  return (
+    <div
+      role="group"
+      aria-label="Filter items by tag"
+      className={cn("flex flex-wrap items-center gap-1.5 min-w-0", className)}
+    >
+      <span className="text-fluid-xs text-muted-foreground">Tags</span>
+      {tags.map((tag) => {
+        const pressed = active.has(tag.id)
+        return (
+          <button
+            key={tag.id}
+            type="button"
+            aria-pressed={pressed}
+            title={tag.name}
+            onClick={() => onToggle(tag.id)}
+            className={cn(
+              "max-w-full truncate rounded-md border-2 px-2 py-0.5 text-fluid-xs font-medium transition-opacity",
+              FOCUS_RING_CLASS,
+              "focus-visible:ring-offset-background",
+              // Until a chip is picked they all read as plain tags; after that the rest step back.
+              anyActive && !pressed && "opacity-60 hover:opacity-100"
+            )}
+            style={chipStyle(tag.color ?? "blue", pressed || !anyActive)}
+          >
+            {tag.name}
+          </button>
+        )
+      })}
+    </div>
+  )
+}

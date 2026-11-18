@@ -98,7 +98,7 @@ function ThumbnailPlaceholder() {
 /** Thumbnail tile preview for theme editor: placeholder image, hover overlay (bg + icons), badge. */
 export function ThumbnailPreview() {
   return (
-    <div className="relative w-24 h-24 rounded-lg border overflow-hidden bg-muted group shrink-0">
+    <div className="relative w-24 h-24 rounded-lg sk-outline overflow-hidden bg-muted group shrink-0">
       <ThumbnailPlaceholder />
       <div
         className="absolute inset-0 flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50"

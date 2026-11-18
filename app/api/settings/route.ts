@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { generateShareToken } from "@/lib/settings"
 import { Theme } from "@/lib/types"
+import { isThemeOutline, normalizeThemeOutline } from "@/lib/theme-colors"
 import { FONT_OPTIONS } from "@/lib/fonts"
 import type { FontFamilyId } from "@/lib/fonts"
 import { NAME_MAX_LENGTH, NAME_MAX_MESSAGE } from "@/lib/validation"
@@ -51,12 +52,14 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Merge stored display prefs into color_scheme for clients (graph_overlay is separate)
+    // Merge stored display prefs into color_scheme for clients (graph_overlay is separate).
+    // `outline` lives inside the color_scheme JSON; a theme saved before it existed reads as soft.
     const colorScheme = settings.color_scheme as Theme | null | undefined
     if (colorScheme && typeof colorScheme === "object") {
       settings.color_scheme = {
         ...colorScheme,
         radius: settings.border_radius ?? colorScheme.radius ?? "0.5rem",
+        outline: normalizeThemeOutline(colorScheme.outline),
       }
     }
 
@@ -130,7 +133,7 @@ export async function PUT(request: NextRequest) {
     }
 
     if (themePayload !== undefined) {
-      updateData.color_scheme = themePayload
+      updateData.color_scheme = withValidOutline(themePayload)
       updateData.border_radius = themePayload.radius ?? undefined
     }
 
@@ -232,6 +235,16 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+/**
+ * `outline` is stored inside the color_scheme JSON (no column of its own). Keep "soft" and
+ * "hard"; drop anything else so a bad client value is never persisted.
+ */
+function withValidOutline(theme: Theme | null): Theme | null {
+  if (!theme || !("outline" in theme) || isThemeOutline(theme.outline)) return theme
+  const { outline: _invalid, ...rest } = theme
+  return rest
 }
 
 async function attachOwnerSharing(userId: string, settings: Record<string, unknown>) {

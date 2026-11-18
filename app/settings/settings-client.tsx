@@ -177,6 +177,8 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
       const imported = parseImportedColorScheme(text)
 
       if (imported) {
+        // The defaults carry outline "soft", so a file without an outline (every export made
+        // before the field existed) imports as soft; a valid outline in the file replaces it.
         setTheme((prev) => ({
           ...getDefaultColorScheme(),
           ...imported.theme,
@@ -188,7 +190,7 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
         alert("Theme imported successfully!")
       } else {
         alert(
-          "Invalid theme format. Please ensure the file contains valid JSON with colors, optional radius, header_font_family, and/or body_font_family."
+          "Invalid theme format. Please ensure the file contains valid JSON with colors, optional radius, outline, header_font_family, and/or body_font_family."
         )
       }
     } catch (error) {

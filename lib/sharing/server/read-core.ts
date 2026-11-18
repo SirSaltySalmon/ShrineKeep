@@ -1,7 +1,7 @@
 import type { CursorPage, OperationError, OperationResult, PublicBox, PublicBoxStats, PublicCollectionItem, PublicDetailRequest, PublicItemDetail, PublicMedia, PublicProfile, PublicReadService, PublicStyle, PublicWishlistItem, PublishedViewer } from "../contracts"
 import { GUEST_VIEWER, SHARING_LIMITS } from "../contracts"
 import { FONT_OPTIONS, type FontFamilyId } from "@/lib/fonts"
-import { THEME_COLOR_KEYS } from "@/lib/theme-colors"
+import { THEME_COLOR_KEYS, isThemeOutline, type ThemeColorKey } from "@/lib/theme-colors"
 import { type Theme } from "@/lib/types"
 import { decodeCursor, encodeCursor, type CursorScope } from "./cursor"
 
@@ -109,8 +109,10 @@ function parseStyle(value: unknown): PublicStyle | null {
   const colorScheme: Theme = {}
   for (const [key, token] of Object.entries(scheme)) {
     if (!themeKeys.has(key) || typeof token !== "string" || token.length > 40 || !hsl.test(token)) continue
-    colorScheme[key as keyof Theme] = token
+    colorScheme[key as ThemeColorKey] = token
   }
+  // The one non-color field carried in color_scheme: only its two known values pass.
+  if (isThemeOutline(scheme.outline)) colorScheme.outline = scheme.outline
   const borderRadius = typeof row.borderRadius === "string" && radii.has(row.borderRadius) ? row.borderRadius : null
   return { colorScheme, headerFontFamily: parseFont(row.headerFontFamily), bodyFontFamily: parseFont(row.bodyFontFamily), borderRadius }
 }

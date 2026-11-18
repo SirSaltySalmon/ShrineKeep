@@ -142,4 +142,52 @@ describe("/api/settings", () => {
     const response = await PUT(makePutRequest({ theme: "bad" }) as any)
     expect(response.status).toBe(400)
   })
+
+  describe("theme outline (stored inside color_scheme, no column of its own)", () => {
+    function mockStoredSettings(settings: Record<string, unknown>) {
+      const selectChain = {
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: settings, error: null }),
+      }
+      mockCreateSupabaseServerClient.mockResolvedValue({
+        auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1" } } }) },
+        from: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue(selectChain) }),
+      })
+    }
+
+    it.each(["soft", "hard"])("PUT saves outline %s inside color_scheme", async (outline) => {
+      const chain = mockMutableSettings()
+      const theme = { background: "0 0% 100%", radius: "0.25rem", outline }
+      const response = await PUT(makePutRequest({ theme }) as any)
+      expect(response.status).toBe(200)
+      expect(chain.upsert).toHaveBeenCalledWith(
+        { user_id: "u1", color_scheme: theme, border_radius: "0.25rem" },
+        { onConflict: "user_id" }
+      )
+    })
+
+    it("PUT drops an outline that is not soft or hard", async () => {
+      const chain = mockMutableSettings()
+      const response = await PUT(
+        makePutRequest({ theme: { background: "0 0% 100%", radius: "0.5rem", outline: "neon" } }) as any
+      )
+      expect(response.status).toBe(200)
+      expect(chain.upsert).toHaveBeenCalledWith(
+        { user_id: "u1", color_scheme: { background: "0 0% 100%", radius: "0.5rem" }, border_radius: "0.5rem" },
+        { onConflict: "user_id" }
+      )
+    })
+
+    it("GET returns a saved hard outline", async () => {
+      mockStoredSettings({ user_id: "u1", color_scheme: { background: "0 0% 100%", outline: "hard" }, border_radius: null })
+      const body = await (await GET(new Request("http://localhost/api/settings") as any)).json()
+      expect(body.color_scheme.outline).toBe("hard")
+    })
+
+    it("GET reads a theme saved before the field existed as soft", async () => {
+      mockStoredSettings({ user_id: "u1", color_scheme: { background: "0 0% 100%" }, border_radius: "0.5rem" })
+      const body = await (await GET(new Request("http://localhost/api/settings") as any)).json()
+      expect(body.color_scheme).toEqual({ background: "0 0% 100%", radius: "0.5rem", outline: "soft" })
+    })
+  })
 })

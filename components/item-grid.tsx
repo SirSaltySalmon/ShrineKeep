@@ -9,6 +9,7 @@ import { Plus, Sword, type LucideIcon } from "lucide-react"
 import DraggableItemCard from "./draggable-item-card"
 import ItemCard from "./item-card"
 import ItemDialog from "./item-dialog"
+import { EmptyState } from "./empty-state"
 import { SelectionActionBar } from "./selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
@@ -18,8 +19,9 @@ import {
 } from "@/components/boneyard-fixtures"
 import { OWNER_CAPABILITIES, READ_ONLY_CAPABILITIES, type CollectionCapabilities } from "@/lib/sharing/presentation/capabilities"
 import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
-
-const LOADING_ROW_VISIBILITY = ["", "hidden md:block", "hidden lg:block", "hidden xl:block"] as const
+import { ITEM_GRID_LAYOUT, getCardSkeletonName, takeLoadingFixtures } from "@/lib/card-density"
+import { useCardDensity } from "@/lib/hooks/use-card-density"
+import { cn } from "@/lib/utils"
 
 /** When provided (e.g. by dashboard), selection is controlled by parent; otherwise ItemGrid uses internal marquee selection. */
 export interface ItemGridSelectionProps {
@@ -96,6 +98,9 @@ export default function ItemGrid({
   capabilities,
 }: ItemGridProps) {
   const resolvedCapabilities = capabilities ?? (readOnly ? READ_ONLY_CAPABILITIES : OWNER_CAPABILITIES)
+  // Per-device preference. Comfortable on the server and until hydration has finished.
+  const density = useCardDensity()
+  const gridLayout = ITEM_GRID_LAYOUT[density]
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const internalMarquee = useMarqueeSelection()
 
@@ -160,7 +165,12 @@ export default function ItemGrid({
     variant === "wishlist"
       ? WISHLIST_ITEM_SKELETON_FIXTURES
       : COLLECTION_ITEM_SKELETON_FIXTURES
-  const displayedItems = loading ? skeletonItems.slice(0, 4) : items
+  const skeletonName = getCardSkeletonName(
+    variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card",
+    density
+  )
+  // One row of skeleton cards, however many columns this density has.
+  const displayedItems = loading ? takeLoadingFixtures(skeletonItems, gridLayout) : items
   const showUsageStatus =
     variant === "collection" &&
     resolvedCapabilities.showItemCap &&
@@ -172,7 +182,7 @@ export default function ItemGrid({
 
   return (
     <>
-      <div className="rounded-md border bg-light-muted p-4">
+      <div className="rounded-md sk-outline bg-light-muted p-4">
         <div className={sectionTitle || headerContent ? "flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0" : "mb-4 min-w-0"}>
           {sectionTitle || headerContent ? (
             <>
@@ -192,7 +202,7 @@ export default function ItemGrid({
             showAdd ? addButton : null
           )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
+        <div className={cn(gridLayout.gridClass, "relative")}>
           {displayedItems.map((item, index) => {
             const presented = presentOwnerItem(item)
             const fixtureCard = (
@@ -200,6 +210,7 @@ export default function ItemGrid({
                 item={presented}
                 variant={variant}
                 capabilities={resolvedCapabilities}
+                density={density}
                 onClick={() => {}}
                 onMarkAcquired={variant === "wishlist" && resolvedCapabilities.canAcquire ? () => {} : undefined}
               />
@@ -214,6 +225,7 @@ export default function ItemGrid({
                 selectionMode={selectionMode ?? false}
                 onClick={handleItemClick}
                 registerCardRef={registerCardRef}
+                density={density}
               />
             ) : (
               <div
@@ -226,6 +238,7 @@ export default function ItemGrid({
                   capabilities={resolvedCapabilities}
                   selected={resolvedCapabilities.canSelect && selectedIds.has(item.id)}
                   selectionMode={resolvedCapabilities.canSelect && (selectionMode ?? false)}
+                  density={density}
                   onClick={(_, event) => handleItemClick(item, event)}
                   onMarkAcquired={resolvedCapabilities.canAcquire && onMarkAcquired ? () => onMarkAcquired(item) : undefined}
                 />
@@ -234,7 +247,7 @@ export default function ItemGrid({
 
             const skeletonNode = (
               <Skeleton
-                name={variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card"}
+                name={skeletonName}
                 loading={loading}
                 animate="shimmer"
                 color="hsl(var(--muted))"
@@ -247,7 +260,7 @@ export default function ItemGrid({
 
             if (loading) {
               return (
-                <div key={`${item.id}-${index}`} className={LOADING_ROW_VISIBILITY[index] ?? "hidden"}>
+                <div key={`${item.id}-${index}`} className={gridLayout.loadingCardVisibility[index] ?? "hidden"}>
                   {skeletonNode}
                 </div>
               )
@@ -256,7 +269,7 @@ export default function ItemGrid({
             return (
               <Skeleton
                 key={item.id}
-                name={variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card"}
+                name={skeletonName}
                 loading={loading}
                 animate="shimmer"
                 color="hsl(var(--muted))"
@@ -269,9 +282,12 @@ export default function ItemGrid({
           })}
         </div>
         {!loading && items.length === 0 && (
-          <div className="min-h-[424px] text-center py-12 text-muted-foreground">
+          <EmptyState
+            figure={variant === "wishlist" ? "wishlist" : "items"}
+            className={density === "compact" ? "min-h-[230px] py-8" : "min-h-[424px] py-12"}
+          >
             {emptyText}
-          </div>
+          </EmptyState>
         )}
         {showUsageStatus && (
           <div className="mt-4 text-fluid-xs text-muted-foreground" role="status">

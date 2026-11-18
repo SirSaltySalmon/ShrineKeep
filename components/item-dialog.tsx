@@ -697,7 +697,7 @@ export default function ItemDialog({
             {canSwitchNewItemMode && (
               <div className="justify-between items-center flex space-y-2">
                 <Label>Item Type</Label>
-                <div className="inline-flex rounded-md border bg-muted p-1">
+                <div className="inline-flex rounded-md sk-outline bg-muted p-1">
                   <Button
                     type="button"
                     size="sm"
@@ -760,7 +760,7 @@ export default function ItemDialog({
                 <div className="min-w-0 space-y-2">
                   <Label>Associated Collection Box</Label>
                   <div className="flex flex-wrap items-center gap-2">
-                    <div className="rounded-md border bg-muted/40 px-3 py-2 text-fluid-sm">
+                    <div className="rounded-md sk-outline bg-muted/40 px-3 py-2 text-fluid-sm">
                       Selected: {wishlistTargetBoxName ?? (wishlistTargetBoxId ? "Selected box" : "None")}
                     </div>
                     <Button
@@ -847,7 +847,7 @@ export default function ItemDialog({
                 )}
               </div>
               {tagsDropdownOpen && !showCreateTag && (
-                <div className="mt-2 p-2 border rounded-md bg-light-muted space-y-1 max-h-40 overflow-y-auto">
+                <div className="mt-2 p-2 sk-outline rounded-md bg-light-muted space-y-1 max-h-40 overflow-y-auto">
                   {userTags
                     .filter((t) => !selectedTagIds.includes(t.id))
                     .map((t) => (
@@ -869,7 +869,7 @@ export default function ItemDialog({
                   )}
                   <button
                     type="button"
-                    className="w-full text-left px-2 py-1.5 rounded text-fluid-sm hover:bg-muted font-medium border-t mt-1 pt-2"
+                    className="w-full text-left px-2 py-1.5 rounded text-fluid-sm hover:bg-muted font-medium sk-rule-t mt-1 pt-2"
                     onClick={() => {
                       setShowCreateTag(true)
                       setTagsDropdownOpen(false)
@@ -880,7 +880,7 @@ export default function ItemDialog({
                 </div>
               )}
               {showCreateTag && (
-                <div className="mt-2 p-3 border rounded-md bg-light-muted space-y-2">
+                <div className="mt-2 p-3 sk-outline rounded-md bg-light-muted space-y-2">
                   <div className="flex gap-2 flex-wrap items-end">
                     <div className="min-w-0 flex-1">
                       <Label className="text-fluid-xs">Tag name</Label>
@@ -896,7 +896,7 @@ export default function ItemDialog({
                       <select
                         value={newTagColor}
                         onChange={(e) => setNewTagColor(e.target.value as TagColor)}
-                        className="mt-0.5 h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-fluid-sm"
+                        className="mt-0.5 h-9 w-full rounded-md sk-outline-control bg-background px-3 py-1 text-fluid-sm"
                       >
                         {TAG_COLORS.map((c) => (
                           <option key={c} value={c}>
@@ -969,7 +969,7 @@ export default function ItemDialog({
                 {photos.map((p, i) => (
                   <div
                     key={i}
-                    className="relative w-24 h-24 rounded-lg border overflow-hidden bg-muted group"
+                    className="relative w-24 h-24 rounded-lg sk-outline overflow-hidden bg-muted group"
                   >
                     <div
                       role="button"
@@ -1043,7 +1043,7 @@ export default function ItemDialog({
             </div>
 
             {!isNew && item && !effectiveIsWishlist && (
-              <div className="border-t pt-4">
+              <div className="sk-rule-t pt-4">
                 <ValueGraph itemId={item.id} acquisitionDate={acquisitionDate.trim() || null} currentValue={currentValue} />
               </div>
             )}

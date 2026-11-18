@@ -137,7 +137,7 @@ export default function ImageSearch({
                   key={`${index}-${url.slice(0, 40)}`}
                   role="button"
                   tabIndex={0}
-                  className="relative aspect-square cursor-pointer hover:opacity-80 active:opacity-90 transition-opacity border rounded-lg overflow-hidden bg-muted touch-manipulation"
+                  className="relative aspect-square cursor-pointer hover:opacity-80 active:opacity-90 transition-opacity sk-outline rounded-lg overflow-hidden bg-muted touch-manipulation"
                   onClick={() => handleImageClick(url)}
                   onPointerDown={(e) => handleImagePointerDown(url, e)}
                   onKeyDown={(e) => {

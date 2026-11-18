@@ -16,7 +16,14 @@ import {
   itemMatchesLocalSearch,
   sortTagsByColorThenName,
 } from "@/lib/utils"
+import {
+  collectItemTags,
+  filterItemsByIncludeTags,
+  toggleIncludeTag,
+} from "@/lib/tag-quick-filter"
 import AdvancedSearchFilters from "@/components/advanced-search-filters"
+import TagQuickFilter from "@/components/tag-quick-filter"
+import CardDensityToggle from "@/components/card-density-toggle"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -61,6 +68,7 @@ import {
 import { chooseFirstRun, coachToolsSettled } from "@/lib/webmcp/first-run-chooser"
 
 const DASHBOARD_DND_CONTEXT_ID = "dashboard-dnd-context"
+const NO_ITEM_IDS: string[] = []
 
 interface DashboardClientProps {
   aiWidgetVisible?: boolean
@@ -116,6 +124,8 @@ export default function DashboardClient({
   )
   const [currentBoxId, setCurrentBoxId] = useState<string | null>(null)
   const [currentBox, setCurrentBox] = useState<Box | null>(null)
+  // Ancestor chain as last loaded by <Breadcrumbs>; reused to name the move-to-parent target.
+  const [breadcrumbPath, setBreadcrumbPath] = useState<Box[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const {
     boxes,
@@ -226,15 +236,50 @@ export default function DashboardClient({
     return [...fromCollection, ...fromUnacquired]
   }, [items, unacquiredItems, selectedItemIds])
 
-  const visibleUnacquiredItems = useMemo(() => {
+  const searchedUnacquiredItems = useMemo(() => {
     const query = searchQuery.trim()
     if (!query) return unacquiredItems
     return unacquiredItems.filter((item) => itemMatchesLocalSearch(item, query))
   }, [unacquiredItems, searchQuery])
 
+  // Tag chips and the Filters panel share `searchFilters.includeTags`. Locally it narrows each
+  // grid to the included tags that grid actually has; tags from other boxes are left to search.
+  const includeTags = searchFilters.includeTags
+  const visibleItems = useMemo(
+    () => filterItemsByIncludeTags(items, includeTags),
+    [items, includeTags]
+  )
+  const visibleUnacquiredItems = useMemo(
+    () => filterItemsByIncludeTags(searchedUnacquiredItems, includeTags),
+    [searchedUnacquiredItems, includeTags]
+  )
+
   const hasUnacquiredTab = !!currentBoxId && unacquiredItems.length > 0
-  const itemsInActiveItemsGrid =
-    hasUnacquiredTab && activeItemsTab === "unacquired" ? visibleUnacquiredItems : items
+  const showingUnacquiredTab = hasUnacquiredTab && activeItemsTab === "unacquired"
+  const itemsInActiveItemsGrid = showingUnacquiredTab ? visibleUnacquiredItems : visibleItems
+  const quickFilterSourceItems = showingUnacquiredTab ? searchedUnacquiredItems : items
+  const quickFilterTags = useMemo(
+    () => collectItemTags(quickFilterSourceItems),
+    [quickFilterSourceItems]
+  )
+
+  // Bulk actions and multi-item drags act on the whole selection, so an item a tag chip hides
+  // must not stay selected behind the filter.
+  const tagHiddenItemIds = useMemo(() => {
+    if (visibleItems === items && visibleUnacquiredItems === searchedUnacquiredItems) return NO_ITEM_IDS
+    const visible = new Set([...visibleItems, ...visibleUnacquiredItems].map((i) => i.id))
+    return [...items, ...searchedUnacquiredItems].filter((i) => !visible.has(i.id)).map((i) => i.id)
+  }, [items, searchedUnacquiredItems, visibleItems, visibleUnacquiredItems])
+  useEffect(() => {
+    if (tagHiddenItemIds.length === 0) return
+    setSelectedItemIds((prev) => {
+      const hidden = tagHiddenItemIds.filter((id) => prev.has(id))
+      if (hidden.length === 0) return prev
+      const next = new Set(prev)
+      for (const id of hidden) next.delete(id)
+      return next
+    })
+  }, [tagHiddenItemIds, setSelectedItemIds])
   const selectedBoxes = boxes.filter((b) => selectedBoxIds.has(b.id))
   const showSelectionBar =
     hasSelection ||
@@ -459,6 +504,14 @@ export default function DashboardClient({
     openEditBox(latest)
   }
 
+  // Name the box one level up. The breadcrumb chain loaded for the previous view already
+  // holds it (going down, the parent was that view's last crumb; going up, an earlier one),
+  // so this needs no request of its own. Until a chain has it, the zone says "Move to parent".
+  const parentBoxId = currentBox?.parent_box_id ?? null
+  const parentBoxName = parentBoxId
+    ? breadcrumbPath.find((box) => box.id === parentBoxId)?.name
+    : undefined
+
   const ActiveItemsIcon = activeItemsTab === "unacquired" ? Sparkle : Sword
   const localSearchEmptyCopy = getLocalItemSearchEmptyCopy(searchQuery, searchFilters)
   const localSearchEmptyText = localSearchEmptyCopy ? (
@@ -548,7 +601,7 @@ export default function DashboardClient({
 
       {/* past_due warning banner */}
       {liveSubscriptionStatus === "past_due" && (
-        <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-3 text-fluid-sm text-destructive">
+        <div className="bg-destructive/10 sk-rule-b border-destructive/20 px-4 py-3 text-fluid-sm text-destructive">
           {livePastDueGraceEndsAt ? (
             liveIsPro ? (
               <>
@@ -628,6 +681,7 @@ export default function DashboardClient({
               enableDropTargets={!loading && !contentSkeletonLoading}
               activeDragId={dndActiveId}
               selectedBoxIds={selectedBoxIds}
+              onPathChange={setBreadcrumbPath}
             />
           </div>
           <div
@@ -682,6 +736,7 @@ export default function DashboardClient({
                   searchFilters.dateTo ? 1 : 0,
                 ].reduce((a, b) => a + b, 0)})` : ""}
               </Button>
+              <CardDensityToggle />
             </div>
             {showAdvancedFilters && (
               <AdvancedSearchFilters
@@ -777,6 +832,7 @@ export default function DashboardClient({
             <BoxGrid
               boxes={boxes}
               loading={contentSkeletonLoading}
+              statsRefreshKey={statsRefreshKey}
               currentBoxId={currentBoxId}
               onBoxClick={handleBoxClick}
               onRename={handleOpenEditBox}
@@ -796,10 +852,17 @@ export default function DashboardClient({
               <div className="mb-6">
                 <MoveToParentZone
                   isRoot={!currentBox.parent_box_id}
+                  parentBoxName={parentBoxName}
                 />
               </div>
             )}
             <div>
+              <TagQuickFilter
+                className="mb-3"
+                tags={quickFilterTags}
+                activeTagIds={includeTags}
+                onToggle={(tagId) => setSearchFilters((prev) => toggleIncludeTag(prev, tagId))}
+              />
               {currentBoxId && unacquiredItems.length > 0 ? (
                 <Tabs
                   value={activeItemsTab}
@@ -807,7 +870,7 @@ export default function DashboardClient({
                 >
                   <TabsContent value="items">
                     <ItemGrid
-                      items={items}
+                      items={visibleItems}
                       loading={contentSkeletonLoading}
                       currentBoxId={currentBoxId}
                       onItemUpdate={refreshCurrentBoxData}
@@ -858,7 +921,7 @@ export default function DashboardClient({
                 </Tabs>
               ) : (
                 <ItemGrid
-                  items={items}
+                  items={visibleItems}
                   loading={contentSkeletonLoading}
                   currentBoxId={currentBoxId}
                   onItemUpdate={refreshCurrentBoxData}

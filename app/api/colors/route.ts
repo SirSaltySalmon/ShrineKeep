@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { Theme } from "@/lib/types"
 import { getDefaultColorScheme } from "@/lib/settings"
+import { normalizeThemeOutline } from "@/lib/theme-colors"
 import { DEFAULT_BODY_FONT_FAMILY, DEFAULT_HEADER_FONT_FAMILY } from "@/lib/fonts"
 import type { FontFamilyId } from "@/lib/fonts"
 
@@ -34,7 +35,13 @@ export async function GET(request: NextRequest) {
     const radius = settings?.border_radius ?? colorScheme?.radius ?? "0.5rem"
 
     const theme: Theme | null = colorScheme
-      ? { ...getDefaultColorScheme(), ...colorScheme, radius }
+      ? {
+          ...getDefaultColorScheme(),
+          ...colorScheme,
+          radius,
+          // Stored inside color_scheme; themes saved before the field existed are soft.
+          outline: normalizeThemeOutline(colorScheme.outline),
+        }
       : null
 
     return NextResponse.json({

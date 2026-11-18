@@ -120,6 +120,9 @@ export interface WishList {
   updated_at: string
 }
 
+/** Outline style of a theme. `soft` is the original look; `hard` is 2px foreground borders with solid offset shadows. */
+export type ThemeOutline = "soft" | "hard"
+
 export interface Theme {
   background?: string
   foreground?: string
@@ -158,6 +161,8 @@ export interface Theme {
   thumbnailHighlight?: string // Hover background for thumbnail overlay icons (star)
   thumbnailHover?: string // Hover icon color
   radius?: string // Border radius for cards, buttons, inputs (e.g. "0.5rem")
+  /** Outline style for cards, buttons, inputs, dialogs and menus. Not a color. Missing means "soft". */
+  outline?: ThemeOutline
   // Tag colors (theme-customizable; used for tag chips)
   tagRed?: string
   tagOrange?: string

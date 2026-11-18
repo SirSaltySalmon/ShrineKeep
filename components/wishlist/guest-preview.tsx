@@ -36,7 +36,7 @@ export function GuestWishlistPreview({
   })
   const entries = list.data?.entries ?? []
   const previewBody = (
-    <div className="rounded-md border bg-light-muted p-4 space-y-4">
+    <div className="rounded-md sk-outline bg-light-muted p-4 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-fluid-xl font-semibold flex items-center">

@@ -1,7 +1,7 @@
-import type { Theme } from "./types"
+import type { Theme, ThemeOutline } from "./types"
 
-/** Theme keys that are editable colors (excludes radius). */
-export type ThemeColorKey = keyof Omit<Theme, "radius">
+/** Theme keys that are editable colors (excludes the non-color fields radius and outline). */
+export type ThemeColorKey = keyof Omit<Theme, "radius" | "outline">
 
 export interface ThemeColorEntry {
   key: ThemeColorKey
@@ -88,7 +88,62 @@ export const THEME_KEY_TO_CSS_VAR: Record<ThemeColorKey | "radius", string> = {
   radius: "--radius",
 } as Record<ThemeColorKey | "radius", string>
 
-/** Build a full Theme from registry defaults plus radius. */
+/** Outline a theme has when the field is missing (every theme saved before the field existed). */
+export const DEFAULT_THEME_OUTLINE: ThemeOutline = "soft"
+
+/** Editor options for `Theme.outline`. */
+export const THEME_OUTLINE_OPTIONS: { value: ThemeOutline; label: string }[] = [
+  { value: "soft", label: "Soft" },
+  { value: "hard", label: "Hard" },
+]
+
+export function isThemeOutline(value: unknown): value is ThemeOutline {
+  return value === "soft" || value === "hard"
+}
+
+/** Missing or unrecognised values are soft, so old saved themes and bad imports look as they always did. */
+export function normalizeThemeOutline(value: unknown): ThemeOutline {
+  return isThemeOutline(value) ? value : DEFAULT_THEME_OUTLINE
+}
+
+/**
+ * CSS variables `Theme.outline` drives. The classes that read them are the `sk-outline*`,
+ * `sk-rule-*`, `sk-raised*`, `sk-flat*` and `sk-btn*` rules in app/globals.css.
+ *
+ * `--outline-flat` is the shadow of anything that must NOT be raised under a hard outline:
+ * the panels cards sit on, and anything nested inside an already raised surface.
+ */
+export const THEME_OUTLINE_CSS_VARS = [
+  "--outline-width",
+  "--outline-color",
+  "--outline-shadow",
+  "--outline-flat",
+] as const
+export type ThemeOutlineCssVar = (typeof THEME_OUTLINE_CSS_VARS)[number]
+
+const HARD_OUTLINE_CSS_VARS: Record<ThemeOutlineCssVar, string> = {
+  "--outline-width": "2px",
+  "--outline-color": "hsl(var(--foreground))",
+  "--outline-shadow": "4px 4px 0 0 hsl(var(--foreground))",
+  "--outline-flat": "0 0 #0000",
+}
+
+/**
+ * Values for the outline variables. Hard sets all of them. Soft sets each to `initial`, which
+ * un-defines a custom property: every `var(--outline-*, fallback)` then uses its fallback (the
+ * original look), even when the element sits inside a hard-themed ancestor.
+ */
+export function getThemeOutlineCssVars(outline: unknown): Record<ThemeOutlineCssVar, string> {
+  if (normalizeThemeOutline(outline) === "hard") return { ...HARD_OUTLINE_CSS_VARS }
+  return {
+    "--outline-width": "initial",
+    "--outline-color": "initial",
+    "--outline-shadow": "initial",
+    "--outline-flat": "initial",
+  }
+}
+
+/** Build a full Theme from registry defaults plus radius and outline. */
 function buildScheme(
   getDefault: (e: ThemeColorEntry) => string,
   overrides: Partial<Theme> = {}
@@ -98,6 +153,7 @@ function buildScheme(
     (scheme as Record<string, string>)[e.key] = getDefault(e)
   }
   scheme.radius = overrides.radius ?? "0.5rem"
+  scheme.outline = overrides.outline ?? DEFAULT_THEME_OUTLINE
   return scheme
 }
 

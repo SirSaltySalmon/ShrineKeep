@@ -142,7 +142,7 @@ export function OptionsSettings({
         />
       </div>
 
-      <div className="flex justify-end gap-2 border-t pt-4">
+      <div className="flex justify-end gap-2 sk-rule-t pt-4">
         {saved && (
           <span className="text-fluid-sm text-muted-foreground self-center">Options saved!</span>
         )}

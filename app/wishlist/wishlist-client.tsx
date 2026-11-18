@@ -10,6 +10,7 @@ import { WishlistSharingPanel } from "@/components/wishlist-sharing-panel"
 import { GuestWishlistPreview } from "@/components/wishlist/guest-preview"
 import { PRIVATE_SHARING_DEFAULTS, type SharingSettings } from "@/lib/sharing/contracts"
 import ItemGrid from "@/components/item-grid"
+import CardDensityToggle from "@/components/card-density-toggle"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
@@ -215,9 +216,13 @@ export default function WishlistClient({
           <p className="text-fluid-sm text-muted-foreground">
             {previewing ? "Public preview of saved sharing settings." : null}
           </p>
-          <Button type="button" variant={previewing ? "secondary" : "outline"} onClick={() => setPreviewing((current) => !current)}>
-            {previewing ? "Exit preview" : "Preview public wishlist"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* The public preview is laid out for visitors, so density does not apply to it. */}
+            {!previewing && <CardDensityToggle />}
+            <Button type="button" variant={previewing ? "secondary" : "outline"} onClick={() => setPreviewing((current) => !current)}>
+              {previewing ? "Exit preview" : "Preview public wishlist"}
+            </Button>
+          </div>
         </div>
         {previewing ? (
           <GuestWishlistPreview

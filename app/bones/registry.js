@@ -10,6 +10,10 @@ import _item_grid_wishlist_card from './item-grid-wishlist-card.bones.json'
 import _search_results_card from './search-results-card.bones.json'
 import _value_graph from './value-graph.bones.json'
 import _box_stats_dialog from './box-stats-dialog.bones.json'
+import _box_grid_card_compact from './box-grid-card-compact.bones.json'
+import _item_grid_collection_card_compact from './item-grid-collection-card-compact.bones.json'
+import _item_grid_wishlist_card_compact from './item-grid-wishlist-card-compact.bones.json'
+import _search_results_card_compact from './search-results-card-compact.bones.json'
 
 configureBoneyard({"color":"hsl(var(--muted))","darkColor":"hsl(var(--muted))","animate":"shimmer","shimmerColor":"hsl(var(--accent))","darkShimmerColor":"hsl(var(--accent))","speed":"1.9s","shimmerAngle":105})
 
@@ -21,4 +25,8 @@ registerBones({
   "search-results-card": _search_results_card,
   "value-graph": _value_graph,
   "box-stats-dialog": _box_stats_dialog,
+  "box-grid-card-compact": _box_grid_card_compact,
+  "item-grid-collection-card-compact": _item_grid_collection_card_compact,
+  "item-grid-wishlist-card-compact": _item_grid_wishlist_card_compact,
+  "search-results-card-compact": _search_results_card_compact,
 })

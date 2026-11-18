@@ -299,7 +299,7 @@ export function PersonalSettings({
               Upload an image to use as your avatar (JPEG, PNG, GIF, or WebP, max 2 MB). It will be automatically cropped.
             </p>
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 border border-border">
+              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 sk-outline">
                 {avatarUrl ? (
                   <img
                     src={avatarVersion != null ? `${avatarUrl}?v=${avatarVersion}` : avatarUrl}
@@ -352,7 +352,7 @@ export function PersonalSettings({
               here.
             </p>
             <div className="flex items-center gap-4 flex-wrap">
-              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 border border-border">
+              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 sk-outline">
                 {avatarUrl ? (
                   <img
                     src={avatarVersion != null ? `${avatarUrl}?v=${avatarVersion}` : avatarUrl}

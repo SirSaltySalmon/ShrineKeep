@@ -202,7 +202,7 @@ export default function ValueGraph({
           {historyData.map((record) => (
             <div
               key={record.id}
-              className="flex flex-wrap items-center gap-2 p-2 border rounded"
+              className="flex flex-wrap items-center gap-2 p-2 sk-outline rounded"
             >
               <div className="shrink-0">
                 <div className="font-medium">{formatCurrency(parseFloat(record.value.toString()))}</div>

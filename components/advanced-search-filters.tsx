@@ -68,7 +68,7 @@ export default function AdvancedSearchFilters({
 
   return (
     <div className={className}>
-      <div className="rounded-lg border bg-light-muted p-4 space-y-4 min-w-0">
+      <div className="rounded-lg sk-outline bg-light-muted p-4 space-y-4 min-w-0">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <Label className="text-fluid-xs">Value min</Label>
@@ -163,7 +163,7 @@ export default function AdvancedSearchFilters({
                 key={t.id}
                 type="button"
                 onClick={() => toggleExcludeTag(t.id)}
-                className={`rounded-md px-2 py-0.5 text-fluid-xs font-medium border ${filters.excludeTags.includes(t.id) ? "ring-2 ring-destructive" : ""}`}
+                className={`rounded-md px-2 py-0.5 text-fluid-xs font-medium sk-outline ${filters.excludeTags.includes(t.id) ? "ring-2 ring-destructive" : ""}`}
                 style={{ borderColor: `hsl(var(--tag-${t.color ?? "blue"}))` }}
               >
                 {t.name}
@@ -188,7 +188,7 @@ export default function AdvancedSearchFilters({
           </div>
         </div>
         {showClear && onClear && (
-          <div className="pt-2 border-t">
+          <div className="pt-2 sk-rule-t">
             <Button variant="ghost" size="sm" onClick={onClear}>
               <X className="h-4 w-4 mr-1" />
               Clear filters

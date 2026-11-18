@@ -82,6 +82,7 @@ const RECEIPT_LINES = [
   "Wishlist + share link",
   "Tags, filters, search",
   "Theme editor + export",
+  "Agentic management support"
 ]
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -147,7 +148,7 @@ export default function LandingPage() {
             <div className="mt-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-6 sm:mt-10">
               <p className="max-w-xl flex-1 basis-[24rem] text-fluid-lg text-foreground sm:text-fluid-xl">
                 ShrineKeep is a collection manager for people who take the hobby seriously. Boxes inside boxes, what
-                it&apos;s worth, what you paid, and what&apos;s still on the wishlist, in a workspace you theme yourself.
+                it&apos;s worth, what you paid, and what&apos;s still on the wishlist, in your favorite color.
               </p>
               <div className="flex flex-wrap items-start gap-3 sm:gap-4">
                 <div className="flex flex-col items-center gap-1.5">
@@ -211,8 +212,7 @@ export default function LandingPage() {
               <span style={{ fontFamily: FONT.bebas, fontSize: "1.2em", letterSpacing: "0.01em" }}>SCREENSHOT.</span>
             </h2>
             <p className="mt-4 max-w-2xl text-fluid-lg text-muted-foreground">
-              Open a box, filter by tag, clear the wishlist and watch the graph take it personally. Then restyle the
-              whole thing, because in ShrineKeep the look is yours, not ours.
+              Open a box, drag items around, filter by tag, clear the wishlist and watch your money move. Available in Comic Sans!
             </p>
           </ScrollReveal>
           <ScrollReveal delayMs={120} threshold={0.05} className="mt-8 sm:mt-10">
@@ -227,9 +227,9 @@ export default function LandingPage() {
           <ScrollReveal>
             <SectionLabel>What&apos;s in the box</SectionLabel>
             <h2 className="mt-3 max-w-4xl text-4xl leading-[1.02] text-foreground sm:text-6xl">
-              <span style={{ fontFamily: FONT.merriweather, fontWeight: 700, fontSize: "0.86em" }}>Built for </span>
-              <span style={{ fontFamily: FONT.bebas, fontSize: "1.2em", letterSpacing: "0.01em" }}>THE SHELF, </span>
-              <span style={{ fontFamily: FONT.sourceItalic, fontStyle: "italic", fontWeight: 900 }}>not the spreadsheet.</span>
+              <span style={{ fontFamily: FONT.merriweather, fontWeight: 700, fontSize: "0.86em" }}>Your shrine deserves </span>
+              <span style={{ fontFamily: FONT.bebas, fontSize: "1.2em", letterSpacing: "0.01em" }}> MORE </span>
+              <span style={{ fontFamily: FONT.sourceItalic, fontStyle: "italic", fontWeight: 900 }}>than a spreadsheet.</span>
             </h2>
           </ScrollReveal>
           <ScrollReveal delayMs={120} threshold={0.05} className="mt-8 sm:mt-10">

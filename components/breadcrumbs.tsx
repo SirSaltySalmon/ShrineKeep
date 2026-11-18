@@ -7,11 +7,15 @@ import { Box } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { ChevronRight, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getBoxDragId } from "@/components/droppable-box-card"
+import { isBoxDropBlocked } from "@/lib/dashboard-drop-targets"
 
 export const BREADCRUMB_ROOT_DROP_ID = "breadcrumb-root"
 
 const BREADCRUMB_BOX_PREFIX = "breadcrumb-box-"
+
+/** Dashed outline on a crumb that would accept the drag in progress; the "is over" ring is the stronger state. */
+const CRUMB_DROP_CUE_CLASS = "outline-dashed outline-1 outline-primary/60"
+const CRUMB_OVER_CLASS = "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
 
 export function getBreadcrumbBoxDropId(boxId: string) {
   return BREADCRUMB_BOX_PREFIX + boxId
@@ -26,6 +30,8 @@ interface BreadcrumbsProps {
   activeDragId?: string | null
   /** Selected box ids when dragging boxes (avoid dropping onto a box being moved). */
   selectedBoxIds?: ReadonlySet<string>
+  /** Called with the root-first chain of boxes down to `currentBoxId` each time it is loaded. */
+  onPathChange?: (path: Box[]) => void
 }
 
 function DroppableHomeCrumb({
@@ -50,7 +56,8 @@ function DroppableHomeCrumb({
       ref={setNodeRef}
       className={cn(
         "flex min-h-11 min-w-11 items-center justify-center rounded-md p-2 transition-colors shrink-0 touch-none",
-        isOver && "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
+        dragActive && !dropDisabled && !isOver && CRUMB_DROP_CUE_CLASS,
+        isOver && CRUMB_OVER_CLASS
       )}
     >
       <Button
@@ -83,15 +90,14 @@ function DroppableBoxCrumb({
   isLast?: boolean
 }) {
   const dropId = getBreadcrumbBoxDropId(box.id)
-  const isDraggingThisBox = activeDragId === getBoxDragId(box.id)
-  const isBoxDrag = Boolean(activeDragId?.startsWith("box-drag-"))
-  const isSelectedMoveTarget = isBoxDrag && selectedBoxIds.has(box.id)
+  // The box being dragged, or (for box drags) any selected box, is not a move target.
+  const dropDisabled = isBoxDropBlocked(activeDragId, box.id, selectedBoxIds.has(box.id))
   const dragActive = activeDragId != null
 
   const { isOver, setNodeRef } = useDroppable({
     id: dropId,
     data: { type: "breadcrumb", targetBoxId: box.id },
-    disabled: isDraggingThisBox || isSelectedMoveTarget,
+    disabled: dropDisabled,
   })
 
   return (
@@ -100,7 +106,8 @@ function DroppableBoxCrumb({
         ref={setNodeRef}
         className={cn(
           "flex min-h-11 min-w-0 max-w-full items-center rounded-md px-2 py-1 transition-colors touch-none",
-          isOver && "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
+          dragActive && !dropDisabled && !isOver && CRUMB_DROP_CUE_CLASS,
+          isOver && CRUMB_OVER_CLASS
         )}
       >
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -130,6 +137,7 @@ export default function Breadcrumbs({
   enableDropTargets = false,
   activeDragId = null,
   selectedBoxIds = new Set(),
+  onPathChange,
 }: BreadcrumbsProps) {
   const [path, setPath] = useState<Box[]>([])
   const supabase = createSupabaseClient()
@@ -142,6 +150,7 @@ export default function Breadcrumbs({
   const loadPath = async () => {
     if (!currentBoxId) {
       setPath([])
+      onPathChange?.([])
       return
     }
 
@@ -164,6 +173,7 @@ export default function Breadcrumbs({
     }
 
     setPath(boxes)
+    onPathChange?.(boxes)
   }
 
   return (

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Repeat, RotateCcw } from "lucide-react"
 import { cn, formatCurrency } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Keeper, KEEPERS, RARITY_LABEL, type KeeperSpec } from "@/components/landing/keeper"
+import { Keeper, KEEPERS, RARITY_LABEL, type KeeperSpec } from "@/components/keeper"
 
 /**
  * Landing mini-game: complete the nine-figure set before the wallet runs out.
@@ -155,10 +155,10 @@ export function BlindBoxGame() {
     setLast(null)
   }
 
-  let message = `Nine figures. ${formatCurrency(START_WALLET)} of pretend money. Complete the set before the wallet gives out.`
-  if (busy) message = "Clunk. Clunk. Clunk."
+  let message = `Nine figures. ${formatCurrency(START_WALLET)} of cash. You know what to do.`
+  if (busy) message = "Clunk clunk clunk..."
   else if (complete) message = `Set complete in ${pulls} pulls with $${wallet} to spare.`
-  else if (broke) message = `Wallet's empty at ${unique} of ${KEEPERS.length}. That's the hobby.`
+  else if (broke) message = `Wallet's empty at ${unique} of ${KEEPERS.length}. Better luck next time!`
   else if (last?.source === "trade") message = `Traded ${TRADE_COST} spares for ${last.spec.name}. Somebody out there is happy too.`
   else if (last?.isNew) message = `New: ${last.spec.name}. ${RARITY_LABEL[last.spec.rarity]}, worth about $${last.spec.value}.`
   else if (last) message = `Another ${last.spec.name}. That's a spare.`
@@ -225,7 +225,7 @@ export function BlindBoxGame() {
                 </div>
               ) : (
                 <span className="px-2 text-center text-[11px] uppercase leading-tight tracking-wider text-muted-foreground" style={{ fontFamily: MONO }}>
-                  {busy ? "..." : "Turn the crank"}
+                  {busy ? "..." : "CRANK THAT"}
                 </span>
               )}
             </div>
@@ -346,13 +346,12 @@ export function BlindBoxGame() {
             </span>
           </div>
           <p className="mt-1.5 text-fluid-xs text-muted-foreground">
-            ShrineKeep keeps these three numbers for your actual collection, with a graph.
             {best !== null && ` Your best: full set in ${best} pulls.`}
           </p>
         </div>
 
         <p className="mt-3 text-fluid-xs text-muted-foreground" style={{ fontFamily: MONO }}>
-          Odds per pull: commons 15% each, rares 6.5% each, the secret 5.5%. No real money, obviously.
+          Odds per pull: commons 15% each, rares 6.5% each, the secret 5.5%.
         </p>
       </div>
     </div>
