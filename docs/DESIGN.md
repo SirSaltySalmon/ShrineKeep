@@ -294,22 +294,23 @@ Prefer `rounded-md` / `rounded-lg` so user roundedness actually changes the UI. 
 The outline style is a theme field (`Theme.outline`), `"soft"` or `"hard"`, default `"soft"`. Missing or unknown means soft. It is stored inside the `color_scheme` JSON, next to the colors.
 
 - **Soft:** the original look. 1px borders in `--border` / `--input`, Tailwind's blurred shadows.
-- **Hard:** the landing poster's look, in the user's colors. Every border and divider is the same 2px line in `--foreground`: cards, buttons, inputs, selects, dialogs, menus, the panels they sit on, and the rules between sections. Objects (cards, dialogs, menus, floating controls, and primary, destructive and outline buttons) get a solid `4px 4px` offset shadow in `--foreground`, no blur. Panels and bars stay flat.
+- **Hard:** the landing poster's look, in the user's colors. Every border and divider is 2px. Objects (cards, buttons, inputs, selects, dialogs, menus) draw it in `--foreground`, the ink line. Backdrops (the panels objects sit on, bordered boxes inside them, and the rules between sections) draw it in `--border`, a muted line that blends into the page. Objects (cards, dialogs, menus, floating controls, and primary, destructive and outline buttons) get a solid `4px 4px` offset shadow in `--foreground`, no blur. Panels and bars stay flat.
 
 Three things make hard read as one system instead of ink drawn over a soft page, and they are why it works on the landing poster:
 
-1. **One line.** No grey hairline sits next to an ink line. Panels use `sk-outline`, dividers use `sk-rule-*`.
+1. **One weight, two inks.** Every hard line is 2px, so no 1px hairline sits next to it. Objects carry the ink line; backdrops carry the muted one, so the page reads as quiet panels with dark-edged objects on them. Panels use `sk-outline`, dividers use `sk-rule-*`.
 2. **Backdrops are flat.** Only objects are raised. A panel that holds cards is ruled, never lifted, and loses any soft shadow it had (`sk-flat-*`).
 3. **One raised level.** Inside a raised surface nothing else is raised: a button in a card, or a card in a dialog, is outlined but flat.
 
 Editor options: Soft, Hard (Settings → Theme → Outline, under Roundedness).
 
-`applyColorScheme()` drives four CSS variables (`getThemeOutlineCssVars()` in `lib/theme-colors.ts`):
+`applyColorScheme()` drives five CSS variables (`getThemeOutlineCssVars()` in `lib/theme-colors.ts`):
 
 | CSS variable | Hard | Soft |
 |---|---|---|
 | `--outline-width` | `2px` | undefined |
 | `--outline-color` | `hsl(var(--foreground))` | undefined |
+| `--outline-muted` | `hsl(var(--border))` | undefined |
 | `--outline-shadow` | `4px 4px 0 0 hsl(var(--foreground))` | undefined |
 | `--outline-flat` | `0 0 #0000` | undefined |
 
@@ -317,13 +318,14 @@ Soft sets each one to `initial`, which un-defines a custom property. Nothing is 
 
 | Class | Soft fallback | Used by |
 |---|---|---|
-| `sk-outline` | 1px `--border` | `Card`, `DialogContent`, `SelectContent`, dropdown and context menus, color picker popover; every hand-built panel and bordered box (section panels, stats and AI panels, list boxes, thumbnails) |
+| `sk-outline` | 1px `--border` (hard: muted line, or the ink line when the element is also `sk-raised*`) | `Card`, `DialogContent`, `SelectContent`, dropdown and context menus, color picker popover; every hand-built panel and bordered box (section panels, stats and AI panels, list boxes, thumbnails) |
 | `sk-outline-control` | 1px `--input` | `Input`, `Textarea`, `SelectTrigger`, outline `Button` |
-| `sk-outline-faint`, `sk-outline-muted` | 1px `--border` at 50%; 1px `--muted` | surfaces whose soft border is quieter than `--border` (chart tooltip; the profit tile in box stats) |
+| `sk-outline-strong` | 1px `--border` (hard: always the ink line) | an object that is not raised at rest (the landing mock's draggable and wishlist cards) |
+| `sk-outline-faint`, `sk-outline-muted` | 1px `--border` at 50%; 1px `--muted` (hard: muted line; ink when raised) | surfaces whose soft border is quieter than `--border` (chart tooltip; the profit tile in box stats) |
 | `sk-outline-filled` | no border | primary, destructive and secondary `Button` |
 | `sk-raised`, `sk-raised-md`, `sk-raised-lg`, `sk-raised-xl` | Tailwind `shadow`, `shadow-md`, `shadow-lg`, `shadow-xl` | `Card`; menus and `SelectContent`; `DialogContent`, context submenu, color picker popover; chart tooltip |
 | `sk-btn`, `sk-btn-raised` | flat, `shadow-sm` on hover when motion is allowed | every `Button`; raised on primary, destructive and outline. Hard: the raised variants keep the offset shadow on hover, the others stay flat |
-| `sk-rule-t`, `sk-rule-b` | 1px `--border` on that side | nav bars, panel headers and footers, section dividers (instead of `border-t` / `border-b`) |
+| `sk-rule-t`, `sk-rule-b` | 1px `--border` on that side (hard: muted line) | nav bars, panel headers and footers, section dividers (instead of `border-t` / `border-b`) |
 | `sk-flat-sm`, `sk-flat-bar` | `shadow-sm`; the selection bar's upward shadow (`--foreground` at 8%) | in-flow panels and bars that have a faint shadow when soft; none when hard |
 | `sk-raised-hover-xl` | `shadow-xl` on hover | floating controls whose soft shadow grows on hover |
 | `sk-card-hover` | no shadow, `shadow-lg` on hover when motion is allowed | the wrapper around item and box cards (`CARD_HOVER_MOTION_CLASS`) |
@@ -341,7 +343,7 @@ Item and box cards sit in a wrapper that carries the hover shadow and the select
 Rules:
 
 - Build surfaces from `components/ui`. A hand-built box never uses raw `border`, `border-t` / `border-b` or `shadow-*`: use `sk-outline` (or `sk-outline-control` for a form control), `sk-rule-*` for a divider, and `sk-raised*` if it floats or `sk-flat-*` if it is a backdrop. Raw utilities pin it to the soft look and it will clash on a hard page.
-- Decide whether a surface is an object or a backdrop. Objects are raised; backdrops are ruled and flat. Do not raise a panel that holds raised cards.
+- Decide whether a surface is an object or a backdrop. Objects are raised and take the ink line; backdrops are ruled, flat and take the muted line. Do not raise a panel that holds raised cards. An object that is not raised at rest uses `sk-outline-strong`.
 - A utility passed by the caller still wins over these classes (`border-0`, `border-primary`, `shadow-none`, `outline-dashed`), in both styles, at rest and on hover. Passing `border` or `shadow-md` to a primitive pins it to the soft look. To change a primitive's border or elevation and keep it on the outline style, pass an `sk-*` class instead (`sk-outline`, `sk-raised-lg`).
 - Hard borders take 1px more per side. Do not size content so tightly that it only fits a 1px border.
 - Not affected: ghost and link buttons, `Tabs`, `Switch`, `divide-*` row separators inside a list box, tag chips, focus rings. A border with its own semantic colour (`border-destructive/40`, `border-primary/25`) keeps that colour and only takes the hard width. Selection rings keep their colour and size; on cards a hard outline only redraws them on top (above).
@@ -397,6 +399,7 @@ Flag in review or QA if code:
 | 2026-11-18 | Outline style (`soft` / `hard`) added as a theme field; `hard` is the landing's 2px foreground border and solid offset shadow | The landing look should be something a user can pick for their own shrine. It lives in the `color_scheme` JSON (no migration), defaults to soft so saved themes and presets do not change, and is applied through variables with soft fallbacks so the primitives carry it. |
 | 2026-11-19 | One theme sanitiser (`sanitizeTheme()`) for saves, stored reads, imports and public pages; a theme carries only registry colors as HSL triples, one of four radii, and an outline | The settings API stored whatever it was sent, and the import, editor and public sanitiser each had their own, different rules. A value the app cannot render (comma or alpha colors, a free-form radius) is now dropped everywhere instead of being accepted in one place and breaking in another. |
 | 2026-11-19 | Outline classes: single-class selectors with states in `:where()`, primitive defaults declared before caller-facing classes | `tailwind-merge` cannot arbitrate between `sk-*` classes, so a caller's class lost to the primitive's own and hover rules outranked caller utilities. Specificity and order now make "the caller wins" true, and a test pins both. |
+| 2026-11-19 | Hard backdrops (panels, bordered boxes, dividers) use a muted line (`--outline-muted`, the theme's `--border`); objects keep the `--foreground` ink line | Ink on every panel and divider competed with the cards and made the page heavy. Raised surfaces pick the ink line automatically (`.sk-outline:where(.sk-raised*)`), so no primitive changed. |
 | 2026-11-19 | One fade for every view change, replayable without remounting (`useFadeOnChange`) | Tab switches, tag filters, cached boxes and recalculated figures change the screen with no load in between, so a mount-only class missed them. Remounting cards to restart a CSS animation would drop their state; the Web Animations API replays the same fade on the element that is already there. |
 | 2026-11-19 | Layout stability is a rule: one render path, sized skeletons, fixed-height slots for data-dependent blocks, opacity-only fade for loaded content | The dashboard jumped on every navigation: the move-to-parent zone and tag chips appeared after load, and each refetch collapsed the grids to one skeleton row. The tag strip moved into the item header (free from `md` up) and is always present for accounts with tags, which costs phones one line in boxes without tags. |
 | 2026-11-18 | Dashboard additions: per-device card density (comfortable / compact), sparklines on owner box cards, Keepers in empty states and tag-tinted no-photo tiles, drop cues and grab cursors while dragging, tag quick-filter chips | The dashboard should be denser and say more at a glance without new colours: all of it paints with existing tokens. Density is a device preference, not a theme field, so it lives in localStorage (no migration) and defaults to the layout everyone already has. Keepers are the one in-app decoration, and only where a view is empty. |

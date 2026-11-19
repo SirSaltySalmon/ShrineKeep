@@ -210,7 +210,7 @@ const MOCK_DESKTOP_HEIGHT = "lg:h-[max(28rem,calc(100svh_-_6rem))]"
  * (docs/DESIGN.md, "Outline"), so the mock follows a preset with a hard outline.
  */
 const DRAG_BASE_CLASS =
-  "item-card-no-select cursor-grab touch-manipulation sk-outline transition-[box-shadow,transform] duration-200 motion-safe:hover:-translate-y-0.5 hover:sk-raised-md"
+  "item-card-no-select cursor-grab touch-manipulation sk-outline-strong transition-[box-shadow,transform] duration-200 motion-safe:hover:-translate-y-0.5 hover:sk-raised-md"
 
 function dragStyle(transform: Parameters<typeof CSS.Translate.toString>[0], isDragging: boolean): React.CSSProperties {
   return {
@@ -802,7 +802,7 @@ export function MockDashboard() {
                 ) : (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {wishlist.map((item) => (
-                      <article key={item.id} className="min-w-0 overflow-hidden rounded-lg sk-outline bg-card text-card-foreground">
+                      <article key={item.id} className="min-w-0 overflow-hidden rounded-lg sk-outline-strong bg-card text-card-foreground">
                         <ItemTile item={item} />
                         <div className="space-y-1 p-2.5">
                           <h4 className="truncate text-fluid-sm font-semibold" title={item.name}>

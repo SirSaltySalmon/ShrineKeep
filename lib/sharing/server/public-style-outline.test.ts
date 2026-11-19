@@ -26,6 +26,7 @@ describe("owner outline on public pages", () => {
     expect(publicStyleProperties(style)).toMatchObject({
       "--outline-width": "2px",
       "--outline-color": "hsl(var(--foreground))",
+      "--outline-muted": "hsl(var(--border))",
       "--outline-shadow": "4px 4px 0 0 hsl(var(--foreground))",
       "--radius": "0",
     })

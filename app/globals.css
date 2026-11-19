@@ -117,8 +117,8 @@
 /*
  * Outline style (Theme.outline). See docs/DESIGN.md → Outline.
  *
- * applyColorScheme() sets --outline-width, --outline-color, --outline-shadow and
- * --outline-flat for a hard theme, and sets each of them to `initial` for a soft one, which
+ * applyColorScheme() sets --outline-width, --outline-color, --outline-muted, --outline-shadow
+ * and --outline-flat for a hard theme, and sets each of them to `initial` for a soft one, which
  * un-defines it. Nothing declares them on :root. Every fallback below is therefore the soft
  * look, and that is also what unthemed routes (landing, auth, legal) get.
  *
@@ -196,38 +196,56 @@
 
   /* ---- Caller-facing classes: hand-built surfaces, and overrides passed to a primitive. ---- */
 
-  /* Surfaces: cards, dialogs, menus, popovers. */
+  /*
+   * Panels, bordered boxes and dividers: the backdrops objects sit on. Hard draws them in
+   * --outline-muted (the theme's --border), so they blend into the page and only objects
+   * carry the ink line.
+   */
   .sk-outline {
     border-width: var(--outline-width, 1px);
-    border-color: var(--outline-color, hsl(var(--border)));
+    border-color: var(--outline-muted, hsl(var(--border)));
   }
-  /* Form controls and the outline button, whose soft border is --input. */
+  /* Form controls and the outline button, whose soft border is --input. Hard is the ink line. */
   .sk-outline-control {
     border-width: var(--outline-width, 1px);
     border-color: var(--outline-color, hsl(var(--input)));
   }
-  /* Surfaces whose soft border is quieter than --border. Hard is the same ink line as the rest. */
+  /* Surfaces whose soft border is quieter than --border. */
   .sk-outline-faint {
     border-width: var(--outline-width, 1px);
-    border-color: var(--outline-color, hsl(var(--border) / 0.5));
+    border-color: var(--outline-muted, hsl(var(--border) / 0.5));
   }
   .sk-outline-muted {
     border-width: var(--outline-width, 1px);
-    border-color: var(--outline-color, hsl(var(--muted)));
+    border-color: var(--outline-muted, hsl(var(--muted)));
+  }
+  /*
+   * Objects: cards, dialogs, menus, popovers, floating controls. A raised surface is an object,
+   * so it keeps the ink line; sk-outline-strong is for an object that is not raised at rest.
+   * Below the backdrop rules, which also match these elements.
+   */
+  .sk-outline:where(.sk-raised, .sk-raised-md, .sk-raised-lg, .sk-raised-xl) {
+    border-color: var(--outline-color, hsl(var(--border)));
+  }
+  .sk-outline-faint:where(.sk-raised, .sk-raised-md, .sk-raised-lg, .sk-raised-xl) {
+    border-color: var(--outline-color, hsl(var(--border) / 0.5));
+  }
+  .sk-outline-strong {
+    border-width: var(--outline-width, 1px);
+    border-color: var(--outline-color, hsl(var(--border)));
   }
 
   /*
    * Rules: nav bars, panel headers and footers, section dividers. Soft is the 1px --border
-   * hairline. Hard is the same ink line as every other outline, so a hard page has one line
-   * weight and one line colour instead of ink sitting next to grey hairlines.
+   * hairline. Hard keeps the 2px width in the muted backdrop colour.
    */
   .sk-rule-t {
     border-top-width: var(--outline-width, 1px);
-    border-top-color: var(--outline-color, hsl(var(--border)));
+    border-top-color: var(--outline-muted, hsl(var(--border)));
   }
   .sk-rule-b {
     border-bottom-width: var(--outline-width, 1px);
-    border-bottom-color: var(--outline-color, hsl(var(--border)));
+    border-bottom-color: var(--outline-muted, hsl(var(--border)));
   }
 
   /* Raised surfaces. Soft is Tailwind's shadow for that elevation; hard is the offset shadow. */

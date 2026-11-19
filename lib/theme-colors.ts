@@ -110,12 +110,17 @@ export function normalizeThemeOutline(value: unknown): ThemeOutline {
  * CSS variables `Theme.outline` drives. The classes that read them are the `sk-outline*`,
  * `sk-rule-*`, `sk-raised*`, `sk-flat*` and `sk-btn*` rules in app/globals.css.
  *
+ * `--outline-color` is the ink line of objects (cards, dialogs, menus, buttons, inputs).
+ * `--outline-muted` is the quieter line of backdrops (the panels objects sit on, and dividers),
+ * so they blend into the page instead of competing with the objects.
+ *
  * `--outline-flat` is the shadow of anything that must NOT be raised under a hard outline:
  * the panels cards sit on, and anything nested inside an already raised surface.
  */
 export const THEME_OUTLINE_CSS_VARS = [
   "--outline-width",
   "--outline-color",
+  "--outline-muted",
   "--outline-shadow",
   "--outline-flat",
 ] as const
@@ -124,6 +129,7 @@ export type ThemeOutlineCssVar = (typeof THEME_OUTLINE_CSS_VARS)[number]
 const HARD_OUTLINE_CSS_VARS: Record<ThemeOutlineCssVar, string> = {
   "--outline-width": "2px",
   "--outline-color": "hsl(var(--foreground))",
+  "--outline-muted": "hsl(var(--border))",
   "--outline-shadow": "4px 4px 0 0 hsl(var(--foreground))",
   "--outline-flat": "0 0 #0000",
 }
@@ -138,6 +144,7 @@ export function getThemeOutlineCssVars(outline: unknown): Record<ThemeOutlineCss
   return {
     "--outline-width": "initial",
     "--outline-color": "initial",
+    "--outline-muted": "initial",
     "--outline-shadow": "initial",
     "--outline-flat": "initial",
   }

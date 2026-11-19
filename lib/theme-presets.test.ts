@@ -131,12 +131,14 @@ describe("theme outline", () => {
   const SOFT_VARS = {
     "--outline-width": "initial",
     "--outline-color": "initial",
+    "--outline-muted": "initial",
     "--outline-shadow": "initial",
     "--outline-flat": "initial",
   }
   const HARD_VARS = {
     "--outline-width": "2px",
     "--outline-color": "hsl(var(--foreground))",
+    "--outline-muted": "hsl(var(--border))",
     "--outline-shadow": "4px 4px 0 0 hsl(var(--foreground))",
     "--outline-flat": "0 0 #0000",
   }
