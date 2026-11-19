@@ -36,6 +36,8 @@ import { cn, formatCurrency, SELECTION_RING_CLASS } from "@/lib/utils"
 import { applyColorScheme, COLOR_SCHEME_PRESETS, resolveThemePreset, type ThemePreset } from "@/lib/settings"
 import { DEFAULT_THEME_RADIUS, THEME_RADIUS_OPTIONS } from "@/lib/theme-colors"
 import { FONT_FAMILY_CSS, type FontFamilyId } from "@/lib/fonts"
+import { FadeOnChange } from "@/components/fade-on-change"
+import { useFadeOnChange } from "@/lib/hooks/use-fade-on-change"
 import { dashboardDndCollisionDetection } from "@/lib/dashboard-dnd-collision"
 import { NonTouchPointerSensor } from "@/lib/non-touch-pointer-sensor"
 import {
@@ -287,7 +289,10 @@ function DemoBoxCard({
         <span className="truncate font-heading text-fluid-sm font-semibold">{box.name}</span>
       </span>
       <span className="mt-1 block truncate text-fluid-xs text-muted-foreground">
-        {itemCount} {itemCount === 1 ? "item" : "items"} · {formatCurrency(totalValue)}
+        {/* A drop changes what a box holds: its count and total fade to the new figures. */}
+        <FadeOnChange signal={`${itemCount}:${totalValue}`}>
+          {itemCount} {itemCount === 1 ? "item" : "items"} · {formatCurrency(totalValue)}
+        </FadeOnChange>
       </span>
     </button>
   )
@@ -470,6 +475,11 @@ export function MockDashboard() {
 
   /** Keyed by place, so the wrapper remounts (and its fade replays) on each navigation. */
   const placeFadeClass = navigated ? "sk-fade-in" : undefined
+  // The parts that change without the place remounting: the trail and chart of another box,
+  // and the items left by a tag filter.
+  const crumbsRef = useFadeOnChange<HTMLDivElement>(path.map((crumb) => crumb.id).join("/"))
+  const chartRef = useFadeOnChange<HTMLDivElement>(boxId ?? "home")
+  const itemsRef = useFadeOnChange<HTMLDivElement>(activeTag ?? "")
 
   // Acquiring removes the card that holds the focused button. Once the list has re-rendered,
   // focus goes to the action now at that position: the next card's button, the last card's if
@@ -592,6 +602,7 @@ export function MockDashboard() {
                       <Home className="h-4 w-4 shrink-0" aria-hidden />
                       <span className={cn(activeBox && "text-muted-foreground")}>Home</span>
                     </DropCrumb>
+                    <div ref={crumbsRef} className="flex min-w-0 flex-wrap items-center gap-0.5">
                     {path.map((crumb, index) => {
                       const isLast = index === path.length - 1
                       return (
@@ -612,6 +623,7 @@ export function MockDashboard() {
                         </React.Fragment>
                       )
                     })}
+                    </div>
                   </nav>
                   <button
                     type="button"
@@ -625,19 +637,21 @@ export function MockDashboard() {
 
                 <div className="rounded-lg sk-outline bg-card p-3 text-card-foreground">
                   <MoneyStats value={totalValue} spent={totalSpend} size="sm" />
-                  <div className="mt-2">
+                  <div ref={chartRef} className="mt-2">
                     <MiniChart items={subtreeItems} />
                   </div>
                 </div>
 
                 <p className="min-h-[1.25rem] text-fluid-xs text-muted-foreground" aria-live="polite">
-                  {notice ?? (
-                    <>
-                      Drag an item or a whole box onto a box to move it
-                      <span className="hidden [@media(pointer:coarse)]:inline"> (press and hold first)</span>. Everything
-                      lives in exactly one place.
-                    </>
-                  )}
+                  <FadeOnChange signal={notice}>
+                    {notice ?? (
+                      <>
+                        Drag an item or a whole box onto a box to move it
+                        <span className="hidden [@media(pointer:coarse)]:inline"> (press and hold first)</span>. Everything
+                        lives in exactly one place.
+                      </>
+                    )}
+                  </FadeOnChange>
                 </p>
 
                 <div key={boxId ?? "home"} className={cn("space-y-3", placeFadeClass)}>
@@ -691,6 +705,7 @@ export function MockDashboard() {
                   </div>
                 )}
 
+                <div ref={itemsRef}>
                 {visibleItems.length === 0 ? (
                   <p className="rounded-lg border-dashed sk-outline p-6 text-center text-fluid-sm text-muted-foreground">
                     {activeBox
@@ -707,13 +722,14 @@ export function MockDashboard() {
                   </div>
                 )}
                 </div>
+                </div>
               </DndContext>
             ) : (
               <div className={cn("space-y-3", placeFadeClass)}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h3 className="text-fluid-xl font-semibold">Wishlist</h3>
                   <p className="text-fluid-xs text-muted-foreground" aria-live="polite">
-                    {wishlistTotal - wishlist.length} of {wishlistTotal} acquired
+                    <FadeOnChange signal={wishlist.length}>{wishlistTotal - wishlist.length}</FadeOnChange> of {wishlistTotal} acquired
                   </p>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-muted">

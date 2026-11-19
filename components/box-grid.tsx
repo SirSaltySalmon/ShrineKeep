@@ -19,7 +19,7 @@ import {
   takeLoadingFixtures,
 } from "@/lib/card-density"
 import { useCardDensity } from "@/lib/hooks/use-card-density"
-import { LOADED_FADE_CLASS, useSeenLoading } from "@/lib/hooks/use-seen-loading"
+import { useFadeOnChange } from "@/lib/hooks/use-fade-on-change"
 import { useBoxSparklines } from "@/lib/hooks/use-box-sparklines"
 import { cn } from "@/lib/utils"
 import {
@@ -168,7 +168,14 @@ export default function BoxGrid({
   const displayedBoxes = loading ? takeLoadingFixtures(BOX_SKELETON_FIXTURES, gridLayout, expectedCount) : boxes
   // A view known to hold no boxes shows its empty state straight away, not bones that vanish.
   const showEmpty = loading ? expectedCount === 0 : boxes.length === 0
-  const seenLoading = useSeenLoading(loading)
+  // Whatever replaces bones fades in, and so does another box's contents arriving without a
+  // load (a cached view). Bones never fade; an empty state that stays up through a refetch
+  // keeps the same signal, so it does not flash.
+  const showingBones = loading && !showEmpty
+  const contentRef = useFadeOnChange<HTMLDivElement>(
+    showingBones ? "bones" : `${showEmpty ? "empty" : "cards"}:${currentBoxId ?? "root"}`,
+    { enabled: !showingBones }
+  )
 
   return (
     <div className="mb-8 layout-shrink-visible rounded-md sk-outline bg-light-muted p-4">
@@ -179,23 +186,19 @@ export default function BoxGrid({
         </h2>
         {capabilities.canCreate ? addButton : null}
       </div>
+      <div ref={contentRef}>
       {showEmpty ? (
         // As tall as the row of cards the grid reserves while loading, so the section does not
         // jump between loading and empty; the 64px figure and its line sit centred in it.
         <EmptyState
           figure="boxes"
           size="sm"
-          className={cn(
-            cardMinHeightClass,
-            "flex flex-col justify-center",
-            density === "compact" ? "py-2" : "py-6",
-            seenLoading && LOADED_FADE_CLASS
-          )}
+          className={cn(cardMinHeightClass, "flex flex-col justify-center", density === "compact" ? "py-2" : "py-6")}
         >
           {capabilities.canCreate ? "Try adding a new box!" : "Nothing is visible here."}
         </EmptyState>
       ) : (
-        <div className={cn(cardMinHeightClass, gridLayout.gridClass, seenLoading && !loading && LOADED_FADE_CLASS)}>
+        <div className={cn(cardMinHeightClass, gridLayout.gridClass)}>
           {displayedBoxes.map((box, index) => {
             const presented = presentOwnerBox(box)
             const fixtureCard = capabilities.canDrag ? (
@@ -261,6 +264,7 @@ export default function BoxGrid({
           })}
         </div>
       )}
+      </div>
     </div>
   )
 }

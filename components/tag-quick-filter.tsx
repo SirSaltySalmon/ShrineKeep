@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react"
 import type { Tag, TagColor } from "@/lib/types"
 import { cn, FOCUS_RING_CLASS, getTagChipStyle } from "@/lib/utils"
-import { LOADED_FADE_CLASS, useSeenLoading } from "@/lib/hooks/use-seen-loading"
+import { useFadeOnChange } from "@/lib/hooks/use-fade-on-change"
 
 interface TagQuickFilterProps {
   /** Tags carried by the items in the current view, already in canonical order. */
@@ -48,18 +48,21 @@ export default function TagQuickFilter({
   loading = false,
   className,
 }: TagQuickFilterProps) {
-  const seenLoading = useSeenLoading(loading)
+  const hasTags = tags.length > 0
+  // The set of chips is what fades: a different box's tags, or tags arriving. Pressing a chip
+  // keeps the set, so it only restyles.
+  const contentRef = useFadeOnChange<HTMLDivElement>(
+    hasTags ? tags.map((tag) => tag.id).join(",") : loading ? "loading" : "none"
+  )
 
-  if (tags.length === 0) {
+  if (!hasTags) {
     return (
       // Size and colour stay out of `cn`: tailwind-merge reads `text-fluid-*` as a colour and drops it.
       <div className={cn(STRIP_CLASS, "md:invisible", className)}>
         <span className="shrink-0 text-fluid-xs text-muted-foreground">Tags</span>
-        {loading ? null : (
-          <span className={`truncate text-fluid-xs text-muted-foreground ${seenLoading ? LOADED_FADE_CLASS : ""}`}>
-            None in this view
-          </span>
-        )}
+        <div ref={contentRef} className="min-w-0 truncate text-fluid-xs text-muted-foreground">
+          {loading ? null : "None in this view"}
+        </div>
       </div>
     )
   }
@@ -71,12 +74,7 @@ export default function TagQuickFilter({
     <div role="group" aria-label="Filter items by tag" className={cn(STRIP_CLASS, className)}>
       <span className="shrink-0 text-fluid-xs text-muted-foreground">Tags</span>
       {/* The padding gives a chip's focus ring room inside the scroll box; the margin takes it back. */}
-      <div
-        className={cn(
-          "sk-scroll-x -mx-1 flex h-full min-w-0 flex-1 items-center gap-1.5 px-1",
-          seenLoading && LOADED_FADE_CLASS
-        )}
-      >
+      <div ref={contentRef} className="sk-scroll-x -mx-1 flex h-full min-w-0 flex-1 items-center gap-1.5 px-1">
         {tags.map((tag) => {
           const pressed = active.has(tag.id)
           return (

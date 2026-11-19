@@ -21,7 +21,8 @@ import { OWNER_CAPABILITIES, READ_ONLY_CAPABILITIES, type CollectionCapabilities
 import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
 import { ITEM_GRID_LAYOUT, getCardSkeletonName, getLoadingCardClass, takeLoadingFixtures } from "@/lib/card-density"
 import { useCardDensity } from "@/lib/hooks/use-card-density"
-import { LOADED_FADE_CLASS, useSeenLoading } from "@/lib/hooks/use-seen-loading"
+import { useFadeOnChange } from "@/lib/hooks/use-fade-on-change"
+import { FadeOnChange } from "./fade-on-change"
 import { cn } from "@/lib/utils"
 
 /** When provided (e.g. by dashboard), selection is controlled by parent; otherwise ItemGrid uses internal marquee selection. */
@@ -40,6 +41,13 @@ interface ItemGridProps {
    * empty state for 0) and keeps its height. Leave unset when unknown: one row.
    */
   expectedCount?: number
+  /**
+   * Names what the grid is showing beyond its box: the active filter, for instance. The cards
+   * fade in again when it changes. A change of `currentBoxId` always counts.
+   */
+  viewKey?: string
+  /** Fade the cards in when the grid mounts already loaded, as a tab's content does. */
+  fadeOnMount?: boolean
   currentBoxId: string | null
   onItemUpdate: () => void
   /** When set, the section title and Add Item button are shown on one row (title left, button right). */
@@ -87,6 +95,8 @@ export default function ItemGrid({
   items,
   loading = false,
   expectedCount,
+  viewKey = "",
+  fadeOnMount = false,
   currentBoxId,
   onItemUpdate,
   sectionTitle,
@@ -189,7 +199,14 @@ export default function ItemGrid({
   const displayedItems = loading ? takeLoadingFixtures(skeletonItems, gridLayout, expectedCount) : items
   // A view known to hold no items keeps its empty state through a refetch.
   const showEmpty = loading ? expectedCount === 0 : items.length === 0
-  const seenLoading = useSeenLoading(loading)
+  // Whatever replaces bones fades in, and so does a different view of the same grid (another
+  // box, another filter). Bones themselves never fade, and an empty state that stays up through
+  // a refetch keeps the same signal, so it does not flash.
+  const showingBones = loading && !showEmpty
+  const contentRef = useFadeOnChange<HTMLDivElement>(
+    showingBones ? "bones" : `${showEmpty ? "empty" : "cards"}:${currentBoxId ?? "root"}:${viewKey}`,
+    { enabled: !showingBones, onMount: fadeOnMount }
+  )
   const showUsageStatus =
     variant === "collection" &&
     resolvedCapabilities.showItemCap &&
@@ -226,7 +243,8 @@ export default function ItemGrid({
             showAdd ? addButton : null
           )}
         </div>
-        <div className={cn(gridLayout.gridClass, "relative", seenLoading && !loading && LOADED_FADE_CLASS)}>
+        <div ref={contentRef}>
+        <div className={cn(gridLayout.gridClass, "relative")}>
           {displayedItems.map((item, index) => {
             const presented = presentOwnerItem(item)
             const fixtureCard = (
@@ -308,17 +326,15 @@ export default function ItemGrid({
         {showEmpty && (
           <EmptyState
             figure={variant === "wishlist" ? "wishlist" : "items"}
-            className={cn(
-              density === "compact" ? "min-h-[230px] py-8" : "min-h-[424px] py-12",
-              seenLoading && LOADED_FADE_CLASS
-            )}
+            className={density === "compact" ? "min-h-[230px] py-8" : "min-h-[424px] py-12"}
           >
             {emptyText}
           </EmptyState>
         )}
+        </div>
         {showUsageStatus && (
           <div className="mt-4 text-fluid-xs text-muted-foreground" role="status">
-            {totalItemCount} of {itemCap} items used
+            <FadeOnChange signal={totalItemCount}>{totalItemCount}</FadeOnChange> of {itemCap} items used
             {nearCap && remainingItems !== null && remainingItems > 0 && (
               <span className="ml-2">
                 — {remainingItems} item{remainingItems === 1 ? "" : "s"} left on free tier.{" "}

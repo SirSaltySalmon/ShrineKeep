@@ -16,7 +16,9 @@ describe("dashboard local item search", () => {
   it("filters the wishlist grid without using filtered length for tab chrome", () => {
     expect(src).toContain("items={visibleUnacquiredItems}")
     expect(src).toContain("currentBoxId && unacquiredItems.length > 0")
-    expect(src).toContain("Wishlist ({unacquiredItems.length} remaining)")
+    // The tab is a plain label: no count, so nothing in the tab bar depends on the filter.
+    expect(src).toContain('<TabsTrigger value="unacquired">Wishlist</TabsTrigger>')
+    expect(src).not.toContain("remaining)")
     expect(src).toContain("No wishlist items in this box match your search.")
   })
 

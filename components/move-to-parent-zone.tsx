@@ -2,6 +2,7 @@
 
 import { useDroppable } from "@dnd-kit/core"
 import { ArrowUpToLine } from "lucide-react"
+import { FadeOnChange } from "./fade-on-change"
 
 export const MOVE_TO_PARENT_ZONE_ID = "drop-zone-parent"
 
@@ -43,7 +44,10 @@ export default function MoveToParentZone({ isRoot, parentBoxName }: MoveToParent
       className={`flex items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-3 text-fluid-sm transition-colors layout-shrink-visible ${stateClass}`}
     >
       <ArrowUpToLine className="h-4 w-4 shrink-0" />
-      <span className="truncate min-w-0">{label}</span>
+      {/* The label is the only part that depends on the view, so it is the only part that fades. */}
+      <FadeOnChange signal={label} className="truncate min-w-0">
+        {label}
+      </FadeOnChange>
     </div>
   )
 }

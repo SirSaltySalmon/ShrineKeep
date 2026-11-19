@@ -1,3 +1,4 @@
+import { FadeOnChange } from "@/components/fade-on-change"
 import { formatCurrency } from "@/lib/utils"
 
 /**
@@ -11,6 +12,11 @@ const SIZE = {
   md: { row: "gap-x-5", label: "text-fluid-sm", figure: "text-fluid-xl", profit: "text-foreground" },
 } as const
 
+/** A figure that fades in when it changes, as the dashboard's stats do. */
+function Figure({ children }: { children: string }) {
+  return <FadeOnChange signal={children}>{children}</FadeOnChange>
+}
+
 /** The three numbers ShrineKeep keeps for a collection: what it is worth, what was paid, the difference. */
 export function MoneyStats({ value, spent, size }: { value: number; spent: number; size: keyof typeof SIZE }) {
   const classes = SIZE[size]
@@ -20,20 +26,19 @@ export function MoneyStats({ value, spent, size }: { value: number; spent: numbe
       <span className={`${classes.label} text-muted-foreground`}>
         Value{" "}
         <strong className={`${classes.figure} font-semibold`} style={{ color: "hsl(var(--value-color))" }}>
-          {formatCurrency(value)}
+          <Figure>{formatCurrency(value)}</Figure>
         </strong>
       </span>
       <span className={`${classes.label} text-muted-foreground`}>
         Acquisition{" "}
         <strong className={`${classes.figure} font-semibold`} style={{ color: "hsl(var(--acquisition-color))" }}>
-          {formatCurrency(spent)}
+          <Figure>{formatCurrency(spent)}</Figure>
         </strong>
       </span>
       <span className={`${classes.label} text-muted-foreground`}>
         Profit{" "}
         <strong className={`${classes.figure} font-semibold ${classes.profit}`}>
-          {profit >= 0 ? "+" : "-"}
-          {formatCurrency(Math.abs(profit))}
+          <Figure>{`${profit >= 0 ? "+" : "-"}${formatCurrency(Math.abs(profit))}`}</Figure>
         </strong>
       </span>
     </div>

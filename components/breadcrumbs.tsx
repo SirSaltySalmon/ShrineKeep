@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { ChevronRight, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { BREADCRUMB_BOX_DROP_ID_PREFIX, isBoxDropBlocked } from "@/lib/dashboard-drop-targets"
+import { useFadeOnChange } from "@/lib/hooks/use-fade-on-change"
 
 export const BREADCRUMB_ROOT_DROP_ID = "breadcrumb-root"
 
@@ -142,6 +143,9 @@ export default function Breadcrumbs({
 }: BreadcrumbsProps) {
   const [path, setPath] = useState<Box[]>([])
   const dragActive = activeDragId != null
+  // The chain arrives after the view does. It fades in as a whole when it is a different chain;
+  // a crumb that only switches between its droppable and plain forms does not.
+  const crumbsRef = useFadeOnChange<HTMLDivElement>(path.map((box) => box.id).join("/"))
 
   useEffect(() => {
     // The chain is one request per level. Navigating again before it finishes must not let
@@ -200,6 +204,7 @@ export default function Breadcrumbs({
           </Button>
         </div>
       )}
+      <div ref={crumbsRef} className="flex min-w-0 flex-1 items-center space-x-2">
       {path.map((box, index) => {
         const isLast = index === path.length - 1
         if (enableDropTargets && isLast) {
@@ -267,6 +272,7 @@ export default function Breadcrumbs({
           </div>
         )
       })}
+      </div>
     </nav>
   )
 }

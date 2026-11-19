@@ -10,6 +10,7 @@ import { BoxStatsSummary, BoxStatsCharts } from "@/components/box-stats-content"
 import { DateRangeFilter } from "@/components/date-range-filter"
 import type { BoneyardBoxStatsFixture } from "@/components/boneyard-stats-fixtures"
 import { LOADED_FADE_CLASS, useSeenLoading } from "@/lib/hooks/use-seen-loading"
+import { useFadeOnChange } from "@/lib/hooks/use-fade-on-change"
 import { cn } from "@/lib/utils"
 
 interface BoxStatsPanelProps {
@@ -56,6 +57,8 @@ export default function BoxStatsPanel({
 
   const panelLoading = loading || captureSkeleton
   const seenLoading = useSeenLoading(panelLoading)
+  // The charts of another box, or of another date range, fade in like the figures above them.
+  const chartsRef = useFadeOnChange<HTMLDivElement>(`${boxId}:${fromDate}:${toDate}`)
 
   const panelContent = (
     <div
@@ -118,13 +121,15 @@ export default function BoxStatsPanel({
               Updating…
             </p>
           )}
-          <BoxStatsCharts
-            valueChartData={valueChartDataDisplay}
-            acquisitionChartData={acquisitionChartDataDisplay}
-            graphOverlay={graphOverlay}
-            fromDate={fromDate || undefined}
-            toDate={toDate || undefined}
-          />
+          <div ref={chartsRef}>
+            <BoxStatsCharts
+              valueChartData={valueChartDataDisplay}
+              acquisitionChartData={acquisitionChartDataDisplay}
+              graphOverlay={graphOverlay}
+              fromDate={fromDate || undefined}
+              toDate={toDate || undefined}
+            />
+          </div>
         </div>
       )}
     </div>

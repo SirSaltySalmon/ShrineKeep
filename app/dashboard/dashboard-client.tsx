@@ -543,6 +543,8 @@ export default function DashboardClient({
   // Known for a view already on screen (a refetch, or a search in the same box); a box being
   // opened for the first time has no count yet and gets one row of skeleton cards.
   const expectedItemCount = itemsLoaded ? visibleItems.length : undefined
+  // The tag filter changes what the grids show without a load, so it has to say so itself.
+  const itemViewKey = includeTags.join(",")
   // An account with no tags has no strip. One with tags always has it, so a box's tags
   // arriving (or a box having none) never moves the grid.
   const tagQuickFilter =
@@ -559,9 +561,7 @@ export default function DashboardClient({
       <ActiveItemsIcon className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
       <TabsList>
         <TabsTrigger value="items">Items</TabsTrigger>
-        <TabsTrigger value="unacquired">
-          Wishlist ({unacquiredItems.length} remaining)
-        </TabsTrigger>
+        <TabsTrigger value="unacquired">Wishlist</TabsTrigger>
       </TabsList>
     </div>
   )
@@ -837,7 +837,7 @@ export default function DashboardClient({
         />
         {/* In every box, from the first frame: it does not wait for the box to load. */}
         {currentBoxId != null && (
-          <div className="mb-6">
+          <div className="mb-6 sk-fade-in">
             <MoveToParentZone
               isRoot={openBox != null && !openBox.parent_box_id}
               parentBoxName={parentBoxName}
@@ -855,6 +855,8 @@ export default function DashboardClient({
                 items={visibleItems}
                 loading={contentSkeletonLoading}
                 expectedCount={expectedItemCount}
+                viewKey={itemViewKey}
+                fadeOnMount
                 currentBoxId={currentBoxId}
                 onItemUpdate={refreshCurrentBoxData}
                 headerContent={tabbedItemsHeader}
@@ -877,6 +879,8 @@ export default function DashboardClient({
                 items={visibleUnacquiredItems}
                 loading={contentSkeletonLoading}
                 expectedCount={visibleUnacquiredItems.length}
+                viewKey={itemViewKey}
+                fadeOnMount
                 currentBoxId={currentBoxId}
                 onItemUpdate={refreshCurrentBoxData}
                 headerContent={tabbedItemsHeader}
@@ -908,6 +912,7 @@ export default function DashboardClient({
             items={visibleItems}
             loading={contentSkeletonLoading}
             expectedCount={expectedItemCount}
+            viewKey={itemViewKey}
             currentBoxId={currentBoxId}
             onItemUpdate={refreshCurrentBoxData}
             sectionTitle="Items"
