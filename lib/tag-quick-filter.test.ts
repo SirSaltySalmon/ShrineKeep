@@ -3,9 +3,11 @@ import {
   collectItemTags,
   filterItemsByIncludeTags,
   getEffectiveIncludeTagIds,
+  getHiddenItemIds,
   toggleIncludeTag,
 } from "./tag-quick-filter"
 import { DEFAULT_SEARCH_FILTERS, type Tag, type TagColor } from "./types"
+import { itemMatchesLocalSearch } from "./utils"
 
 const tag = (id: string, name: string, color: TagColor): Tag => ({
   id,
@@ -66,6 +68,47 @@ describe("filterItemsByIncludeTags", () => {
 
   it("ignores include-tags from other boxes when another one applies", () => {
     expect(filterItemsByIncludeTags(items, ["t-elsewhere", "t-sealed"]).map((i) => i.id)).toEqual(["c"])
+  })
+})
+
+describe("getHiddenItemIds", () => {
+  // The dashboard's two grids: collection items (searched by the server) and wishlist
+  // items, which the search box filters locally before the tag chips do.
+  const collection = [
+    { id: "a", name: "Zaku", tags: [mecha] },
+    { id: "b", name: "Gouf", tags: [sealed] },
+  ]
+  const wishlist = [
+    { id: "w1", name: "Zaku II", tags: [mecha] },
+    { id: "w2", name: "Dom", tags: [mecha] },
+    { id: "w3", name: "Zaku cannon", tags: [sealed] },
+  ]
+  const hidden = (search: string, includeTags: string[]) =>
+    getHiddenItemIds(
+      [...collection, ...wishlist],
+      [
+        ...filterItemsByIncludeTags(collection, includeTags),
+        ...filterItemsByIncludeTags(
+          wishlist.filter((item) => itemMatchesLocalSearch(item, search)),
+          includeTags
+        ),
+      ]
+    )
+
+  it("is empty while nothing is filtered", () => {
+    expect(hidden("", [])).toEqual([])
+  })
+
+  it("lists items a tag chip hides, in both grids", () => {
+    expect(hidden("", ["t-mecha"])).toEqual(["b", "w3"])
+  })
+
+  it("lists wishlist items the local search hides", () => {
+    expect(hidden("zaku", [])).toEqual(["w2"])
+  })
+
+  it("lists an item once when the search and a chip both hide it", () => {
+    expect(hidden("zaku", ["t-sealed"])).toEqual(["a", "w1", "w2"])
   })
 })
 

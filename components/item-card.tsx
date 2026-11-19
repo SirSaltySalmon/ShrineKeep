@@ -11,6 +11,7 @@ import type { PresentedItem } from "@/lib/sharing/presentation/models"
 import { getPlaceholderTint } from "@/lib/placeholder-tint"
 import { DEFAULT_CARD_DENSITY, getItemCardMinHeightClass, type CardDensity } from "@/lib/card-density"
 import { CardStatLine } from "./card-stat-line"
+import type { DraggableAttributes } from "@dnd-kit/core"
 
 const VALUE_COLOR_STYLE = { color: "hsl(var(--value-color))" } as const
 const ACQUISITION_COLOR_STYLE = { color: "hsl(var(--acquisition-color))" } as const
@@ -21,8 +22,11 @@ interface ItemCardProps {
   capabilities: CollectionCapabilities
   selected?: boolean
   selectionMode?: boolean
-  /** The card sits inside a drag handle: show a grab cursor instead of the pointer. */
-  draggable?: boolean
+  /**
+   * `useDraggable().attributes` when the card sits inside a drag handle. They go on the card,
+   * which is the focusable element, and it shows a grab cursor instead of the pointer.
+   */
+  dragAttributes?: DraggableAttributes
   /** Card density for this device (`useCardDensity()` in the grid). Comfortable is the original layout. */
   density?: CardDensity
   onClick?: (item: PresentedItem, e: React.MouseEvent) => void
@@ -35,7 +39,7 @@ export default function ItemCard({
   capabilities,
   selected = false,
   selectionMode = false,
-  draggable = false,
+  dragAttributes,
   density = DEFAULT_CARD_DENSITY,
   onClick,
   onMarkAcquired,
@@ -128,7 +132,7 @@ export default function ItemCard({
             {item.tags.map((tag) => (
               <span
                 key={tag.id}
-                className="rounded-md px-1.5 py-0.5 text-fluid-xs font-medium text-white"
+                className="rounded-md px-1.5 py-0.5 text-fluid-xs font-medium"
                 style={getTagChipStyle(tag.color ?? "blue")}
               >
                 {tag.name}
@@ -175,8 +179,9 @@ export default function ItemCard({
     <Selectable
       selected={selected}
       selectionMode={selectionMode}
-      className={cn("item-card-no-select", draggable && "cursor-grab active:cursor-grabbing")}
+      className={cn("item-card-no-select", dragAttributes && "cursor-grab active:cursor-grabbing")}
       onClick={(e) => onClick?.(item, e)}
+      {...dragAttributes}
     >
       {card}
     </Selectable>

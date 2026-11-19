@@ -46,6 +46,19 @@ export function filterItemsByIncludeTags<T extends TaggedItem>(
   return items.filter((item) => item.tags?.some((tag) => wanted.has(tag.id)) ?? false)
 }
 
+/**
+ * Ids of the loaded items that no grid is showing: everything in `loaded` that is missing
+ * from `visible`. It compares what was fetched with what is drawn, so it covers every local
+ * filter at once: the tag chips, and the in-box search over wishlist items.
+ */
+export function getHiddenItemIds(
+  loaded: readonly Pick<Item, "id">[],
+  visible: readonly Pick<Item, "id">[],
+): string[] {
+  const shown = new Set(visible.map((item) => item.id))
+  return loaded.filter((item) => !shown.has(item.id)).map((item) => item.id)
+}
+
 /** Add `tagId` to the include-tags filter, or remove it when already there. */
 export function toggleIncludeTag(filters: SearchFiltersState, tagId: string): SearchFiltersState {
   const includeTags = filters.includeTags.includes(tagId)

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildSearchUrl,
   getLocalItemSearchEmptyCopy,
+  getTagChipStyle,
   itemMatchesLocalSearch,
   sortTagsByColorThenName,
 } from "./utils"
@@ -85,6 +86,15 @@ describe("itemMatchesLocalSearch", () => {
 
   it("returns false when neither name nor description contains the query", () => {
     expect(itemMatchesLocalSearch(item, "sword")).toBe(false)
+  })
+})
+
+describe("getTagChipStyle", () => {
+  it("paints with the tag tokens, so server and client markup agree", () => {
+    expect(getTagChipStyle("red")).toEqual({
+      background: "hsl(var(--tag-red))",
+      color: "hsl(var(--tag-foreground))",
+    })
   })
 })
 

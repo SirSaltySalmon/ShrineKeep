@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase/client"
-import { Box, Item, Tag, type Theme } from "@/lib/types"
+import { Box, Item, Tag } from "@/lib/types"
 import {
   DEFAULT_SEARCH_FILTERS,
   hasAnySearchFilter,
@@ -19,6 +19,7 @@ import {
 import {
   collectItemTags,
   filterItemsByIncludeTags,
+  getHiddenItemIds,
   toggleIncludeTag,
 } from "@/lib/tag-quick-filter"
 import AdvancedSearchFilters from "@/components/advanced-search-filters"
@@ -30,7 +31,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Search, Sword, Filter, Sparkle } from "lucide-react"
 import { DndContext } from "@dnd-kit/core"
 import { dashboardDndCollisionDetection } from "@/lib/dashboard-dnd-collision"
-import { getItemDragId } from "@/components/draggable-item-card"
+import { ITEM_DRAG_ID_PREFIX } from "@/lib/dashboard-drop-targets"
 import BoxGrid from "@/components/box-grid"
 import BoxDialog from "@/components/box-dialog"
 import BoxStatsDialog from "@/components/box-stats-dialog"
@@ -43,9 +44,9 @@ import { SelectionModeToggle } from "@/components/selection-mode-toggle"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import UpsellModal from "@/components/upsell-modal"
-import { FREE_TIER_CAP } from "@/lib/subscription"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
+import { markItemAcquired } from "@/lib/items/mark-acquired"
 import { useLiveSubscription } from "@/lib/hooks/use-live-subscription"
 import { useDashboardData } from "@/lib/hooks/use-dashboard-data"
 import { useDashboardDialogs } from "@/lib/hooks/use-dashboard-dialogs"
@@ -65,17 +66,18 @@ import {
   type CoachEvent,
   type CoachState,
 } from "@/lib/webmcp/first-run-coach"
-import { chooseFirstRun, coachToolsSettled } from "@/lib/webmcp/first-run-chooser"
+import {
+  chooseFirstRun,
+  coachToolsSettled,
+  FIRST_RUN_CHECK_TIMEOUT_MS,
+} from "@/lib/webmcp/first-run-chooser"
 
 const DASHBOARD_DND_CONTEXT_ID = "dashboard-dnd-context"
-const NO_ITEM_IDS: string[] = []
 
 interface DashboardClientProps {
   aiWidgetVisible?: boolean
   tutorialResetAt?: string | null
   user: any
-  /** Theme (color_scheme) from user_settings; not used for graph overlay. */
-  initialTheme?: Theme | null
   /** Chart overlay preference from user_settings (separate from theme). */
   initialGraphOverlay?: boolean
   isPro?: boolean
@@ -85,7 +87,6 @@ interface DashboardClientProps {
   itemCount?: number
   /** null when Pro (unlimited) */
   itemCap?: number | null
-  freeTierCap?: number
   /** Tutorial completed or skipped; can be reset in Personal settings. */
   demoPromptDismissed?: boolean
   initialBoxes?: Box[]
@@ -99,14 +100,12 @@ export default function DashboardClient({
   aiWidgetVisible = true,
   tutorialResetAt = null,
   user,
-  initialTheme,
   initialGraphOverlay = true,
   isPro = false,
   subscriptionStatus = null,
   pastDueGraceEndsAt: pastDueGraceEndsAtProp = null,
   itemCount = 0,
   itemCap = null,
-  freeTierCap = FREE_TIER_CAP,
   demoPromptDismissed = false,
   initialBoxes = [],
   initialItems = [],
@@ -200,14 +199,11 @@ export default function DashboardClient({
     registerItemCardRef,
     registerBoxCardRef,
     handleMouseDown,
-    marquee,
     MarqueeOverlay,
     clearSelection,
     hasSelection,
     toggleBoxSelection,
     isBoxSelected,
-    isItemSelected,
-    toggleItemSelection,
   } = useDashboardSelection(currentBoxId)
   const {
     dndMoveLoading,
@@ -226,7 +222,7 @@ export default function DashboardClient({
     loadBoxes,
     bumpStatsRefreshKey: () => setStatsRefreshKey((k) => k + 1),
   })
-  const itemDragActive = dndActiveId?.startsWith("item-") ?? false
+  const itemDragActive = dndActiveId?.startsWith(ITEM_DRAG_ID_PREFIX) ?? false
   useMobileSafariDragGuard(dndActiveId !== null)
   const contentSkeletonLoading = folderLoading || dndMoveLoading
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
@@ -263,23 +259,26 @@ export default function DashboardClient({
     [quickFilterSourceItems]
   )
 
-  // Bulk actions and multi-item drags act on the whole selection, so an item a tag chip hides
-  // must not stay selected behind the filter.
-  const tagHiddenItemIds = useMemo(() => {
-    if (visibleItems === items && visibleUnacquiredItems === searchedUnacquiredItems) return NO_ITEM_IDS
-    const visible = new Set([...visibleItems, ...visibleUnacquiredItems].map((i) => i.id))
-    return [...items, ...searchedUnacquiredItems].filter((i) => !visible.has(i.id)).map((i) => i.id)
-  }, [items, searchedUnacquiredItems, visibleItems, visibleUnacquiredItems])
+  // Bulk actions and multi-item drags act on the whole selection, so an item hidden by a tag
+  // chip or by the local search (wishlist items) must not stay selected behind the filter.
+  const hiddenItemIds = useMemo(
+    () =>
+      getHiddenItemIds(
+        [...items, ...unacquiredItems],
+        [...visibleItems, ...visibleUnacquiredItems]
+      ),
+    [items, unacquiredItems, visibleItems, visibleUnacquiredItems]
+  )
   useEffect(() => {
-    if (tagHiddenItemIds.length === 0) return
+    if (hiddenItemIds.length === 0) return
     setSelectedItemIds((prev) => {
-      const hidden = tagHiddenItemIds.filter((id) => prev.has(id))
+      const hidden = hiddenItemIds.filter((id) => prev.has(id))
       if (hidden.length === 0) return prev
       const next = new Set(prev)
       for (const id of hidden) next.delete(id)
       return next
     })
-  }, [tagHiddenItemIds, setSelectedItemIds])
+  }, [hiddenItemIds, setSelectedItemIds])
   const selectedBoxes = boxes.filter((b) => selectedBoxIds.has(b.id))
   const showSelectionBar =
     hasSelection ||
@@ -296,7 +295,7 @@ export default function DashboardClient({
   const [nameDraft, setNameDraft] = useState("")
   const [coachError, setCoachError] = useState<string | null>(null)
   const [coachBusy, setCoachBusy] = useState(false)
-  const [checkElapsed, setCheckElapsed] = useState(0)
+  const [firstRunCheckTimedOut, setFirstRunCheckTimedOut] = useState(false)
   const [firstRunConsumed, setFirstRunConsumed] = useState(false)
   const [showTutorialComplete, setShowTutorialComplete] = useState(false)
 
@@ -321,17 +320,19 @@ export default function DashboardClient({
     })
   }, [tutorialResetAt])
 
+  // chooseFirstRun() only asks whether the tool check has outlasted its timeout, so one timer
+  // at that threshold is enough; a ticking clock would re-render the dashboard all session.
   useEffect(() => {
-    const started = Date.now()
-    const id = window.setInterval(() => setCheckElapsed(Date.now() - started), 250)
-    return () => window.clearInterval(id)
+    setFirstRunCheckTimedOut(false)
+    const id = window.setTimeout(() => setFirstRunCheckTimedOut(true), FIRST_RUN_CHECK_TIMEOUT_MS)
+    return () => window.clearTimeout(id)
   }, [user.id])
 
   const createBox = async (name: string, description: string) => {
     if (!name.trim()) return
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("boxes")
         .insert({
           name: name,
@@ -370,7 +371,7 @@ export default function DashboardClient({
   const firstRun = chooseFirstRun({
     dismissed: demoPromptDismissed || firstRunConsumed,
     coachTools: agentSuggestions.coachToolStatuses,
-    elapsedMs: checkElapsed,
+    elapsedMs: firstRunCheckTimedOut ? FIRST_RUN_CHECK_TIMEOUT_MS : 0,
   })
   const webMcpAvailable = coachToolsSettled(agentSuggestions.coachToolStatuses) === "ready"
 
@@ -467,23 +468,21 @@ export default function DashboardClient({
 
     setMarkingAcquired(true)
     try {
-      const { error } = await supabase
-        .from("items")
-        .update({
-          is_wishlist: false,
-          acquisition_date: payload.acquisitionDate,
-          acquisition_price: payload.acquisitionPrice,
-          box_id: targetBoxId,
-          wishlist_target_box_id: null,
-        })
-        .eq("id", itemToMark.id)
-        .eq("user_id", user.id)
-
-      if (error) throw error
+      const result = await markItemAcquired({
+        id: itemToMark.id,
+        acquisitionDate: payload.acquisitionDate,
+        acquisitionPrice: payload.acquisitionPrice,
+        boxId: targetBoxId,
+      })
       setItemToMark(null)
-      refreshCurrentBoxData()
+      if (result.ok) {
+        refreshCurrentBoxData()
+      } else {
+        setShowItemCapUpsell(true)
+      }
     } catch (error) {
       console.error("Error marking as acquired:", error)
+      alert(error instanceof Error ? error.message : "Could not mark the item as acquired.")
     } finally {
       setMarkingAcquired(false)
     }
@@ -798,7 +797,6 @@ export default function DashboardClient({
               isBoxSelected={isBoxSelected}
               toggleBoxSelection={toggleBoxSelection}
               selectionMode={selectionMode}
-              onEnterSelectionMode={() => setSelectionMode(true)}
               registerBoxCardRef={registerBoxCardRef}
             />
             <ItemGrid
@@ -808,7 +806,6 @@ export default function DashboardClient({
               onItemUpdate={refreshCurrentBoxData}
               sectionTitle="Items"
               selectionMode={selectionMode}
-              onEnterSelectionMode={() => setSelectionMode(true)}
               selectionProps={{
                 selectedIds: selectedItemIds,
                 setSelectedIds: setSelectedItemIds,
@@ -845,7 +842,6 @@ export default function DashboardClient({
               isBoxSelected={isBoxSelected}
               toggleBoxSelection={toggleBoxSelection}
               selectionMode={selectionMode}
-              onEnterSelectionMode={() => setSelectionMode(true)}
               registerBoxCardRef={registerBoxCardRef}
             />
             {currentBox != null && (
@@ -877,7 +873,6 @@ export default function DashboardClient({
                       headerContent={tabbedItemsHeader}
                       emptyText={localSearchEmptyText}
                       selectionMode={selectionMode}
-                      onEnterSelectionMode={() => setSelectionMode(true)}
                       selectionProps={{
                         selectedIds: selectedItemIds,
                         setSelectedIds: setSelectedItemIds,
@@ -905,7 +900,6 @@ export default function DashboardClient({
                           : 'No wishlist items in this box yet. Click "New Wishlist Item" to add one linked to this box.'
                       }
                       selectionMode={selectionMode}
-                      onEnterSelectionMode={() => setSelectionMode(true)}
                       selectionProps={{
                         selectedIds: selectedItemIds,
                         setSelectedIds: setSelectedItemIds,
@@ -928,7 +922,6 @@ export default function DashboardClient({
                   sectionTitle="Items"
                   emptyText={localSearchEmptyText}
                   selectionMode={selectionMode}
-                  onEnterSelectionMode={() => setSelectionMode(true)}
                   selectionProps={{
                     selectedIds: selectedItemIds,
                     setSelectedIds: setSelectedItemIds,
@@ -996,6 +989,7 @@ export default function DashboardClient({
             }
             loadBoxes()
             loadItems(currentBoxId === box.id ? (box.parent_box_id ?? null) : currentBoxId)
+            setStatsRefreshKey((k) => k + 1)
           }}
           onOwnerSharingChange={setOwnerSharing}
         />
@@ -1004,6 +998,7 @@ export default function DashboardClient({
           boxName={statsBoxName}
           open={showStatsDialog}
           onOpenChange={setShowStatsDialog}
+          refreshKey={statsRefreshKey}
           graphOverlay={initialGraphOverlay}
         />
         <SelectionModeToggle

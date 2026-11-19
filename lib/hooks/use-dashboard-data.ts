@@ -30,6 +30,9 @@ interface BoxesQueryData {
   descendantCounts: Record<string, number>
 }
 
+/** One array for "nothing loaded", so the lists keep their identity between renders. */
+const NO_ITEMS: Item[] = []
+
 export function useDashboardData({
   userId,
   supabase,
@@ -268,8 +271,8 @@ export function useDashboardData({
     boxes,
     descendantCounts,
     ownerSharing: ownerSharingQuery.data,
-    items: itemsQuery.data ?? [],
-    unacquiredItems: currentBoxId ? unacquiredQuery.data ?? [] : [],
+    items: itemsQuery.data ?? NO_ITEMS,
+    unacquiredItems: currentBoxId ? unacquiredQuery.data ?? NO_ITEMS : NO_ITEMS,
     setUnacquiredItems,
     userTags: tagsQuery.data ?? [],
     setUserTags,

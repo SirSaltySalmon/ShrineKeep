@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react"
 import type { Tag, TagColor } from "@/lib/types"
-import { cn, FOCUS_RING_CLASS } from "@/lib/utils"
+import { cn, FOCUS_RING_CLASS, getTagChipStyle } from "@/lib/utils"
 
 interface TagQuickFilterProps {
   /** Tags carried by the items in the current view, already in canonical order. */
@@ -13,15 +13,10 @@ interface TagQuickFilterProps {
   className?: string
 }
 
-/**
- * Painted with the tag tokens directly (not the resolved values from `getTagChipStyle`) so the
- * server render and the client agree and a theme change repaints the chips without a re-render.
- */
+/** A filled chip is the app's tag chip; an unfilled one keeps only its edge in the tag colour. */
 function chipStyle(color: TagColor, filled: boolean): CSSProperties {
-  const tagColor = `hsl(var(--tag-${color}))`
-  return filled
-    ? { background: tagColor, borderColor: tagColor, color: "hsl(var(--tag-foreground))" }
-    : { borderColor: tagColor }
+  const chip = getTagChipStyle(color)
+  return filled ? { ...chip, borderColor: chip.background } : { borderColor: chip.background }
 }
 
 /**
@@ -53,7 +48,6 @@ export default function TagQuickFilter({ tags, activeTagIds, onToggle, className
             className={cn(
               "max-w-full truncate rounded-md border-2 px-2 py-0.5 text-fluid-xs font-medium transition-opacity",
               FOCUS_RING_CLASS,
-              "focus-visible:ring-offset-background",
               // Until a chip is picked they all read as plain tags; after that the rest step back.
               anyActive && !pressed && "opacity-60 hover:opacity-100"
             )}

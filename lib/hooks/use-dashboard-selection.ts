@@ -28,7 +28,8 @@ export interface UseDashboardSelectionReturn {
 
 /**
  * Unified selection state for dashboard: items (with marquee) + boxes.
- * Clears item selection when currentBoxId changes (navigate).
+ * Clears both when currentBoxId changes (navigate): a selection only means something for
+ * the cards in view, and an ancestor left selected would refuse box drops onto its crumb.
  */
 export function useDashboardSelection(currentBoxId: string | null): UseDashboardSelectionReturn {
   const marqueeReturn = useMarqueeSelection()
@@ -46,7 +47,8 @@ export function useDashboardSelection(currentBoxId: string | null): UseDashboard
 
   useEffect(() => {
     setSelectedItemIds(new Set())
-  }, [currentBoxId, setSelectedItemIds])
+    setSelectedBoxIds(new Set())
+  }, [currentBoxId, setSelectedItemIds, setSelectedBoxIds])
 
   const clearSelection = useCallback(() => {
     setSelectedItemIds(new Set())

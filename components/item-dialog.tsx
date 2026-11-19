@@ -818,7 +818,7 @@ export default function ItemDialog({
                   return (
                     <span
                       key={tagId}
-                      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-fluid-xs font-medium text-white"
+                      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-fluid-xs font-medium"
                       style={getTagChipStyle(tag.color)}
                     >
                       {tag.name}

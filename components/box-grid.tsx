@@ -45,8 +45,6 @@ interface BoxGridProps {
   capabilities?: CollectionCapabilities
   /** When true, click only toggles selection; when false, click navigates (shift-click still toggles). */
   selectionMode?: boolean
-  /** Called when shift-click happens to enable selection mode. */
-  onEnterSelectionMode?: () => void
   /** Register this card's root element for marquee intersection. */
   registerBoxCardRef?: (id: string, el: HTMLDivElement | null) => void
   /** Bump to refetch the box-card sparklines, like the stats panel's `refreshKey`. */
@@ -65,7 +63,6 @@ export default function BoxGrid({
   toggleBoxSelection,
   capabilities = OWNER_CAPABILITIES,
   selectionMode = false,
-  onEnterSelectionMode,
   registerBoxCardRef,
   statsRefreshKey = 0,
 }: BoxGridProps) {

@@ -1,11 +1,32 @@
 import { describe, expect, it } from "vitest"
-import { isBoxDragId, isBoxDropBlocked, shouldCueBoxDrop } from "./dashboard-drop-targets"
+import {
+  BOX_DRAG_ID_PREFIX,
+  BOX_DROP_ID_PREFIX,
+  BREADCRUMB_BOX_DROP_ID_PREFIX,
+  ITEM_DRAG_ID_PREFIX,
+  getDropTargetBoxId,
+  isBoxDragId,
+  isBoxDropBlocked,
+  shouldCueBoxDrop,
+} from "./dashboard-drop-targets"
 
 describe("isBoxDragId", () => {
   it("tells box drags from item drags", () => {
     expect(isBoxDragId("box-drag-1")).toBe(true)
     expect(isBoxDragId("item-1")).toBe(false)
     expect(isBoxDragId(null)).toBe(false)
+  })
+})
+
+describe("getDropTargetBoxId", () => {
+  it("reads the box from a box card or a breadcrumb", () => {
+    expect(getDropTargetBoxId(BOX_DROP_ID_PREFIX + "1")).toBe("1")
+    expect(getDropTargetBoxId(BREADCRUMB_BOX_DROP_ID_PREFIX + "1")).toBe("1")
+  })
+
+  it("is undefined for the droppables that are not one box", () => {
+    expect(getDropTargetBoxId("breadcrumb-root")).toBeUndefined()
+    expect(getDropTargetBoxId("drop-zone-parent")).toBeUndefined()
   })
 })
 
@@ -41,5 +62,20 @@ describe("shouldCueBoxDrop", () => {
     expect(shouldCueBoxDrop("box-drag-1", "1", true)).toBe(false)
     expect(shouldCueBoxDrop("box-drag-1", "2", true)).toBe(false)
     expect(shouldCueBoxDrop("box-drag-1", "3", false)).toBe(true)
+  })
+})
+
+describe("drop cue and drop decision", () => {
+  // `handleDragEnd` refuses a drop with `isBoxDropBlocked`; the cards and crumbs draw the cue
+  // with `shouldCueBoxDrop`. Whatever is being dragged, a box shows the cue exactly when it accepts.
+  it("agree for every drag, box and selection state", () => {
+    const drags = [ITEM_DRAG_ID_PREFIX + "1", BOX_DRAG_ID_PREFIX + "1", BOX_DRAG_ID_PREFIX + "2"]
+    for (const drag of drags) {
+      for (const boxId of ["1", "2", "3"]) {
+        for (const selected of [false, true]) {
+          expect(shouldCueBoxDrop(drag, boxId, selected)).toBe(!isBoxDropBlocked(drag, boxId, selected))
+        }
+      }
+    }
   })
 })

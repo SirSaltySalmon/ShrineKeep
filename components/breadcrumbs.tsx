@@ -7,18 +7,16 @@ import { Box } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { ChevronRight, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { isBoxDropBlocked } from "@/lib/dashboard-drop-targets"
+import { BREADCRUMB_BOX_DROP_ID_PREFIX, isBoxDropBlocked } from "@/lib/dashboard-drop-targets"
 
 export const BREADCRUMB_ROOT_DROP_ID = "breadcrumb-root"
-
-const BREADCRUMB_BOX_PREFIX = "breadcrumb-box-"
 
 /** Dashed outline on a crumb that would accept the drag in progress; the "is over" ring is the stronger state. */
 const CRUMB_DROP_CUE_CLASS = "outline-dashed outline-1 outline-primary/60"
 const CRUMB_OVER_CLASS = "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
 
 export function getBreadcrumbBoxDropId(boxId: string) {
-  return BREADCRUMB_BOX_PREFIX + boxId
+  return BREADCRUMB_BOX_DROP_ID_PREFIX + boxId
 }
 
 interface BreadcrumbsProps {
@@ -30,7 +28,10 @@ interface BreadcrumbsProps {
   activeDragId?: string | null
   /** Selected box ids when dragging boxes (avoid dropping onto a box being moved). */
   selectedBoxIds?: ReadonlySet<string>
-  /** Called with the root-first chain of boxes down to `currentBoxId` each time it is loaded. */
+  /**
+   * Called with the root-first chain of boxes down to `currentBoxId` each time it is loaded.
+   * Pass a stable function (a state setter, `useCallback`): a new one reloads the chain.
+   */
   onPathChange?: (path: Box[]) => void
 }
 
@@ -140,41 +141,43 @@ export default function Breadcrumbs({
   onPathChange,
 }: BreadcrumbsProps) {
   const [path, setPath] = useState<Box[]>([])
-  const supabase = createSupabaseClient()
   const dragActive = activeDragId != null
 
   useEffect(() => {
-    loadPath()
-  }, [currentBoxId])
+    // The chain is one request per level. Navigating again before it finishes must not let
+    // this (older) load overwrite the newer one.
+    let cancelled = false
 
-  const loadPath = async () => {
-    if (!currentBoxId) {
-      setPath([])
-      onPathChange?.([])
-      return
-    }
+    const loadPath = async () => {
+      const supabase = createSupabaseClient()
+      const boxes: Box[] = []
+      let currentId: string | null = currentBoxId
 
-    const boxes: Box[] = []
-    let currentId: string | null = currentBoxId
+      while (currentId) {
+        const { data } = (await supabase
+          .from("boxes")
+          .select("*")
+          .eq("id", currentId)
+          .single()) as { data: Box | null }
+        if (cancelled) return
 
-    while (currentId) {
-      const { data } = (await supabase
-        .from("boxes")
-        .select("*")
-        .eq("id", currentId)
-        .single()) as { data: Box | null }
-
-      if (data) {
-        boxes.unshift(data)
-        currentId = data.parent_box_id || null
-      } else {
-        break
+        if (data) {
+          boxes.unshift(data)
+          currentId = data.parent_box_id || null
+        } else {
+          break
+        }
       }
+
+      setPath(boxes)
+      onPathChange?.(boxes)
     }
 
-    setPath(boxes)
-    onPathChange?.(boxes)
-  }
+    void loadPath()
+    return () => {
+      cancelled = true
+    }
+  }, [currentBoxId, onPathChange])
 
   return (
     <nav className="flex items-center space-x-2 text-fluid-sm layout-shrink-visible">

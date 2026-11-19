@@ -157,7 +157,7 @@ export default function TagSettings() {
               ) : (
                 <>
                   <span
-                    className="rounded-md px-2 py-0.5 text-fluid-sm font-medium text-white shrink-0"
+                    className="rounded-md px-2 py-0.5 text-fluid-sm font-medium shrink-0"
                     style={getTagChipStyle((tag as Tag).color ?? "blue")}
                   >
                     {tag.name}

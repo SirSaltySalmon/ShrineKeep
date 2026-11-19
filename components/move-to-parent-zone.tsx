@@ -1,6 +1,6 @@
 "use client"
 
-import { useDndContext, useDroppable } from "@dnd-kit/core"
+import { useDroppable } from "@dnd-kit/core"
 import { ArrowUpToLine } from "lucide-react"
 
 export const MOVE_TO_PARENT_ZONE_ID = "drop-zone-parent"
@@ -13,12 +13,12 @@ interface MoveToParentZoneProps {
 }
 
 export default function MoveToParentZone({ isRoot, parentBoxName }: MoveToParentZoneProps) {
-  const { isOver, setNodeRef } = useDroppable({
+  const { active, isOver, setNodeRef } = useDroppable({
     id: MOVE_TO_PARENT_ZONE_ID,
     data: { type: "parent" },
   })
   // Everything draggable in this view can go one level up, so any drag lights the zone.
-  const dragActive = useDndContext().active != null
+  const dragActive = active != null
 
   const label = parentBoxName
     ? `Move to "${parentBoxName}"`

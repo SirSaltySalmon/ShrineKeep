@@ -45,8 +45,6 @@ interface ItemGridProps {
   selectionProps?: ItemGridSelectionProps
   /** When true, click only toggles selection; when false, click opens dialog (shift-click still toggles). */
   selectionMode?: boolean
-  /** Called when shift-click happens to enable selection mode. */
-  onEnterSelectionMode?: () => void
   /** Global collection item count (all boxes); used with itemCap to block New Item at limit. */
   totalItemCount?: number
   itemCap?: number | null
@@ -82,7 +80,6 @@ export default function ItemGrid({
   headerContent,
   selectionProps,
   selectionMode,
-  onEnterSelectionMode,
   totalItemCount,
   itemCap = null,
   isPro = true,
@@ -117,7 +114,11 @@ export default function ItemGrid({
   }, [currentBoxId, setSelectedIds, selectionProps, resolvedCapabilities.canSelect])
 
   const handleNewItem = () => {
+    // Wishlist items do not count toward the cap. The dialog opens on one when it is locked to
+    // the wishlist or defaults to it; switching it to a collection item is caught on save.
+    const opensAsWishlistItem = wishlistDialogLocked || defaultNewItemMode === "wishlist"
     const atCap =
+      !opensAsWishlistItem &&
       !isPro &&
       itemCap !== null &&
       totalItemCount !== undefined &&

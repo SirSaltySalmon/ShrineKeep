@@ -1,11 +1,11 @@
 "use client"
 
-import { useDndContext, useDraggable, useDroppable } from "@dnd-kit/core"
+import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
-import { useCallback, useMemo } from "react"
+import { useCallback } from "react"
 import { Box } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { BOX_DRAG_ID_PREFIX, shouldCueBoxDrop } from "@/lib/dashboard-drop-targets"
+import { BOX_DRAG_ID_PREFIX, BOX_DROP_ID_PREFIX, shouldCueBoxDrop } from "@/lib/dashboard-drop-targets"
 import { Selectable } from "@/components/selectable"
 import { OWNER_CAPABILITIES } from "@/lib/sharing/presentation/capabilities"
 import { presentOwnerBox } from "@/lib/sharing/presentation/adapters"
@@ -27,15 +27,12 @@ interface DroppableBoxCardProps {
   sparkline?: BoxSparklineSeries | null
 }
 
-const DROP_ID_PREFIX = "box-"
-const DRAG_ID_PREFIX = BOX_DRAG_ID_PREFIX
-
 export function getBoxDropId(boxId: string) {
-  return DROP_ID_PREFIX + boxId
+  return BOX_DROP_ID_PREFIX + boxId
 }
 
 export function getBoxDragId(boxId: string) {
-  return DRAG_ID_PREFIX + boxId
+  return BOX_DRAG_ID_PREFIX + boxId
 }
 
 export default function DroppableBoxCard({
@@ -49,7 +46,10 @@ export default function DroppableBoxCard({
   density,
   sparkline,
 }: DroppableBoxCardProps) {
+  // `active` is taken from this hook rather than `useDndContext()`, whose value changes on
+  // every pointer move. This one changes when a drag starts, crosses to another target or ends.
   const {
+    active,
     attributes,
     listeners,
     setNodeRef: setDragRef,
@@ -66,9 +66,8 @@ export default function DroppableBoxCard({
     disabled: isDragging,
   })
 
-  // Read from dnd-kit instead of props: every box card advertises itself as soon as a drag
-  // starts, except the dragged box and, for box drags, the rest of the selection.
-  const { active } = useDndContext()
+  // Every box card advertises itself as soon as a drag starts, except the dragged box and,
+  // for box drags, the rest of the selection.
   const activeDragId = active ? String(active.id) : null
   const showDropCue = shouldCueBoxDrop(activeDragId, box.id, selected) && !isOver
 
@@ -85,24 +84,6 @@ export default function DroppableBoxCard({
       registerBoxCardRef?.(box.id, node)
     },
     [setDropRef, setDragRef, registerBoxCardRef, box.id]
-  )
-
-  // `useDndContext()` re-renders this wrapper on every pointer move of a drag. The card body
-  // does not depend on drag state, so keep its element stable and let React skip it.
-  const card = useMemo(
-    () => (
-      <BoxCard
-        box={presentOwnerBox(box)}
-        capabilities={OWNER_CAPABILITIES}
-        frame="embedded"
-        density={density}
-        sparkline={sparkline}
-        onBoxClick={() => {}}
-        onRename={onRename ? () => onRename(box) : undefined}
-        onShowStats={onShowStats ? () => onShowStats(box) : undefined}
-      />
-    ),
-    [box, onRename, onShowStats, density, sparkline]
   )
 
   return (
@@ -124,7 +105,16 @@ export default function DroppableBoxCard({
       {...attributes}
       {...listeners}
     >
-      {card}
+      <BoxCard
+        box={presentOwnerBox(box)}
+        capabilities={OWNER_CAPABILITIES}
+        frame="embedded"
+        density={density}
+        sparkline={sparkline}
+        onBoxClick={() => {}}
+        onRename={onRename ? () => onRename(box) : undefined}
+        onShowStats={onShowStats ? () => onShowStats(box) : undefined}
+      />
     </Selectable>
   )
 }

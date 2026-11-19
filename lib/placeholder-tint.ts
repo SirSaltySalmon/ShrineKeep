@@ -45,9 +45,8 @@ export function pickTintColor(tags: readonly TintTag[] | null | undefined): TagC
 /**
  * Tint for a no-photo placeholder, or null to keep the plain muted tile.
  *
- * Returns `var()` references rather than resolved colours (unlike
- * `getTagChipStyle`, which reads the document root), so it works during SSR and
- * under a theme scoped to a wrapper element.
+ * Returns `var()` references rather than resolved colours, like `getTagChipStyle`,
+ * so it works during SSR and under a theme scoped to a wrapper element.
  */
 export function getPlaceholderTint(tags: readonly TintTag[] | null | undefined): PlaceholderTint | null {
   const slot = pickTintColor(tags)

@@ -3,9 +3,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { createSharingMutationCore } from "@/lib/sharing/server/mutation-core"
 import type { DashboardOwnerSharing } from "@/lib/sharing/box-editor"
-import type { Theme } from "@/lib/types"
 import DashboardClient from "./dashboard-client"
-import { getSubscriptionStatus, getItemCount, getEffectiveCap, FREE_TIER_CAP } from "@/lib/subscription"
+import { getSubscriptionStatus, getItemCount, getEffectiveCap } from "@/lib/subscription"
 import { loadDashboardRootData } from "@/lib/services/dashboard/load-dashboard-root"
 
 async function loadOwnerSharing(userId: string): Promise<DashboardOwnerSharing | undefined> {
@@ -49,9 +48,6 @@ export default async function DashboardPage() {
 
   const cap = await getEffectiveCap(supabase, authUser.id, subscription.isPro)
 
-  const colorScheme = settings?.color_scheme as Theme | null | undefined
-  const theme: Theme | null =
-    colorScheme && typeof colorScheme === "object" ? { ...colorScheme } : null
   const graphOverlay = settings?.graph_overlay ?? true
   const demoPromptDismissed = settings?.dashboard_demo_prompt_dismissed ?? false
 
@@ -61,7 +57,6 @@ export default async function DashboardPage() {
       aiWidgetVisible={settings?.ai_widget_visible ?? true}
       tutorialResetAt={settings?.ai_tutorial_reset_at ?? null}
       user={user}
-      initialTheme={theme}
       initialGraphOverlay={graphOverlay}
       demoPromptDismissed={demoPromptDismissed}
       isPro={subscription.isPro}
@@ -69,7 +64,6 @@ export default async function DashboardPage() {
       pastDueGraceEndsAt={subscription.pastDueGraceEndsAt?.toISOString() ?? null}
       itemCount={itemCount}
       itemCap={isFinite(cap) ? cap : null}
-      freeTierCap={FREE_TIER_CAP}
       initialBoxes={rootData.initialBoxes}
       initialItems={rootData.initialItems}
       initialUserTags={rootData.initialTags}

@@ -166,6 +166,33 @@ describe("card density store", () => {
     unsubscribeOther()
     expect(stopWatching).toHaveBeenCalledTimes(1)
   })
+
+  it("sees a change made in another tab while nobody was subscribed", () => {
+    const { data, storage } = memoryStorage()
+    const store = createCardDensityStore({ getStorage: () => storage, watchStorage: () => () => {} })
+    const unsubscribe = store.subscribe(() => {})
+    expect(store.getSnapshot()).toBe("comfortable")
+    unsubscribe()
+
+    // No grid is mounted, so no storage event reaches the store.
+    data.set(CARD_DENSITY_STORAGE_KEY, "compact")
+    expect(store.getSnapshot()).toBe("compact")
+  })
+
+  it("keeps a choice storage never took after the last subscriber leaves", () => {
+    for (const getStorage of [
+      () => null,
+      () => {
+        throw new Error("SecurityError")
+      },
+    ]) {
+      const store = createCardDensityStore({ getStorage })
+      const unsubscribe = store.subscribe(() => {})
+      store.set("compact")
+      unsubscribe()
+      expect(store.getSnapshot()).toBe("compact")
+    }
+  })
 })
 
 describe("grid layouts", () => {

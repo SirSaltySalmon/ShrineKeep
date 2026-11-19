@@ -95,11 +95,29 @@ export default function BoxCard({
     </div>
   )
 
-  // Decorative: the figures it draws are already on the card as text.
+  // "Label: figure" rows are the same element in both densities; `CardStatLine` lays them out.
+  const totals = (
+    <>
+      {box.totalValue !== undefined && (
+        <CardStatLine label="Total Value" value={formatCurrency(box.totalValue)} density={density} />
+      )}
+      {box.totalAcquisitionCost !== undefined && (
+        <CardStatLine label="Acquired" value={formatCurrency(box.totalAcquisitionCost)} density={density} />
+      )}
+    </>
+  )
+
+  // The dashboard does not load box totals, so the card has no figures as text: the sparkline
+  // is named with the two it ends on instead of being hidden as decoration.
   const sparklineRow = hasSparklineRow ? (
     <BoxSparkline
       series={sparkline}
       height={BOX_SPARKLINE_HEIGHT[density]}
+      label={
+        sparkline
+          ? `Value ${formatCurrency(sparkline.currentValue)}, cost ${formatCurrency(sparkline.totalAcquisition)} over time`
+          : undefined
+      }
       reserveSpace
       className={compact ? "mt-1.5" : "mt-2"}
     />
@@ -118,12 +136,7 @@ export default function BoxCard({
       </CardHeader>
       <CardContent className="p-3 pt-0">
         <div className="text-fluid-sm leading-snug text-muted-foreground layout-shrink-visible">
-          {box.totalValue !== undefined && (
-            <CardStatLine label="Total Value" value={formatCurrency(box.totalValue)} density={density} />
-          )}
-          {box.totalAcquisitionCost !== undefined && (
-            <CardStatLine label="Acquired" value={formatCurrency(box.totalAcquisitionCost)} density={density} />
-          )}
+          {totals}
           {(box.itemCount !== undefined || hasActions) && (
             <div className="flex items-center justify-between gap-1 min-w-0">
               <span className="min-w-0 truncate">
@@ -154,12 +167,7 @@ export default function BoxCard({
       </CardHeader>
       <CardContent>
         <div className="space-y-1 text-fluid-sm text-muted-foreground layout-shrink-visible">
-          {box.totalValue !== undefined && (
-            <div className="truncate">Total Value: {formatCurrency(box.totalValue)}</div>
-          )}
-          {box.totalAcquisitionCost !== undefined && (
-            <div className="truncate">Acquired: {formatCurrency(box.totalAcquisitionCost)}</div>
-          )}
+          {totals}
           {box.itemCount !== undefined && (
             <div className="truncate">{box.itemCount} items</div>
           )}
@@ -171,7 +179,12 @@ export default function BoxCard({
 
   if (!interactive) {
     return (
-      <div className={cn(CARD_HOVER_MOTION_CLASS, "cursor-default")} onClick={(e) => onBoxClick(box, e)}>
+      <div
+        // Embedded: the wrapper around this card already lifts on hover and sets the cursor
+        // (a grab hand); repeating either here would double the lift and hide the hand.
+        className={frame === "embedded" ? undefined : cn(CARD_HOVER_MOTION_CLASS, "cursor-default")}
+        onClick={(e) => onBoxClick(box, e)}
+      >
         {card}
       </div>
     )

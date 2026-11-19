@@ -8,11 +8,10 @@ import ItemCard from "./item-card"
 import { OWNER_CAPABILITIES } from "@/lib/sharing/presentation/capabilities"
 import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
 import type { CardDensity } from "@/lib/card-density"
-
-const DRAG_ID_PREFIX = "item-"
+import { ITEM_DRAG_ID_PREFIX } from "@/lib/dashboard-drop-targets"
 
 export function getItemDragId(itemId: string) {
-  return DRAG_ID_PREFIX + itemId
+  return ITEM_DRAG_ID_PREFIX + itemId
 }
 
 interface DraggableItemCardProps {
@@ -65,7 +64,6 @@ export default function DraggableItemCard({
       ref={mergedRef}
       style={style}
       data-item-id={item.id}
-      {...attributes}
       {...listeners}
     >
       <ItemCard
@@ -74,7 +72,7 @@ export default function DraggableItemCard({
         capabilities={OWNER_CAPABILITIES}
         selected={selected}
         selectionMode={selectionMode}
-        draggable
+        dragAttributes={attributes}
         density={density}
         onClick={(_, event) => onClick(item, event)}
       />

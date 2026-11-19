@@ -36,7 +36,6 @@ export default function CardDensityToggle({ className }: { className?: string })
             className={cn(
               "inline-flex h-7 w-8 items-center justify-center rounded-sm transition-colors",
               FOCUS_RING_CLASS,
-              "focus-visible:ring-offset-background",
               pressed
                 ? "bg-background text-foreground sk-flat-sm"
                 : "text-muted-foreground hover:text-foreground"

@@ -57,6 +57,8 @@ export function createCardDensityStore({ getStorage, watchStorage }: CardDensity
   const listeners = new Set<() => void>()
   // Read once, then served from memory: getSnapshot runs on every render of every grid.
   let cached: CardDensity | null = null
+  // True when the last `set` could not be written: the choice then exists only in `cached`.
+  let unsaved = false
   let stopWatching: (() => void) | null = null
 
   const read = (): CardDensity => {
@@ -81,8 +83,13 @@ export function createCardDensityStore({ getStorage, watchStorage }: CardDensity
     getServerSnapshot: () => DEFAULT_CARD_DENSITY,
     set(next) {
       const value = parseCardDensity(next)
+      unsaved = true
       try {
-        getStorage()?.setItem(CARD_DENSITY_STORAGE_KEY, value)
+        const storage = getStorage()
+        if (storage) {
+          storage.setItem(CARD_DENSITY_STORAGE_KEY, value)
+          unsaved = false
+        }
       } catch {
         // Storage blocked or full: the choice still holds for this page load.
       }
@@ -102,10 +109,12 @@ export function createCardDensityStore({ getStorage, watchStorage }: CardDensity
       }
       return () => {
         listeners.delete(listener)
-        if (listeners.size === 0 && stopWatching) {
-          stopWatching()
-          stopWatching = null
-        }
+        if (listeners.size > 0) return
+        stopWatching?.()
+        stopWatching = null
+        // With nobody watching, another tab can change the stored value unseen: read it again
+        // on the next use. A choice storage never took has no other copy and is kept.
+        if (!unsaved) cached = null
       }
     },
   }

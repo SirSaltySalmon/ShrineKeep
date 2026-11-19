@@ -2,6 +2,7 @@
 
 import { Tag, TAG_COLORS, type SearchFiltersState, type TagColor } from "@/lib/types"
 import { getTagChipStyle } from "@/lib/utils"
+import { toggleIncludeTag } from "@/lib/tag-quick-filter"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -39,11 +40,8 @@ export default function AdvancedSearchFilters({
     onApply?.()
   }
 
-  const toggleIncludeTag = (tagId: string) => {
-    const next = filters.includeTags.includes(tagId)
-      ? filters.includeTags.filter((id) => id !== tagId)
-      : [...filters.includeTags, tagId]
-    const nextFilters = { ...filters, includeTags: next }
+  const handleToggleIncludeTag = (tagId: string) => {
+    const nextFilters = toggleIncludeTag(filters, tagId)
     update(nextFilters)
     onApply?.(nextFilters)
   }
@@ -146,7 +144,7 @@ export default function AdvancedSearchFilters({
               <button
                 key={t.id}
                 type="button"
-                onClick={() => toggleIncludeTag(t.id)}
+                onClick={() => handleToggleIncludeTag(t.id)}
                 className={`rounded-md px-2 py-0.5 text-fluid-xs font-medium ${filters.includeTags.includes(t.id) ? "ring-2 ring-primary" : ""}`}
                 style={getTagChipStyle(t.color ?? "blue")}
               >
