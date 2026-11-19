@@ -30,22 +30,18 @@ export interface KeeperSpec {
   topper: KeeperTopper
   face: KeeperFace
   rarity: KeeperRarity
-  /** Mock resale value in dollars. */
-  value: number
-  /** Relative pull weight in the blind-box game. */
-  weight: number
 }
 
 export const KEEPERS: KeeperSpec[] = [
-  { id: "moss", name: "Moss", colorVar: "tag-green", topper: "sprout", face: "smile", rarity: "common", value: 6, weight: 15 },
-  { id: "ember", name: "Ember", colorVar: "tag-orange", topper: "flame", face: "stern", rarity: "common", value: 6, weight: 15 },
-  { id: "tide", name: "Tide", colorVar: "tag-blue", topper: "antenna", face: "o", rarity: "common", value: 7, weight: 15 },
-  { id: "plum", name: "Plum", colorVar: "tag-violet", topper: "bow", face: "wink", rarity: "common", value: 7, weight: 15 },
-  { id: "dusk", name: "Dusk", colorVar: "tag-indigo", topper: "ears", face: "sleepy", rarity: "common", value: 8, weight: 15 },
-  { id: "oni", name: "Oni", colorVar: "tag-red", topper: "horns", face: "stern", rarity: "rare", value: 18, weight: 6.5 },
-  { id: "saint", name: "Saint", colorVar: "tag-yellow", topper: "halo", face: "smile", rarity: "rare", value: 22, weight: 6.5 },
-  { id: "ink", name: "Ink", colorVar: "foreground", topper: "ears", face: "wink", rarity: "rare", value: 25, weight: 6.5 },
-  { id: "gilt", name: "Gilt", colorVar: "thumbnail-color", topper: "crown", face: "star", rarity: "secret", value: 120, weight: 5.5 },
+  { id: "moss", name: "Moss", colorVar: "tag-green", topper: "sprout", face: "smile", rarity: "common" },
+  { id: "ember", name: "Ember", colorVar: "tag-orange", topper: "flame", face: "stern", rarity: "common" },
+  { id: "tide", name: "Tide", colorVar: "tag-blue", topper: "antenna", face: "o", rarity: "common" },
+  { id: "plum", name: "Plum", colorVar: "tag-violet", topper: "bow", face: "wink", rarity: "common" },
+  { id: "dusk", name: "Dusk", colorVar: "tag-indigo", topper: "ears", face: "sleepy", rarity: "common" },
+  { id: "oni", name: "Oni", colorVar: "tag-red", topper: "horns", face: "stern", rarity: "rare" },
+  { id: "saint", name: "Saint", colorVar: "tag-yellow", topper: "halo", face: "smile", rarity: "rare" },
+  { id: "ink", name: "Ink", colorVar: "foreground", topper: "ears", face: "wink", rarity: "rare" },
+  { id: "gilt", name: "Gilt", colorVar: "thumbnail-color", topper: "crown", face: "star", rarity: "secret" },
 ]
 
 export const RARITY_LABEL: Record<KeeperRarity, string> = {

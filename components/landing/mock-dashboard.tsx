@@ -34,12 +34,24 @@ import {
 } from "lucide-react"
 import { cn, formatCurrency, SELECTION_RING_CLASS } from "@/lib/utils"
 import { applyColorScheme, COLOR_SCHEME_PRESETS, resolveThemePreset, type ThemePreset } from "@/lib/settings"
+import { DEFAULT_THEME_RADIUS, THEME_RADIUS_OPTIONS } from "@/lib/theme-colors"
 import { FONT_FAMILY_CSS, type FontFamilyId } from "@/lib/fonts"
 import { dashboardDndCollisionDetection } from "@/lib/dashboard-dnd-collision"
 import { NonTouchPointerSensor } from "@/lib/non-touch-pointer-sensor"
+import {
+  ownedInSubtree,
+  pathTo,
+  resolveDrop,
+  type BoxNode,
+  type DragData,
+  type DropTarget,
+  type PlacedItem,
+} from "@/lib/landing/mock-dashboard"
+import { HARD_SHADOW, LANDING_FONT } from "@/lib/landing/tokens"
 import type { TagColor, Theme } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { SiteLogoMark } from "@/components/site-logo"
+import { MoneyStats } from "@/components/landing/money-stats"
 
 /**
  * A working miniature of the dashboard for the landing page. Everything here is
@@ -49,6 +61,7 @@ import { SiteLogoMark } from "@/components/site-logo"
  * - an item lives in exactly one place, a box or the root, never both;
  * - a view shows only that place's own boxes and items, while totals roll up the subtree;
  * - items and boxes are dragged onto a box card, the "move to parent" zone, or a breadcrumb.
+ * Those rules are in `lib/landing/mock-dashboard.ts`.
  *
  * It is themed by scoping the real `applyColorScheme()` output to one wrapper, so
  * the landing page itself stays on built-in defaults (docs/DESIGN.md, "Two faces").
@@ -77,18 +90,11 @@ const DEMO_THEMES: DemoTheme[] = DEMO_PRESETS.map((id) => {
     scheme: resolved.scheme,
     heading: resolved.headerFontFamily,
     body: resolved.bodyFontFamily,
-    radius: resolved.scheme.radius ?? "0.5rem",
+    radius: resolved.scheme.radius ?? DEFAULT_THEME_RADIUS,
   }
 })
 
 const HEADING_FONTS: FontFamilyId[] = ["Inter", "Playfair Display", "Bebas Neue", "JetBrains Mono", "Lora", "Comic Sans"]
-
-const RADIUS_OPTIONS = [
-  { label: "None", value: "0" },
-  { label: "Small", value: "0.25rem" },
-  { label: "Medium", value: "0.5rem" },
-  { label: "Large", value: "0.75rem" },
-] as const
 
 /* ------------------------------ demo data ------------------------------ */
 
@@ -112,11 +118,8 @@ const TAGS = {
   plush: { name: "Plush", color: "orange" },
 } satisfies Record<string, DemoTag>
 
-interface DemoBox {
-  id: string
+interface DemoBox extends BoxNode {
   name: string
-  /** `null` means the box sits at the root. */
-  parentId: string | null
 }
 
 const INITIAL_BOXES: DemoBox[] = [
@@ -126,11 +129,8 @@ const INITIAL_BOXES: DemoBox[] = [
   { id: "backlog", name: "Unbuilt backlog", parentId: "mecha" },
 ]
 
-interface DemoItem {
-  id: string
+interface DemoItem extends PlacedItem {
   name: string
-  /** The one place this item lives. `null` is the root (no box). */
-  boxId: string | null
   icon: LucideIcon
   tint: TagColor
   tags: DemoTag[]
@@ -138,7 +138,6 @@ interface DemoItem {
   /** What was paid, or what it is expected to cost while still on the wishlist. */
   price: number
   date: string
-  wishlist?: boolean
 }
 
 // Array order is acquisition order; the graph accumulates along it.
@@ -164,58 +163,25 @@ const tagStyle = (color: TagColor): React.CSSProperties => ({
   color: "hsl(var(--tag-foreground))",
 })
 
-const MONO = "var(--font-jetbrains-mono), ui-monospace, monospace"
-
-/* ------------------------------ tree helpers ---------------------------- */
-
-/** A box id plus every box nested under it. */
-function subtreeIds(boxes: DemoBox[], rootId: string): Set<string> {
-  const ids = new Set([rootId])
-  let grew = true
-  while (grew) {
-    grew = false
-    for (const box of boxes) {
-      if (box.parentId && ids.has(box.parentId) && !ids.has(box.id)) {
-        ids.add(box.id)
-        grew = true
-      }
-    }
-  }
-  return ids
-}
-
-/** Owned items in a box and everything nested in it; `null` is the whole collection. */
-function ownedInSubtree(items: DemoItem[], boxes: DemoBox[], boxId: string | null): DemoItem[] {
-  const owned = items.filter((item) => !item.wishlist)
-  if (boxId === null) return owned
-  const ids = subtreeIds(boxes, boxId)
-  return owned.filter((item) => item.boxId !== null && ids.has(item.boxId))
-}
-
-/** Root-first chain of boxes down to `boxId`. */
-function pathTo(boxes: DemoBox[], boxId: string | null): DemoBox[] {
-  const path: DemoBox[] = []
-  let current = boxes.find((box) => box.id === boxId)
-  while (current) {
-    path.unshift(current)
-    const parentId: string | null = current.parentId
-    current = boxes.find((box) => box.id === parentId)
-  }
-  return path
+/** The no-photo tile at the top of an item card, washed in the item's tint. */
+function ItemTile({ item }: { item: DemoItem }) {
+  return (
+    <div className="flex h-16 items-center justify-center sm:h-20" style={{ background: `hsl(var(--tag-${item.tint}) / 0.16)` }}>
+      <item.icon className="h-8 w-8" style={{ color: `hsl(var(--tag-${item.tint}))` }} aria-hidden />
+    </div>
+  )
 }
 
 /* --------------------------- drag-and-drop bits ------------------------- */
 
 const DEMO_DND_CONTEXT_ID = "landing-demo-dnd"
 
-type DragData = { kind: "item"; id: string } | { kind: "box"; id: string }
-/** Every drop target resolves to "put it in this box" (`null` for the root). */
-interface DropData {
-  targetBoxId: string | null
-}
-
+/*
+ * Surfaces inside the themed wrapper take their border and shadow from the outline classes
+ * (docs/DESIGN.md, "Outline"), so the mock follows a preset with a hard outline.
+ */
 const DRAG_BASE_CLASS =
-  "item-card-no-select cursor-grab touch-manipulation transition-[box-shadow,transform] duration-200 motion-safe:hover:-translate-y-0.5 hover:shadow-md"
+  "item-card-no-select cursor-grab touch-manipulation sk-outline transition-[box-shadow,transform] duration-200 motion-safe:hover:-translate-y-0.5 hover:sk-raised-md"
 
 function dragStyle(transform: Parameters<typeof CSS.Translate.toString>[0], isDragging: boolean): React.CSSProperties {
   return {
@@ -239,15 +205,13 @@ function DemoItemCard({ item }: { item: DemoItem }) {
       style={dragStyle(transform, isDragging)}
       className={cn(
         DRAG_BASE_CLASS,
-        "min-w-0 overflow-hidden rounded-lg border border-border bg-card text-card-foreground",
-        isDragging && "shadow-lg"
+        "min-w-0 overflow-hidden rounded-lg bg-card text-card-foreground",
+        isDragging && "sk-raised-lg"
       )}
       data-demo-item={item.id}
       {...listeners}
     >
-      <div className="flex h-16 items-center justify-center sm:h-20" style={{ background: `hsl(var(--tag-${item.tint}) / 0.16)` }}>
-        <item.icon className="h-8 w-8" style={{ color: `hsl(var(--tag-${item.tint}))` }} aria-hidden />
-      </div>
+      <ItemTile item={item} />
       <div className="space-y-0.5 p-2.5">
         <h4 className="truncate text-fluid-sm font-semibold" title={item.name}>
           {item.name}
@@ -290,7 +254,7 @@ function DemoBoxCard({
   })
   const { isOver, setNodeRef: setDropRef } = useDroppable({
     id: `box-${box.id}`,
-    data: { targetBoxId: box.id } satisfies DropData,
+    data: { to: "box", boxId: box.id } satisfies DropTarget,
     disabled: isDragging,
   })
   const setRefs = React.useCallback(
@@ -309,11 +273,11 @@ function DemoBoxCard({
       style={dragStyle(transform, isDragging)}
       className={cn(
         DRAG_BASE_CLASS,
-        "min-w-0 rounded-lg border border-border bg-card p-2.5 text-left text-card-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "min-w-0 rounded-lg bg-card p-2.5 text-left text-card-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         // While something else is in the air, every box advertises itself as a place to drop it.
         dragActive && !isDragging && "border-dashed border-primary/60",
         isOver && cn(SELECTION_RING_CLASS, "bg-accent text-accent-foreground"),
-        isDragging && "shadow-lg"
+        isDragging && "sk-raised-lg"
       )}
       data-demo-box={box.id}
       {...listeners}
@@ -333,21 +297,21 @@ function DemoBoxCard({
 function DropCrumb({
   dropId,
   targetBoxId,
-  dropDisabled,
+  dropDisabled = false,
   dragActive,
   onNavigate,
   children,
 }: {
   dropId: string
   targetBoxId: string | null
-  dropDisabled: boolean
+  dropDisabled?: boolean
   dragActive: boolean
   onNavigate: () => void
   children: React.ReactNode
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: dropId,
-    data: { targetBoxId } satisfies DropData,
+    data: { to: "box", boxId: targetBoxId } satisfies DropTarget,
     disabled: dropDisabled,
   })
 
@@ -372,8 +336,7 @@ function DropCrumb({
 function MoveToParentZone({ label }: { label: string }) {
   const { isOver, setNodeRef } = useDroppable({
     id: "drop-zone-parent",
-    // The context resolves the actual parent; this target only says "one level up".
-    data: { targetBoxId: null } satisfies DropData,
+    data: { to: "parent" } satisfies DropTarget,
   })
   return (
     <div
@@ -479,7 +442,6 @@ export function MockDashboard() {
   const subtreeItems = ownedInSubtree(items, boxes, boxId)
   const totalValue = subtreeItems.reduce((sum, item) => sum + item.value, 0)
   const totalSpend = subtreeItems.reduce((sum, item) => sum + item.price, 0)
-  const profit = totalValue - totalSpend
 
   const wishlist = items.filter((item) => item.wishlist)
   const wishlistTotal = INITIAL_ITEMS.filter((item) => item.wishlist).length
@@ -496,9 +458,22 @@ export function MockDashboard() {
     setTag(null)
   }
 
+  // Acquiring removes the card that holds the focused button. Once the list has re-rendered,
+  // focus goes to the action now at that position: the next card's button, the last card's if
+  // there is no next, or "Back to dashboard" when the list is empty.
+  const viewRef = React.useRef<HTMLDivElement>(null)
+  const refocusAt = React.useRef<number | null>(null)
+  React.useEffect(() => {
+    if (refocusAt.current === null) return
+    const actions = viewRef.current?.querySelectorAll<HTMLElement>("[data-wishlist-action]")
+    actions?.[Math.min(refocusAt.current, actions.length - 1)]?.focus()
+    refocusAt.current = null
+  }, [items])
+
   const acquire = (id: string) => {
     const item = items.find((candidate) => candidate.id === id)
     if (!item) return
+    refocusAt.current = wishlist.indexOf(item)
     // Acquired items join the end of the collection, so the graph steps up at "today".
     setItems([...items.filter((candidate) => candidate.id !== id), { ...item, wishlist: false }])
     setNotice(`${item.name} is now in ${boxName(item.boxId)}.`)
@@ -514,28 +489,20 @@ export function MockDashboard() {
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     setActiveDrag(null)
-    if (!over) return
     const drag = active.data.current as DragData | undefined
-    const drop = over.data.current as DropData | undefined
-    if (!drag || !drop) return
-
-    const target = over.id === "drop-zone-parent" ? (activeBox?.parentId ?? null) : drop.targetBoxId
+    const target = over?.data.current as DropTarget | undefined
+    if (!drag || !target) return
+    const move = resolveDrop(drag, target, { boxes, items, openBoxId: boxId })
+    if (!move) return
 
     if (drag.kind === "item") {
-      const item = items.find((candidate) => candidate.id === drag.id)
-      if (!item || item.boxId === target) return
       // One home per item: moving it rewrites that single reference.
-      setItems(items.map((candidate) => (candidate.id === drag.id ? { ...candidate, boxId: target } : candidate)))
-      setNotice(`Moved ${item.name} to ${boxName(target)}.`)
+      setItems(items.map((candidate) => (candidate.id === drag.id ? { ...candidate, boxId: move.boxId } : candidate)))
+      setNotice(`Moved ${items.find((candidate) => candidate.id === drag.id)?.name} to ${boxName(move.boxId)}.`)
       return
     }
-
-    const box = boxes.find((candidate) => candidate.id === drag.id)
-    if (!box || box.parentId === target) return
-    // A box cannot be put inside itself or anything nested in it.
-    if (target !== null && subtreeIds(boxes, box.id).has(target)) return
-    setBoxes(boxes.map((candidate) => (candidate.id === drag.id ? { ...candidate, parentId: target } : candidate)))
-    setNotice(`Moved ${box.name} into ${boxName(target)}.`)
+    setBoxes(boxes.map((candidate) => (candidate.id === drag.id ? { ...candidate, parentId: move.boxId } : candidate)))
+    setNotice(`Moved ${boxName(drag.id)} into ${boxName(move.boxId)}.`)
   }
 
   const navButton = (target: "dashboard" | "wishlist", label: string, Icon: LucideIcon) => (
@@ -558,7 +525,7 @@ export function MockDashboard() {
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
       {/* Browser frame: landing tokens outside, shrine tokens inside. */}
-      <div className="min-w-0 overflow-hidden rounded-lg border-2 border-foreground bg-background shadow-[6px_6px_0_0_hsl(var(--foreground))]">
+      <div className={`min-w-0 overflow-hidden rounded-lg border-2 border-foreground bg-background ${HARD_SHADOW}`}>
         <div className="flex items-center gap-3 border-b-2 border-foreground bg-light-muted px-3 py-2">
           <div className="flex gap-1.5" aria-hidden>
             {(["red", "yellow", "green"] as const).map((c) => (
@@ -567,7 +534,7 @@ export function MockDashboard() {
           </div>
           <div
             className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-2.5 py-0.5 text-fluid-xs text-muted-foreground"
-            style={{ fontFamily: MONO }}
+            style={{ fontFamily: LANDING_FONT.mono }}
           >
             shrinekeep.com/{view}
           </div>
@@ -575,7 +542,7 @@ export function MockDashboard() {
         </div>
 
         <div style={themeStyle} className="bg-background text-foreground transition-colors duration-300" data-demo-theme={theme.id}>
-          <div className="flex items-center gap-2 overflow-x-auto border-b border-border px-3 py-2 text-fluid-sm sm:gap-3 sm:px-4">
+          <div className="flex items-center gap-2 overflow-x-auto sk-rule-b px-3 py-2 text-fluid-sm sm:gap-3 sm:px-4">
             <span className="flex shrink-0 items-center gap-1 font-heading font-semibold">
               <SiteLogoMark className="h-6 w-6" />
               ShrineKeep
@@ -590,7 +557,7 @@ export function MockDashboard() {
             </span>
           </div>
 
-          <div className="min-h-[36rem] space-y-3 p-3 sm:p-4">
+          <div ref={viewRef} className="min-h-[36rem] space-y-3 p-3 sm:p-4">
             {view === "dashboard" ? (
               <DndContext
                 id={DEMO_DND_CONTEXT_ID}
@@ -623,7 +590,6 @@ export function MockDashboard() {
                             <DropCrumb
                               dropId={`crumb-${crumb.id}`}
                               targetBoxId={crumb.id}
-                              dropDisabled={activeDrag?.kind === "box" && activeDrag.id === crumb.id}
                               dragActive={dragActive}
                               onNavigate={() => openBox(crumb.id)}
                             >
@@ -644,28 +610,8 @@ export function MockDashboard() {
                   </button>
                 </div>
 
-                <div className="rounded-lg border border-border bg-card p-3 text-card-foreground">
-                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                    <span className="text-fluid-xs text-muted-foreground">
-                      Value{" "}
-                      <strong className="text-fluid-lg font-semibold" style={{ color: "hsl(var(--value-color))" }}>
-                        {formatCurrency(totalValue)}
-                      </strong>
-                    </span>
-                    <span className="text-fluid-xs text-muted-foreground">
-                      Acquisition{" "}
-                      <strong className="text-fluid-lg font-semibold" style={{ color: "hsl(var(--acquisition-color))" }}>
-                        {formatCurrency(totalSpend)}
-                      </strong>
-                    </span>
-                    <span className="text-fluid-xs text-muted-foreground">
-                      Profit{" "}
-                      <strong className="text-fluid-lg font-semibold text-card-foreground">
-                        {profit >= 0 ? "+" : "-"}
-                        {formatCurrency(Math.abs(profit))}
-                      </strong>
-                    </span>
-                  </div>
+                <div className="rounded-lg sk-outline bg-card p-3 text-card-foreground">
+                  <MoneyStats value={totalValue} spent={totalSpend} size="sm" />
                   <div className="mt-2">
                     <MiniChart items={subtreeItems} />
                   </div>
@@ -732,7 +678,7 @@ export function MockDashboard() {
                 )}
 
                 {visibleItems.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-border p-6 text-center text-fluid-sm text-muted-foreground">
+                  <p className="rounded-lg border-dashed sk-outline p-6 text-center text-fluid-sm text-muted-foreground">
                     {activeBox
                       ? childBoxes.length > 0
                         ? `No loose items in ${activeBox.name}. They are all in the boxes above.`
@@ -765,17 +711,15 @@ export function MockDashboard() {
                   // Same empty copy as the real wishlist (app/wishlist/wishlist-client.tsx).
                   <div className="py-12 text-center">
                     <p className="text-muted-foreground">Your wishlist is empty. Add items you want to acquire!</p>
-                    <Button size="sm" variant="outline" className="mt-4" onClick={() => setView("dashboard")}>
+                    <Button size="sm" variant="outline" className="mt-4" onClick={() => setView("dashboard")} data-wishlist-action>
                       Back to dashboard
                     </Button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {wishlist.map((item) => (
-                      <article key={item.id} className="min-w-0 overflow-hidden rounded-lg border border-border bg-card text-card-foreground">
-                        <div className="flex h-16 items-center justify-center sm:h-20" style={{ background: `hsl(var(--tag-${item.tint}) / 0.16)` }}>
-                          <item.icon className="h-8 w-8" style={{ color: `hsl(var(--tag-${item.tint}))` }} aria-hidden />
-                        </div>
+                      <article key={item.id} className="min-w-0 overflow-hidden rounded-lg sk-outline bg-card text-card-foreground">
+                        <ItemTile item={item} />
                         <div className="space-y-1 p-2.5">
                           <h4 className="truncate text-fluid-sm font-semibold" title={item.name}>
                             {item.name}
@@ -784,7 +728,7 @@ export function MockDashboard() {
                             Expected: {formatCurrency(item.price)}
                           </p>
                           <p className="truncate text-fluid-xs text-muted-foreground">For {boxName(item.boxId)}</p>
-                          <Button size="sm" className="mt-1 h-8 w-full text-xs" onClick={() => acquire(item.id)}>
+                          <Button size="sm" className="mt-1 h-8 w-full text-xs" onClick={() => acquire(item.id)} data-wishlist-action>
                             <Check className="mr-1.5 h-3.5 w-3.5" aria-hidden />
                             Mark as Acquired
                           </Button>
@@ -800,8 +744,8 @@ export function MockDashboard() {
       </div>
 
       {/* Theme controls: the same three knobs the real theme editor exposes. */}
-      <aside className="rounded-lg border-2 border-foreground bg-background p-4 shadow-[6px_6px_0_0_hsl(var(--foreground))]" aria-label="Demo theme controls">
-        <p className="text-fluid-xs font-semibold uppercase tracking-wider text-muted-foreground" style={{ fontFamily: MONO }}>
+      <aside className={`rounded-lg border-2 border-foreground bg-background p-4 ${HARD_SHADOW}`} aria-label="Demo theme controls">
+        <p className="text-fluid-xs font-semibold uppercase tracking-wider text-muted-foreground" style={{ fontFamily: LANDING_FONT.mono }}>
           Theme editor
         </p>
 
@@ -820,7 +764,7 @@ export function MockDashboard() {
                 >
                   <span
                     className={cn(
-                      "relative block h-9 w-9 overflow-hidden rounded-full border-2 border-foreground transition-transform group-hover:-translate-y-0.5",
+                      "relative block h-9 w-9 overflow-hidden rounded-full border-2 border-foreground transition-transform motion-safe:group-hover:-translate-y-0.5",
                       active && "ring-2 ring-foreground ring-offset-2 ring-offset-background"
                     )}
                     style={{ background: `hsl(${t.scheme.background})` }}
@@ -862,7 +806,7 @@ export function MockDashboard() {
         <fieldset className="mt-4">
           <legend className="text-fluid-sm font-semibold">Corners</legend>
           <div className="mt-2 grid grid-cols-4 gap-1.5">
-            {RADIUS_OPTIONS.map((option) => {
+            {THEME_RADIUS_OPTIONS.map((option) => {
               const active = radius === option.value
               return (
                 <button
@@ -887,7 +831,7 @@ export function MockDashboard() {
           <p className="text-fluid-sm font-semibold">Export</p>
           <pre
             className="mt-2 whitespace-pre-wrap rounded-md border border-border bg-light-muted p-2.5 text-[11px] leading-relaxed text-foreground [overflow-wrap:anywhere]"
-            style={{ fontFamily: MONO }}
+            style={{ fontFamily: LANDING_FONT.mono }}
           >
             {`{
   "background": "${theme.scheme.background}",
