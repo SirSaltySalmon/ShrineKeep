@@ -7,10 +7,10 @@ const secret = "test-only-secret-at-least-thirty-two-bytes"
 const response = (data: unknown) => ({ data: { ok: true, data }, error: null })
 const media = vi.fn()
 
-async function sharedStyleFor(colorScheme: Record<string, unknown>) {
+async function sharedStyleFor(colorScheme: Record<string, unknown>, borderRadius: string | null = "0") {
   const profile = {
     id: owner, nickname: "Collector", bio: "", avatar: null, avatarUrl: null, relationship: "none",
-    sharedStyle: { colorScheme, headerFontFamily: "Inter", bodyFontFamily: "Inter", borderRadius: "0" },
+    sharedStyle: { colorScheme, headerFontFamily: "Inter", bodyFontFamily: "Inter", borderRadius },
   }
   const rpc = vi.fn().mockResolvedValue(response({ revision: "1", viewerCategory: "guest", profile }))
   const result = await createPublicReadCore(rpc, secret, media).profile(owner, { kind: "guest" })
@@ -45,5 +45,28 @@ describe("owner outline on public pages", () => {
 
   it("sets no outline variables when the owner does not share a style", () => {
     expect(publicStyleProperties(null)).toEqual({})
+  })
+})
+
+/** parseStyle() and the owner's own settings share sanitizeTheme(), so a public page shows what the owner sees. */
+describe("owner theme on public pages", () => {
+  it("publishes only valid theme values", async () => {
+    const style = await sharedStyleFor({
+      background: "258 45% 8%",
+      primary: "url(https://SECRET.invalid)",
+      card: `0 0% ${"0".repeat(5000)}%`,
+      graphOverlay: true,
+      radius: "0.25rem",
+    })
+    expect(style?.colorScheme).toEqual({ background: "258 45% 8%" })
+    expect(JSON.stringify(style)).not.toMatch(/SECRET|graphOverlay/)
+  })
+
+  it("takes the radius from the border_radius column, then the theme, as the owner's own pages do", async () => {
+    const scheme = { background: "0 0% 100%", radius: "0.75rem" }
+    expect((await sharedStyleFor(scheme, "0"))?.borderRadius).toBe("0")
+    expect((await sharedStyleFor(scheme, null))?.borderRadius).toBe("0.75rem")
+    expect((await sharedStyleFor(scheme, "12px"))?.borderRadius).toBe("0.75rem")
+    expect((await sharedStyleFor({ background: "0 0% 100%" }, null))?.borderRadius).toBeNull()
   })
 })

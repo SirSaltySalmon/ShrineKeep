@@ -10,12 +10,20 @@ import {
   resolveThemePreset,
   type ThemePreset,
 } from "./settings"
-import { THEME_COLOR_KEYS, THEME_OUTLINE_CSS_VARS, getThemeOutlineCssVars } from "./theme-colors"
+import {
+  DEFAULT_THEME_RADIUS,
+  HSL_TRIPLE_PATTERN,
+  THEME_COLOR_KEYS,
+  THEME_OUTLINE_CSS_VARS,
+  THEME_RADIUS_OPTIONS,
+  getThemeOutlineCssVars,
+  normalizeStoredTheme,
+  sanitizeTheme,
+} from "./theme-colors"
 import type { Theme } from "./types"
 import { DEFAULT_BODY_FONT_FAMILY, DEFAULT_HEADER_FONT_FAMILY, FONT_OPTIONS } from "./fonts"
 
-const HSL_TRIPLE = /^\d+\.?\d*\s+\d+\.?\d*%\s+\d+\.?\d*%$/
-const RADIUS_OPTIONS = ["0", "0.25rem", "0.5rem", "0.75rem"]
+const RADIUS_VALUES = THEME_RADIUS_OPTIONS.map((option) => option.value as string)
 const FONT_IDS = FONT_OPTIONS.map((option) => option.value as string)
 const PRESETS = Object.keys(COLOR_SCHEME_PRESETS) as ThemePreset[]
 
@@ -23,13 +31,13 @@ describe("theme presets", () => {
   it.each(PRESETS)("%s defines every theme color as an HSL triple", (preset) => {
     const { scheme } = resolveThemePreset(preset)
     for (const key of THEME_COLOR_KEYS) {
-      expect(scheme[key], `${preset}.${key}`).toMatch(HSL_TRIPLE)
+      expect(scheme[key], `${preset}.${key}`).toMatch(HSL_TRIPLE_PATTERN)
     }
   })
 
   it.each(PRESETS)("%s resolves to a radius and fonts the theme editor offers", (preset) => {
     const resolved = resolveThemePreset(preset)
-    expect(RADIUS_OPTIONS).toContain(resolved.scheme.radius)
+    expect(RADIUS_VALUES).toContain(resolved.scheme.radius)
     expect(FONT_IDS).toContain(resolved.headerFontFamily)
     expect(FONT_IDS).toContain(resolved.bodyFontFamily)
   })
@@ -39,7 +47,7 @@ describe("theme presets", () => {
       const resolved = resolveThemePreset(preset)
       expect(resolved.headerFontFamily).toBe(DEFAULT_HEADER_FONT_FAMILY)
       expect(resolved.bodyFontFamily).toBe(DEFAULT_BODY_FONT_FAMILY)
-      expect(resolved.scheme.radius).toBe("0.5rem")
+      expect(resolved.scheme.radius).toBe(DEFAULT_THEME_RADIUS)
     }
   })
 
@@ -228,6 +236,153 @@ describe("theme outline", () => {
 
     it("accepts a file that only sets the outline", () => {
       expect(parseImportedColorScheme(JSON.stringify({ outline: "hard" }))?.theme).toEqual({ outline: "hard" })
+    })
+  })
+})
+
+describe("sanitizeTheme", () => {
+  it.each(["bad", 7, true, null, undefined, ["0 0% 0%"]])("rejects %j, which is not a theme object", (input) => {
+    expect(sanitizeTheme(input)).toBeNull()
+  })
+
+  it("keeps a complete theme as it is", () => {
+    const theme: Theme = { ...resolveThemePreset("arcade").scheme, outline: "hard" }
+    expect(sanitizeTheme(JSON.parse(JSON.stringify(theme)))).toEqual(theme)
+  })
+
+  it("drops unknown keys, whatever they hold", () => {
+    const input = JSON.parse('{"background":"0 0% 0%","graphOverlay":true,"constructor":"0 0% 0%","__proto__":{"primary":"0 0% 0%"},"note":{"a":1}}')
+    expect(sanitizeTheme(input)).toEqual({ background: "0 0% 0%" })
+  })
+
+  it.each([
+    ["a number", 5],
+    ["an object", { h: 0 }],
+    ["the comma form", "222, 47%, 11%"],
+    ["an hsl() wrapper", "hsl(222 47% 11%)"],
+    ["an alpha suffix", "222 47% 11% / 0.5"],
+    ["a trailing dot", "222. 47% 11%"],
+    ["a negative number", "-10 47% 11%"],
+    ["a missing percent sign", "222 47 11"],
+    ["css that is not a color", "0 0% 0%; --x: url(https://example.invalid)"],
+    ["an oversized value", `0 0% ${"0".repeat(5000)}%`],
+  ])("drops a color that is %s", (_label, value) => {
+    expect(sanitizeTheme({ background: value, foreground: "0 0% 100%" })).toEqual({ foreground: "0 0% 100%" })
+  })
+
+  it("stores one form of a color: single spaces, no padding", () => {
+    expect(sanitizeTheme({ background: "  222.2   47.4%\t11.2% " })).toEqual({ background: "222.2 47.4% 11.2%" })
+  })
+
+  it.each(RADIUS_VALUES)("keeps the editor radius %s", (radius) => {
+    expect(sanitizeTheme({ radius })).toEqual({ radius })
+  })
+
+  it.each(["rem", "1rem", "8px", "0.5em", ".5rem", "0.5rem;", 0, null])("drops the radius %j", (radius) => {
+    expect(sanitizeTheme({ radius })).toEqual({})
+  })
+
+  it.each(["neon", "HARD", 1, null])("drops the outline %j", (outline) => {
+    expect(sanitizeTheme({ outline })).toEqual({})
+  })
+})
+
+describe("normalizeStoredTheme", () => {
+  it("is null when no theme is saved", () => {
+    expect(normalizeStoredTheme(null, "0.75rem")).toBeNull()
+    expect(normalizeStoredTheme(undefined)).toBeNull()
+  })
+
+  it("takes the radius from the border_radius column, then the theme, then the default", () => {
+    expect(normalizeStoredTheme({ radius: "0" }, "0.75rem")?.radius).toBe("0.75rem")
+    expect(normalizeStoredTheme({ radius: "0" }, null)?.radius).toBe("0")
+    expect(normalizeStoredTheme({ radius: "0" }, "12px")?.radius).toBe("0")
+    expect(normalizeStoredTheme({}, null)?.radius).toBe(DEFAULT_THEME_RADIUS)
+    expect(normalizeStoredTheme({ radius: "1rem" }, null)?.radius).toBe(DEFAULT_THEME_RADIUS)
+  })
+
+  it("reads a theme saved before the outline field existed as soft, and keeps hard", () => {
+    expect(normalizeStoredTheme({ background: "0 0% 0%" })?.outline).toBe("soft")
+    expect(normalizeStoredTheme({ outline: "hard" })?.outline).toBe("hard")
+  })
+
+  it("sanitises what an older, unvalidated save may have stored", () => {
+    expect(normalizeStoredTheme({ background: "0 0% 0%", primary: "red", extra: "x" }, null)).toEqual({
+      background: "0 0% 0%",
+      radius: DEFAULT_THEME_RADIUS,
+      outline: "soft",
+    })
+  })
+})
+
+describe("applyColorScheme", () => {
+  it("only emits variables for known theme keys", () => {
+    const stored = JSON.parse('{"constructor":"0 0% 0%","toString":"0 0% 0%","hasOwnProperty":"0 0% 0%"}') as Theme
+    expect(Object.keys(applyColorScheme(stored)).sort()).toEqual(
+      Object.keys(applyColorScheme(getDefaultColorScheme())).sort()
+    )
+  })
+})
+
+describe("theme import", () => {
+  const fonts = { headerFontFamily: "Inter", bodyFontFamily: "Inter" }
+  const importColor = (value: unknown) =>
+    parseImportedColorScheme(JSON.stringify({ background: value, outline: "hard" }))?.theme
+
+  it("converts the hsl() comma form to the stored triple", () => {
+    expect(importColor("hsl(222.2, 47.4%, 11.2%)")).toEqual({ background: "222.2 47.4% 11.2%", outline: "hard" })
+    expect(importColor("hsl(222.2,47.4%,11.2%)")?.background).toBe("222.2 47.4% 11.2%")
+    expect(importColor("hsl(222.2 47.4% 11.2%)")?.background).toBe("222.2 47.4% 11.2%")
+  })
+
+  it.each([
+    "222.2 47.4% 11.2% / 0.5",
+    "hsl(222.2, 47.4%, 11.2%, 0.5)",
+    "hsl(222.2 47.4% 11.2% / 0.5)",
+    "222. 47.4% 11.2%",
+    "222.2, 47.4%, 11.2%",
+    "#1a1f2e",
+  ])("ignores the color %j", (value) => {
+    expect(importColor(value)).toEqual({ outline: "hard" })
+  })
+
+  it.each(["rem", "1rem", "8px", "0.5em"])("ignores the radius %j, which the editor does not offer", (radius) => {
+    expect(parseImportedColorScheme(JSON.stringify({ background: "0 0% 0%", radius }))?.theme).toEqual({
+      background: "0 0% 0%",
+    })
+  })
+
+  it.each(["[]", '["0 0% 0%"]', '"hard"', "7", "null", "not json"])("rejects the file %s", (file) => {
+    expect(parseImportedColorScheme(file)).toBeNull()
+  })
+
+  it("produces colors every opacity utility can use", () => {
+    const imported = parseImportedColorScheme(
+      JSON.stringify({ ...buildThemeExport(resolveThemePreset("pink").scheme, fonts), primary: "hsl(340, 70%, 48%)" })
+    )
+    for (const key of THEME_COLOR_KEYS) {
+      expect(mergeColorScheme(imported?.theme)[key], key).toMatch(HSL_TRIPLE_PATTERN)
+    }
+  })
+
+  // The settings page applies an import as mergeColorScheme(imported.theme).
+  describe("merged into a theme", () => {
+    it("round-trips a hard-outline, radius-0 theme file", () => {
+      const theme: Theme = { ...resolveThemePreset("arcade").scheme, outline: "hard" }
+      expect(theme.radius).toBe("0")
+      const imported = parseImportedColorScheme(JSON.stringify(buildThemeExport(theme, fonts)))
+      expect(mergeColorScheme(imported?.theme)).toEqual(theme)
+    })
+
+    it.each(RADIUS_VALUES)("takes the radius %s from the file", (radius) => {
+      const imported = parseImportedColorScheme(JSON.stringify({ background: "0 0% 0%", radius }))
+      expect(mergeColorScheme(imported?.theme).radius).toBe(radius)
+    })
+
+    it("fills what the file leaves out from the defaults, not from the current theme", () => {
+      const imported = parseImportedColorScheme(JSON.stringify({ background: "0 0% 0%" }))
+      expect(mergeColorScheme(imported?.theme)).toEqual({ ...getDefaultColorScheme(), background: "0 0% 0%" })
+      expect(mergeColorScheme(imported?.theme).radius).toBe(DEFAULT_THEME_RADIUS)
     })
   })
 })

@@ -18,7 +18,7 @@ import TagSettings from "@/components/settings/tag-settings"
 import BillingSettings from "@/components/settings/billing-settings"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
-  getDefaultColorScheme,
+  mergeColorScheme,
   resolveThemePreset,
   detectThemePreset,
   parseImportedColorScheme,
@@ -70,12 +70,8 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     if (isSettingsTab(t)) setActiveTab(t)
   }, [searchParams])
 
-  const [theme, setTheme] = useState<Theme>(() => {
-    const cs = initialSettings?.color_scheme as Theme | undefined
-    if (!cs || typeof cs !== "object") return getDefaultColorScheme()
-    const { graphOverlay: _, ...rest } = cs as Theme & { graphOverlay?: boolean }
-    return { ...getDefaultColorScheme(), ...rest }
-  })
+  // The page hands over a sanitised theme (normalizeStoredTheme), so only the gaps need filling.
+  const [theme, setTheme] = useState<Theme>(() => mergeColorScheme(initialSettings?.color_scheme))
   const [headerFontFamily, setHeaderFontFamily] = useState<FontFamilyId>(
     (initialSettings?.header_font_family as FontFamilyId) || DEFAULT_HEADER_FONT_FAMILY
   )
@@ -138,20 +134,9 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     const bodyCss = FONT_FAMILY_CSS[bodyFontFamily]
     if (headerCss) root.style.setProperty("--font-heading", headerCss)
     if (bodyCss) root.style.setProperty("--font-sans", bodyCss)
-    return () => {
-      // Don't reset on unmount - let ThemeProvider handle it
-    }
+    // No cleanup: on every route change ThemeProvider replaces these with the saved theme, or
+    // clears them on routes that do not show the account theme.
   }, [theme, headerFontFamily, bodyFontFamily])
-
-  const handleResetTheme = () => {
-    setTheme({
-      ...getDefaultColorScheme(),
-      radius: "0.5rem",
-    })
-    setHeaderFontFamily(DEFAULT_HEADER_FONT_FAMILY)
-    setBodyFontFamily(DEFAULT_BODY_FONT_FAMILY)
-    setSelectedPreset("light")
-  }
 
   const handlePresetChange = (preset: ThemePreset) => {
     setSelectedPreset(preset)
@@ -177,13 +162,9 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
       const imported = parseImportedColorScheme(text)
 
       if (imported) {
-        // The defaults carry outline "soft", so a file without an outline (every export made
-        // before the field existed) imports as soft; a valid outline in the file replaces it.
-        setTheme((prev) => ({
-          ...getDefaultColorScheme(),
-          ...imported.theme,
-          radius: prev?.radius ?? "0.5rem",
-        }))
+        // A theme file is a whole look: whatever it leaves out (a radius, or the outline in an
+        // export made before that field existed) comes from the defaults, not from the current theme.
+        setTheme(mergeColorScheme(imported.theme))
         if (imported.headerFontFamily) setHeaderFontFamily(imported.headerFontFamily)
         if (imported.bodyFontFamily) setBodyFontFamily(imported.bodyFontFamily)
         setSelectedPreset("custom")

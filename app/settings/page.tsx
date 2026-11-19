@@ -1,7 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { createSharingMutationCore } from "@/lib/sharing/server/mutation-core"
-import type { Theme } from "@/lib/types"
+import { normalizeStoredTheme } from "@/lib/theme-colors"
 import SettingsClient from "./settings-client"
 
 export default async function SettingsPage() {
@@ -28,14 +28,10 @@ export default async function SettingsPage() {
   ])
 
   let settings = settingsResult.data
-  const colorScheme = settings?.color_scheme as Theme | null | undefined
-  if (settings && colorScheme && typeof colorScheme === "object") {
+  if (settings) {
     settings = {
       ...settings,
-      color_scheme: {
-        ...colorScheme,
-        radius: settings.border_radius ?? colorScheme.radius ?? "0.5rem",
-      },
+      color_scheme: normalizeStoredTheme(settings.color_scheme, settings.border_radius),
     }
   }
   const profile = profileResult.data

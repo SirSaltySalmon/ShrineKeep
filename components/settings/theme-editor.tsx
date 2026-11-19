@@ -17,8 +17,10 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import type { Theme } from "@/lib/types"
 import {
+  DEFAULT_THEME_RADIUS,
   THEME_EDITOR_GROUPS,
   THEME_OUTLINE_OPTIONS,
+  THEME_RADIUS_OPTIONS,
   getThemeColorMeta,
   getThemeOutlineCssVars,
   normalizeThemeOutline,
@@ -34,6 +36,7 @@ import {
 import { applyColorScheme, getDefaultColorScheme, type ThemePreset } from "@/lib/settings"
 import { cn } from "@/lib/utils"
 import { Selectable } from "@/components/selectable"
+import { useAccountThemeSaved } from "@/components/theme-provider"
 import { ThumbnailPreview } from "@/components/thumbnail-content"
 import { ValueAcquisitionCharts } from "@/components/value-acquisition-charts"
 import type { ValueChartPoint, AcquisitionChartPoint } from "@/lib/hooks/use-box-stats"
@@ -56,13 +59,6 @@ const GRAPH_PREVIEW_ACQUISITION_DATA: AcquisitionChartPoint[] = (() => {
     { date: `${thisYear}-01-01`, cumulativeAcquisition: 600 },
   ]
 })()
-
-const RADIUS_OPTIONS = [
-  { value: "0", label: "None" },
-  { value: "0.25rem", label: "Small" },
-  { value: "0.5rem", label: "Medium" },
-  { value: "0.75rem", label: "Large" },
-] as const
 
 export interface ThemeEditorProps {
   theme: Theme
@@ -146,6 +142,7 @@ export function ThemeEditor({
   graphOverlay = true,
 }: ThemeEditorProps) {
   const router = useRouter()
+  const onAccountThemeSaved = useAccountThemeSaved()
   const [savingTheme, setSavingTheme] = useState(false)
   const [savedTheme, setSavedTheme] = useState(false)
 
@@ -164,6 +161,7 @@ export function ThemeEditor({
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data?.error ?? "Failed to save theme")
+      onAccountThemeSaved({ theme, headerFontFamily, bodyFontFamily })
       setSavedTheme(true)
       setTimeout(() => setSavedTheme(false), 3000)
       router.refresh()
@@ -176,15 +174,11 @@ export function ThemeEditor({
   }
 
   const handleResetTheme = () => {
-    setTheme({
-      ...getDefaultColorScheme(),
-      radius: "0.5rem",
-    })
+    setTheme(getDefaultColorScheme())
     setHeaderFontFamily(DEFAULT_HEADER_FONT_FAMILY)
     setBodyFontFamily(DEFAULT_BODY_FONT_FAMILY)
     setSelectedPreset("light")
   }
-  
 
   const handleColorChange = (key: ThemeColorKey, value: string) => {
     setTheme((prev) => ({ ...prev, [key]: value }))
@@ -374,12 +368,12 @@ export function ThemeEditor({
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <Label className="sr-only">Border radius</Label>
-          <Select value={theme.radius || "0.5rem"} onValueChange={handleRadiusChange}>
+          <Select value={theme.radius || DEFAULT_THEME_RADIUS} onValueChange={handleRadiusChange}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Medium" />
             </SelectTrigger>
             <SelectContent>
-              {RADIUS_OPTIONS.map((opt) => (
+              {THEME_RADIUS_OPTIONS.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
                   {opt.label}
                 </SelectItem>
@@ -388,7 +382,7 @@ export function ThemeEditor({
           </Select>
           <Card
             className="h-10 w-24 flex items-center justify-center text-fluid-xs shrink-0"
-            style={{ borderRadius: theme.radius || "0.5rem" }}
+            style={{ borderRadius: theme.radius || DEFAULT_THEME_RADIUS }}
           >
             Preview
           </Card>

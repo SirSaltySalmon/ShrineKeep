@@ -189,5 +189,93 @@ describe("/api/settings", () => {
       const body = await (await GET(new Request("http://localhost/api/settings") as any)).json()
       expect(body.color_scheme).toEqual({ background: "0 0% 100%", radius: "0.5rem", outline: "soft" })
     })
+
+    it("GET drops what an unvalidated save left in the stored theme", async () => {
+      mockStoredSettings({
+        user_id: "u1",
+        color_scheme: { background: "0 0% 100%", primary: "red", junk: { a: 1 }, radius: "0" },
+        border_radius: "12px",
+      })
+      const body = await (await GET(new Request("http://localhost/api/settings") as any)).json()
+      expect(body.color_scheme).toEqual({ background: "0 0% 100%", radius: "0", outline: "soft" })
+    })
+  })
+
+  describe("PUT theme validation", () => {
+    function savedRow(chain: ReturnType<typeof mockMutableSettings>) {
+      expect(chain.upsert).toHaveBeenCalledTimes(1)
+      return chain.upsert.mock.calls[0][0]
+    }
+
+    it.each([{ theme: null }, { color_scheme: null }, { theme: null, color_scheme: null }])(
+      "%j clears the saved theme",
+      async (body) => {
+        const chain = mockMutableSettings()
+        expect((await PUT(makePutRequest(body) as any)).status).toBe(200)
+        expect(savedRow(chain)).toStrictEqual({ user_id: "u1", color_scheme: null, border_radius: null })
+      }
+    )
+
+    it("leaves the saved theme alone when the request has no theme", async () => {
+      const chain = mockMutableSettings()
+      expect((await PUT(makePutRequest({ graph_overlay: true }) as any)).status).toBe(200)
+      expect(savedRow(chain)).toStrictEqual({ user_id: "u1", graph_overlay: true })
+    })
+
+    it.each([[["0 0% 0%"]], ["bad"], [7], [true]])("rejects a theme that is %j", async (theme) => {
+      const chain = mockMutableSettings()
+      expect((await PUT(makePutRequest({ theme }) as any)).status).toBe(400)
+      expect((await PUT(makePutRequest({ color_scheme: theme }) as any)).status).toBe(400)
+      expect(chain.upsert).not.toHaveBeenCalled()
+    })
+
+    it("stores known colors, an allowed radius and a valid outline, and nothing else", async () => {
+      const chain = mockMutableSettings()
+      const theme = {
+        background: "0 0% 100%",
+        foreground: 5,
+        primary: { h: 0 },
+        card: "red",
+        border: `0 0% ${"0".repeat(5000)}%`,
+        radius: "12px",
+        outline: "hard",
+        graphOverlay: true,
+        constructor: "0 0% 0%",
+        note: "x".repeat(10000),
+      }
+      expect((await PUT(makePutRequest({ theme }) as any)).status).toBe(200)
+      expect(savedRow(chain)).toEqual({ user_id: "u1", color_scheme: { background: "0 0% 100%", outline: "hard" } })
+    })
+
+    it("stores border_radius only when it is a radius the editor offers", async () => {
+      const allowed = mockMutableSettings()
+      await PUT(makePutRequest({ border_radius: "0.75rem" }) as any)
+      expect(savedRow(allowed)).toEqual({ user_id: "u1", border_radius: "0.75rem" })
+
+      const other = mockMutableSettings()
+      await PUT(makePutRequest({ border_radius: "12px" }) as any)
+      expect(savedRow(other)).toStrictEqual({ user_id: "u1", border_radius: null })
+    })
+  })
+
+  describe("PUT display name", () => {
+    function mockNameUpdate(error: unknown) {
+      const chain = mockMutableSettings()
+      const eq = vi.fn().mockResolvedValue({ error })
+      const update = vi.fn().mockReturnValue({ eq })
+      Object.assign(chain, { update })
+      return update
+    }
+
+    it("saves the name to public.users", async () => {
+      const update = mockNameUpdate(null)
+      expect((await PUT(makePutRequest({ name: " Mina " }) as any)).status).toBe(200)
+      expect(update).toHaveBeenCalledWith(expect.objectContaining({ name: "Mina" }))
+    })
+
+    it("does not report success when the name fails to save", async () => {
+      mockNameUpdate({ message: "permission denied for table users" })
+      expect((await PUT(makePutRequest({ name: "Mina" }) as any)).status).toBe(500)
+    })
   })
 })

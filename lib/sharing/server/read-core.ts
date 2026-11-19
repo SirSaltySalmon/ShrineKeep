@@ -1,8 +1,7 @@
 import type { CursorPage, OperationError, OperationResult, PublicBox, PublicBoxStats, PublicCollectionItem, PublicDetailRequest, PublicItemDetail, PublicMedia, PublicProfile, PublicReadService, PublicStyle, PublicWishlistItem, PublishedViewer } from "../contracts"
 import { GUEST_VIEWER, SHARING_LIMITS } from "../contracts"
 import { FONT_OPTIONS, type FontFamilyId } from "@/lib/fonts"
-import { THEME_COLOR_KEYS, isThemeOutline, type ThemeColorKey } from "@/lib/theme-colors"
-import { type Theme } from "@/lib/types"
+import { isThemeRadius, sanitizeTheme } from "@/lib/theme-colors"
 import { decodeCursor, encodeCursor, type CursorScope } from "./cursor"
 
 /** Server-only RPC transport. Supply the service client; never a browser client. */
@@ -20,10 +19,7 @@ const publicOverFetch = publicPageSize + 1
 const publicLastIndex = publicPageSize - 1
 const detailOverFetch = detailPageSize + 1
 const detailLastIndex = detailPageSize - 1
-const hsl = /^-?\d+(?:\.\d+)?(?:\s+-?\d+(?:\.\d+)?%){2}$/
 const fonts = new Set<string>(FONT_OPTIONS.map(option => option.value))
-const radii = new Set(["0", "0.25rem", "0.5rem", "0.75rem"])
-const themeKeys = new Set<string>(THEME_COLOR_KEYS)
 const unavailable: OperationResult<never> = { ok: false, error: { code: "temporarily_unavailable", status: 503 } }
 const notFound: OperationResult<never> = { ok: false, error: { code: "not_found", status: 404 } }
 const invalid: OperationResult<never> = { ok: false, error: { code: "invalid_input", status: 400 } }
@@ -105,15 +101,9 @@ function parseStyle(value: unknown): PublicStyle | null {
   if (value === null || value === undefined) return null
   const row = object(value)
   if (!row) return null
-  const scheme = object(row.colorScheme) ?? {}
-  const colorScheme: Theme = {}
-  for (const [key, token] of Object.entries(scheme)) {
-    if (!themeKeys.has(key) || typeof token !== "string" || token.length > 40 || !hsl.test(token)) continue
-    colorScheme[key as ThemeColorKey] = token
-  }
-  // The one non-color field carried in color_scheme: only its two known values pass.
-  if (isThemeOutline(scheme.outline)) colorScheme.outline = scheme.outline
-  const borderRadius = typeof row.borderRadius === "string" && radii.has(row.borderRadius) ? row.borderRadius : null
+  // Same rules as the owner's own theme. The radius is published as borderRadius, not inside colorScheme.
+  const { radius, ...colorScheme } = sanitizeTheme(row.colorScheme) ?? {}
+  const borderRadius = isThemeRadius(row.borderRadius) ? row.borderRadius : radius ?? null
   return { colorScheme, headerFontFamily: parseFont(row.headerFontFamily), bodyFontFamily: parseFont(row.bodyFontFamily), borderRadius }
 }
 

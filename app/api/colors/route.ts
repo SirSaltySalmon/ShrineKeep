@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
-import type { Theme } from "@/lib/types"
-import { getDefaultColorScheme } from "@/lib/settings"
-import { normalizeThemeOutline } from "@/lib/theme-colors"
+import { mergeColorScheme } from "@/lib/settings"
+import { normalizeStoredTheme } from "@/lib/theme-colors"
 import { DEFAULT_BODY_FONT_FAMILY, DEFAULT_HEADER_FONT_FAMILY } from "@/lib/fonts"
 import type { FontFamilyId } from "@/lib/fonts"
 
@@ -27,25 +26,14 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
-    const colorScheme = (settings?.color_scheme as Theme | null) ?? null
     const headerFontFamily =
       (settings?.header_font_family as FontFamilyId | null) ?? DEFAULT_HEADER_FONT_FAMILY
     const bodyFontFamily =
       (settings?.body_font_family as FontFamilyId | null) ?? DEFAULT_BODY_FONT_FAMILY
-    const radius = settings?.border_radius ?? colorScheme?.radius ?? "0.5rem"
-
-    const theme: Theme | null = colorScheme
-      ? {
-          ...getDefaultColorScheme(),
-          ...colorScheme,
-          radius,
-          // Stored inside color_scheme; themes saved before the field existed are soft.
-          outline: normalizeThemeOutline(colorScheme.outline),
-        }
-      : null
+    const stored = normalizeStoredTheme(settings?.color_scheme, settings?.border_radius)
 
     return NextResponse.json({
-      theme,
+      theme: stored ? mergeColorScheme(stored) : null,
       header_font_family: headerFontFamily,
       body_font_family: bodyFontFamily,
     })

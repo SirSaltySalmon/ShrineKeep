@@ -143,6 +143,72 @@ export function getThemeOutlineCssVars(outline: unknown): Record<ThemeOutlineCss
   }
 }
 
+/** Editor options for `Theme.radius`, and the only radii a theme may carry. */
+export const THEME_RADIUS_OPTIONS = [
+  { value: "0", label: "None" },
+  { value: "0.25rem", label: "Small" },
+  { value: "0.5rem", label: "Medium" },
+  { value: "0.75rem", label: "Large" },
+] as const
+export type ThemeRadius = (typeof THEME_RADIUS_OPTIONS)[number]["value"]
+
+/** Radius a theme has when the field is missing. Same value as `--radius` on `:root` in app/globals.css. */
+export const DEFAULT_THEME_RADIUS: ThemeRadius = "0.5rem"
+
+export function isThemeRadius(value: unknown): value is ThemeRadius {
+  return THEME_RADIUS_OPTIONS.some((option) => option.value === value)
+}
+
+/**
+ * A stored color: `"H S% L%"`. No `hsl()` wrapper, no commas, no alpha: this is the one form
+ * that renders both as `hsl(var(--token))` and under an opacity utility such as `bg-primary/90`.
+ */
+export const HSL_TRIPLE_PATTERN = /^\d+(?:\.\d+)? \d+(?:\.\d+)?% \d+(?:\.\d+)?%$/
+
+/** Well above any real triple ("359.9 100% 100%"); bounds what a client can store per color. */
+const THEME_COLOR_MAX_LENGTH = 40
+
+function sanitizeThemeColor(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > THEME_COLOR_MAX_LENGTH) return null
+  const triple = value.trim().replace(/\s+/g, " ")
+  return HSL_TRIPLE_PATTERN.test(triple) ? triple : null
+}
+
+/**
+ * The one definition of a valid theme, for anything that did not come from our own code: a
+ * settings request, a stored row, a theme file, another user's public style. Returns null
+ * unless `input` is a plain object. Otherwise rebuilds it from the known color keys (HSL
+ * triples), an allowed radius and a valid outline, and drops every other key and value.
+ */
+export function sanitizeTheme(input: unknown): Theme | null {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) return null
+  const source = input as Record<string, unknown>
+  const theme: Theme = {}
+  for (const key of THEME_COLOR_KEYS) {
+    const color = sanitizeThemeColor(source[key])
+    if (color) theme[key] = color
+  }
+  if (isThemeRadius(source.radius)) theme.radius = source.radius
+  if (isThemeOutline(source.outline)) theme.outline = source.outline
+  return theme
+}
+
+/**
+ * A saved theme as the app reads it: `user_settings.color_scheme` sanitised, with the radius
+ * and outline always present. Null when no theme is saved.
+ *
+ * Radius precedence: the legacy `border_radius` column, then `color_scheme.radius`, then the default.
+ */
+export function normalizeStoredTheme(colorScheme: unknown, borderRadius?: unknown): Theme | null {
+  const theme = sanitizeTheme(colorScheme)
+  if (!theme) return null
+  return {
+    ...theme,
+    radius: isThemeRadius(borderRadius) ? borderRadius : theme.radius ?? DEFAULT_THEME_RADIUS,
+    outline: normalizeThemeOutline(theme.outline),
+  }
+}
+
 /** Build a full Theme from registry defaults plus radius and outline. */
 function buildScheme(
   getDefault: (e: ThemeColorEntry) => string,
@@ -152,7 +218,7 @@ function buildScheme(
   for (const e of THEME_COLOR_REGISTRY) {
     (scheme as Record<string, string>)[e.key] = getDefault(e)
   }
-  scheme.radius = overrides.radius ?? "0.5rem"
+  scheme.radius = overrides.radius ?? DEFAULT_THEME_RADIUS
   scheme.outline = overrides.outline ?? DEFAULT_THEME_OUTLINE
   return scheme
 }
@@ -182,7 +248,7 @@ export const PINK_COLOR_SCHEME: Theme = {
   input: "340 25% 90%",
   ring: "340 60% 45%",
   selectableHoverRing: "340 35% 82%",
-  radius: "0.5rem",
+  radius: DEFAULT_THEME_RADIUS,
 }
 
 /** Matcha: warm green-on-cream light theme with tight corners. */
