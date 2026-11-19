@@ -26,7 +26,7 @@ export default function AppNav({ name, sandbox = false }: AppNavProps) {
   }
 
   return (
-    <nav className="border-b min-w-0">
+    <nav className="sk-rule-b min-w-0">
       <div className="overflow-x-auto overflow-y-hidden">
         <div className="container mx-auto px-4 py-4 min-w-0">
           <div className="flex items-center justify-between gap-4 flex-nowrap min-w-0">

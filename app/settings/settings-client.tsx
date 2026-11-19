@@ -18,8 +18,9 @@ import TagSettings from "@/components/settings/tag-settings"
 import BillingSettings from "@/components/settings/billing-settings"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
-  getDefaultColorScheme,
-  getColorSchemeByPreset,
+  mergeColorScheme,
+  resolveThemePreset,
+  detectThemePreset,
   parseImportedColorScheme,
   buildThemeExport,
   applyColorScheme,
@@ -69,20 +70,18 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     if (isSettingsTab(t)) setActiveTab(t)
   }, [searchParams])
 
-  const [theme, setTheme] = useState<Theme>(() => {
-    const cs = initialSettings?.color_scheme as Theme | undefined
-    if (!cs || typeof cs !== "object") return getDefaultColorScheme()
-    const { graphOverlay: _, ...rest } = cs as Theme & { graphOverlay?: boolean }
-    return { ...getDefaultColorScheme(), ...rest }
-  })
-  const [selectedPreset, setSelectedPreset] = useState<ThemePreset>(
-    initialSettings?.color_scheme ? "custom" : "light"
-  )
+  // The page hands over a sanitised theme (normalizeStoredTheme), so only the gaps need filling.
+  const [theme, setTheme] = useState<Theme>(() => mergeColorScheme(initialSettings?.color_scheme))
   const [headerFontFamily, setHeaderFontFamily] = useState<FontFamilyId>(
     (initialSettings?.header_font_family as FontFamilyId) || DEFAULT_HEADER_FONT_FAMILY
   )
   const [bodyFontFamily, setBodyFontFamily] = useState<FontFamilyId>(
     (initialSettings?.body_font_family as FontFamilyId) || DEFAULT_BODY_FONT_FAMILY
+  )
+  // Only the theme's values are saved, not which preset they came from, so on load the
+  // dropdown shows whichever preset the saved look still matches (or Custom).
+  const [selectedPreset, setSelectedPreset] = useState<ThemePreset>(() =>
+    detectThemePreset(theme, headerFontFamily, bodyFontFamily)
   )
   const [graphOverlay, setGraphOverlay] = useState(
     initialSettings?.graph_overlay ?? true
@@ -135,31 +134,18 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
     const bodyCss = FONT_FAMILY_CSS[bodyFontFamily]
     if (headerCss) root.style.setProperty("--font-heading", headerCss)
     if (bodyCss) root.style.setProperty("--font-sans", bodyCss)
-    return () => {
-      // Don't reset on unmount - let ThemeProvider handle it
-    }
+    // No cleanup: on every route change ThemeProvider replaces these with the saved theme, or
+    // clears them on routes that do not show the account theme.
   }, [theme, headerFontFamily, bodyFontFamily])
-
-  const handleResetTheme = () => {
-    setTheme({
-      ...getDefaultColorScheme(),
-      radius: "0.5rem",
-    })
-    setHeaderFontFamily(DEFAULT_HEADER_FONT_FAMILY)
-    setBodyFontFamily(DEFAULT_BODY_FONT_FAMILY)
-    setSelectedPreset("light")
-  }
 
   const handlePresetChange = (preset: ThemePreset) => {
     setSelectedPreset(preset)
     if (preset !== "custom") {
-      const presetScheme = getColorSchemeByPreset(preset)
-      setTheme({
-        ...presetScheme,
-        radius: "0.5rem",
-      })
-      setHeaderFontFamily(DEFAULT_HEADER_FONT_FAMILY)
-      setBodyFontFamily(DEFAULT_BODY_FONT_FAMILY)
+      // A preset sets the whole look: colors, radius, and fonts (defaults where it names none).
+      const resolved = resolveThemePreset(preset)
+      setTheme(resolved.scheme)
+      setHeaderFontFamily(resolved.headerFontFamily)
+      setBodyFontFamily(resolved.bodyFontFamily)
     }
   }
 
@@ -176,18 +162,16 @@ export default function SettingsClient({ initialSettings, initialProfile }: Sett
       const imported = parseImportedColorScheme(text)
 
       if (imported) {
-        setTheme((prev) => ({
-          ...getDefaultColorScheme(),
-          ...imported.theme,
-          radius: prev?.radius ?? "0.5rem",
-        }))
+        // A theme file is a whole look: whatever it leaves out (a radius, or the outline in an
+        // export made before that field existed) comes from the defaults, not from the current theme.
+        setTheme(mergeColorScheme(imported.theme))
         if (imported.headerFontFamily) setHeaderFontFamily(imported.headerFontFamily)
         if (imported.bodyFontFamily) setBodyFontFamily(imported.bodyFontFamily)
         setSelectedPreset("custom")
         alert("Theme imported successfully!")
       } else {
         alert(
-          "Invalid theme format. Please ensure the file contains valid JSON with colors, optional radius, header_font_family, and/or body_font_family."
+          "Invalid theme format. Please ensure the file contains valid JSON with colors, optional radius, outline, header_font_family, and/or body_font_family."
         )
       }
     } catch (error) {

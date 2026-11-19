@@ -4,18 +4,33 @@ import {
   DEFAULT_COLOR_SCHEME,
   DARK_COLOR_SCHEME,
   PINK_COLOR_SCHEME,
+  MATCHA_COLOR_SCHEME,
+  ARCADE_COLOR_SCHEME,
+  DEFAULT_THEME_RADIUS,
   THEME_COLOR_KEYS,
   THEME_KEY_TO_CSS_VAR,
+  getThemeOutlineCssVars,
+  normalizeThemeOutline,
+  sanitizeTheme,
 } from "./theme-colors"
-import { FONT_OPTIONS } from "./fonts"
+import { DEFAULT_BODY_FONT_FAMILY, DEFAULT_HEADER_FONT_FAMILY, FONT_OPTIONS } from "./fonts"
 import type { FontFamilyId } from "./fonts"
 
 // Re-export for consumers that import from settings
 export { DEFAULT_COLOR_SCHEME, DARK_COLOR_SCHEME }
 
-export type ThemePreset = "light" | "dark" | "pink" | "custom"
+export type ThemePreset = "light" | "dark" | "pink" | "matcha" | "arcade" | "custom"
 
-export const COLOR_SCHEME_PRESETS: Record<ThemePreset, { name: string; scheme: Theme }> = {
+export interface ThemePresetDefinition {
+  name: string
+  /** Colors plus `radius` and `outline`. */
+  scheme: Theme
+  /** Fonts the preset sets. Omitted means the app default (same fields a theme file carries). */
+  headerFontFamily?: FontFamilyId
+  bodyFontFamily?: FontFamilyId
+}
+
+export const COLOR_SCHEME_PRESETS: Record<ThemePreset, ThemePresetDefinition> = {
   light: {
     name: "Light Mode",
     scheme: DEFAULT_COLOR_SCHEME,
@@ -27,6 +42,18 @@ export const COLOR_SCHEME_PRESETS: Record<ThemePreset, { name: string; scheme: T
   pink: {
     name: "Pink Mode",
     scheme: PINK_COLOR_SCHEME,
+  },
+  matcha: {
+    name: "Matcha",
+    scheme: MATCHA_COLOR_SCHEME,
+    headerFontFamily: "Lora",
+    bodyFontFamily: "Figtree",
+  },
+  arcade: {
+    name: "Arcade",
+    scheme: ARCADE_COLOR_SCHEME,
+    headerFontFamily: "JetBrains Mono",
+    bodyFontFamily: "JetBrains Mono",
   },
   custom: {
     name: "Custom",
@@ -49,7 +76,60 @@ export function getColorSchemeByPreset(preset: ThemePreset): Theme {
   return { ...COLOR_SCHEME_PRESETS[preset].scheme }
 }
 
-/** Result of parsing an imported theme JSON (colors, radius, fonts; no graph_overlay). */
+/** Everything a preset applies: colors, radius, outline, and both fonts, with app defaults filled in. */
+export interface ResolvedThemePreset {
+  scheme: Theme
+  headerFontFamily: FontFamilyId
+  bodyFontFamily: FontFamilyId
+}
+
+export function resolveThemePreset(preset: ThemePreset): ResolvedThemePreset {
+  const definition = COLOR_SCHEME_PRESETS[preset]
+  const scheme = getColorSchemeByPreset(preset)
+  return {
+    scheme: {
+      ...scheme,
+      radius: scheme.radius ?? DEFAULT_THEME_RADIUS,
+      outline: normalizeThemeOutline(scheme.outline),
+    },
+    headerFontFamily: definition.headerFontFamily ?? DEFAULT_HEADER_FONT_FAMILY,
+    bodyFontFamily: definition.bodyFontFamily ?? DEFAULT_BODY_FONT_FAMILY,
+  }
+}
+
+const normalizeThemeValue = (value: string | undefined) => (value ?? "").trim().replace(/\s+/g, " ")
+
+/**
+ * Which built-in preset a saved look is, or "custom" if it is none of them.
+ *
+ * The preset's name is never stored, only its values, so this compares them: a theme is
+ * a given preset exactly as long as every color, the radius, the outline, and both fonts
+ * still equal that preset's. Change any one and it is custom. A theme saved before
+ * `outline` existed has none, which counts as soft, so it still matches its preset.
+ */
+export function detectThemePreset(
+  theme: Theme | null | undefined,
+  headerFontFamily: FontFamilyId,
+  bodyFontFamily: FontFamilyId
+): ThemePreset {
+  const current = mergeColorScheme(theme)
+  const currentRadius = normalizeThemeValue(current.radius) || DEFAULT_THEME_RADIUS
+
+  for (const preset of Object.keys(COLOR_SCHEME_PRESETS) as ThemePreset[]) {
+    if (preset === "custom") continue
+    const resolved = resolveThemePreset(preset)
+    if (resolved.headerFontFamily !== headerFontFamily || resolved.bodyFontFamily !== bodyFontFamily) continue
+    if (normalizeThemeValue(resolved.scheme.radius) !== currentRadius) continue
+    if (normalizeThemeOutline(resolved.scheme.outline) !== current.outline) continue
+    const sameColors = THEME_COLOR_KEYS.every(
+      (key) => normalizeThemeValue(current[key]) === normalizeThemeValue(resolved.scheme[key])
+    )
+    if (sameColors) return preset
+  }
+  return "custom"
+}
+
+/** Result of parsing an imported theme JSON (colors, radius, outline, fonts; no graph_overlay). */
 export interface ParsedThemeImport {
   theme: Partial<Theme>
   headerFontFamily?: FontFamilyId
@@ -59,51 +139,41 @@ export interface ParsedThemeImport {
 const VALID_FONT_IDS = new Set(FONT_OPTIONS.map((o) => o.value))
 
 /**
- * Parse imported theme JSON. Accepts colors, radius, header_font_family, and body_font_family.
+ * Parse imported theme JSON. Accepts colors, radius, outline, header_font_family, and body_font_family.
+ * Values go through `sanitizeTheme()`, so anything the app could not render is ignored: a color
+ * that is not an HSL triple (an `hsl()` wrapper is unwrapped first), a radius the editor does not
+ * offer, an outline that is not "soft" or "hard".
  * Does not read or apply graph_overlay (chart overlay preference is not exported).
  */
 export function parseImportedColorScheme(jsonString: string): ParsedThemeImport | null {
   try {
-    const parsed = JSON.parse(jsonString)
+    const parsed: unknown = JSON.parse(jsonString)
 
-    if (typeof parsed !== "object" || parsed === null) {
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
       return null
     }
+    const file = parsed as Record<string, unknown>
 
-    const scheme: Partial<Theme> = {}
-    const validKeys: (keyof Theme)[] = [...THEME_COLOR_KEYS, "radius"]
-
-    const hslCssVarRegex = /^\d+\.?\d*\s+\d+\.?\d*%\s+\d+\.?\d*%(?:\s*\/\s*[\d.]+)?$/
-    const hslParenRegex = /^hsl\([\d.]+,\s*[\d.]+%,\s*[\d.]+%\)$/
-
-    for (const key of validKeys) {
-      if (parsed[key] && typeof parsed[key] === "string") {
-        const str = (parsed[key] as string).trim()
-        if (key === "radius") {
-          if (/^\d*(\.\d+)?(rem|px|em)$/.test(str) || str === "0") {
-            scheme.radius = str
-          }
-        } else {
-          if (hslCssVarRegex.test(str) || hslParenRegex.test(str)) {
-            (scheme as Record<string, string>)[key] = hslToCssVariable(str)
-          }
-        }
-      }
+    const colors: Record<string, unknown> = {}
+    for (const key of THEME_COLOR_KEYS) {
+      const value = file[key]
+      if (typeof value === "string") colors[key] = hslToCssVariable(value)
     }
+    const scheme: Partial<Theme> = sanitizeTheme({ ...file, ...colors }) ?? {}
 
     let headerFontFamily: FontFamilyId | undefined
     let bodyFontFamily: FontFamilyId | undefined
     if (
-      typeof parsed.header_font_family === "string" &&
-      VALID_FONT_IDS.has(parsed.header_font_family as FontFamilyId)
+      typeof file.header_font_family === "string" &&
+      VALID_FONT_IDS.has(file.header_font_family as FontFamilyId)
     ) {
-      headerFontFamily = parsed.header_font_family as FontFamilyId
+      headerFontFamily = file.header_font_family as FontFamilyId
     }
     if (
-      typeof parsed.body_font_family === "string" &&
-      VALID_FONT_IDS.has(parsed.body_font_family as FontFamilyId)
+      typeof file.body_font_family === "string" &&
+      VALID_FONT_IDS.has(file.body_font_family as FontFamilyId)
     ) {
-      bodyFontFamily = parsed.body_font_family as FontFamilyId
+      bodyFontFamily = file.body_font_family as FontFamilyId
     }
 
     if (Object.keys(scheme).length === 0 && !headerFontFamily && !bodyFontFamily) {
@@ -123,7 +193,7 @@ export interface ThemeExportFonts {
 }
 
 /**
- * Build the theme export object (colors, radius, header_font_family, body_font_family). Omits graph_overlay.
+ * Build the theme export object (colors, radius, outline, header_font_family, body_font_family). Omits graph_overlay.
  */
 export function buildThemeExport(
   theme: Theme,
@@ -135,17 +205,21 @@ export function buildThemeExport(
     if (v != null && typeof v === "string") out[key] = v
   }
   if (theme.radius) out.radius = theme.radius
+  out.outline = normalizeThemeOutline(theme.outline)
   out.header_font_family = fonts.headerFontFamily
   out.body_font_family = fonts.bodyFontFamily
   return out
 }
 
 /**
- * Merge custom colors with defaults
+ * Defaults, then the given theme's values. Use it for anything partial: a saved theme, or the
+ * `theme` of a parsed import, where a file without a radius or outline gets the default one.
+ * `outline` always comes back as "soft" or "hard": a theme without one (or with an unknown
+ * value) is soft.
  */
 export function mergeColorScheme(custom?: Theme | null): Theme {
   if (!custom) return getDefaultColorScheme()
-  return { ...DEFAULT_COLOR_SCHEME, ...custom }
+  return { ...DEFAULT_COLOR_SCHEME, ...custom, outline: normalizeThemeOutline(custom.outline) }
 }
 
 /**
@@ -154,23 +228,15 @@ export function mergeColorScheme(custom?: Theme | null): Theme {
  * Output: "222.2 47.4% 11.2%"
  */
 export function hslToCssVariable(hsl: string): string {
+  const match = hsl.trim().match(/^hsl\(([^)]*)\)$/)
   // If already in CSS variable format, return as-is
-  if (!hsl.includes("hsl(")) return hsl.trim()
-
-  // Extract HSL values from hsl() format
-  const match = hsl.match(/hsl\(([^)]+)\)/)
   if (!match) return hsl.trim()
 
-  return match[1].trim()
-}
-
-/**
- * Convert CSS variable format to HSL string
- * Input: "222.2 47.4% 11.2%"
- * Output: "hsl(222.2, 47.4%, 11.2%)"
- */
-export function cssVariableToHsl(cssVar: string): string {
-  return `hsl(${cssVar})`
+  // The stored form is space-separated: commas would break `hsl(var(--token) / <alpha>)`.
+  return match[1]
+    .split(",")
+    .map((part) => part.trim())
+    .join(" ")
 }
 
 /**
@@ -322,6 +388,8 @@ export interface ApplyColorSchemeOptions {
  * Apply color scheme to CSS variables.
  * Returns a style object that can be injected. Includes `color: hsl(var(--foreground))`
  * so the element uses the scheme's foreground; pass font stacks in options for isolated previews.
+ * Always includes the `--outline-*` variables for the scheme's outline style, so the same
+ * keys are set for every theme and can be cleared by key (see ThemeProvider).
  */
 export function applyColorScheme(
   colors: Theme,
@@ -330,12 +398,15 @@ export function applyColorScheme(
   const merged = mergeColorScheme(colors)
   const cssVars: Record<string, string> = {}
 
-  Object.entries(merged).forEach(([key, value]) => {
-    const cssVar = THEME_KEY_TO_CSS_VAR[key as keyof typeof THEME_KEY_TO_CSS_VAR]
-    if (typeof value === "string" && value && cssVar) {
+  // Walk the known keys, not the theme's: a stored theme can carry any key (even "constructor").
+  for (const [key, cssVar] of Object.entries(THEME_KEY_TO_CSS_VAR)) {
+    const value = merged[key as keyof typeof THEME_KEY_TO_CSS_VAR]
+    if (typeof value === "string" && value) {
       cssVars[cssVar] = value
     }
-  })
+  }
+
+  Object.assign(cssVars, getThemeOutlineCssVars(merged.outline))
 
   if (merged.foreground) {
     cssVars.color = "hsl(var(--foreground))"

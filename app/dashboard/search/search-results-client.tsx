@@ -12,6 +12,7 @@ import {
   type SearchFiltersState,
 } from "@/lib/types"
 import {
+  cn,
   normalizeItem,
   sortTagsByColorThenName,
   buildSearchUrl as buildSearchUrlUtil,
@@ -27,6 +28,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ArrowLeft, ChevronLeft, ChevronRight, Filter, X } from "lucide-react"
 import { COLLECTION_ITEM_SKELETON_FIXTURES } from "@/components/boneyard-fixtures"
+import { ITEM_GRID_LAYOUT, getCardSkeletonName } from "@/lib/card-density"
+import { useCardDensity } from "@/lib/hooks/use-card-density"
 
 const PER_PAGE = 10
 
@@ -88,6 +91,9 @@ export default function SearchResultsClient({
     tagColors: initialTagColors,
   }))
   const [showFilters, setShowFilters] = useState(false)
+  // Same per-device card density as the dashboard grids (the toggle lives there).
+  const density = useCardDensity()
+  const gridClass = cn(ITEM_GRID_LAYOUT[density].gridClass, "mb-6")
 
   // Sync filter state from URL when params change (e.g. back/forward)
   useEffect(() => {
@@ -383,18 +389,18 @@ export default function SearchResultsClient({
               : `${totalItems} item${totalItems === 1 ? "" : "s"} found`}
       </p>
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+        <div className={gridClass}>
           {COLLECTION_ITEM_SKELETON_FIXTURES.map((item) => (
             <Skeleton
               key={item.id}
-              name="search-results-card"
+              name={getCardSkeletonName("search-results-card", density)}
               loading
               animate="shimmer"
               color="hsl(var(--muted))"
               darkColor="hsl(var(--muted))"
               fallback={
-                <div className="rounded-lg border bg-card overflow-hidden animate-pulse">
-                  <div className="h-48 bg-muted" />
+                <div className="rounded-lg sk-outline bg-card overflow-hidden animate-pulse">
+                  <div className={cn("bg-muted", density === "compact" ? "h-24" : "h-48")} />
                   <div className="p-4 space-y-3">
                     <div className="h-5 w-2/3 rounded-md bg-muted" />
                     <div className="h-4 w-5/6 rounded-md bg-muted" />
@@ -407,6 +413,7 @@ export default function SearchResultsClient({
                   item={presentOwnerItem(item)}
                   variant="collection"
                   capabilities={OWNER_CAPABILITIES}
+                  density={density}
                   onClick={() => {}}
                 />
               }
@@ -415,6 +422,7 @@ export default function SearchResultsClient({
                 item={presentOwnerItem(item)}
                 variant="collection"
                 capabilities={OWNER_CAPABILITIES}
+                density={density}
                 onClick={() => {}}
               />
             </Skeleton>
@@ -424,20 +432,21 @@ export default function SearchResultsClient({
         <div className="text-center py-12 text-fluid-sm text-muted-foreground min-w-0">No items match your search.</div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
+          <div className={gridClass}>
             {paginatedItems.map((item) => (
               <ItemCard
                 key={item.id}
                 item={presentOwnerItem(item)}
                 variant="collection"
                 capabilities={OWNER_CAPABILITIES}
+                density={density}
                 selected={selectedIds.has(item.id)}
                 onClick={(_, event) => handleItemClick(item, event)}
               />
             ))}
           </div>
           {totalPages > 1 && (
-            <nav className="flex flex-wrap items-center justify-center gap-3 py-4 border-t min-w-0" aria-label="Pagination">
+            <nav className="flex flex-wrap items-center justify-center gap-3 py-4 sk-rule-t min-w-0" aria-label="Pagination">
               <Button
                 type="button"
                 variant="outline"

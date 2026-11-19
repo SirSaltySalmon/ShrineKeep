@@ -114,6 +114,183 @@
   }
 }
 
+/*
+ * Outline style (Theme.outline). See docs/DESIGN.md → Outline.
+ *
+ * applyColorScheme() sets --outline-width, --outline-color, --outline-shadow and
+ * --outline-flat for a hard theme, and sets each of them to `initial` for a soft one, which
+ * un-defines it. Nothing declares them on :root. Every fallback below is therefore the soft
+ * look, and that is also what unthemed routes (landing, auth, legal) get.
+ *
+ * Two things decide which declaration wins. lib/theme-outline-css.test.ts pins both.
+ *
+ * 1. Specificity. Every selector is a single class (0,1,0), with states inside :where().
+ *    A utility passed by a caller (border-0, border-primary, shadow-none, outline-dashed)
+ *    therefore wins at rest and on hover, as it did when the primitives used plain
+ *    `border` / `shadow` utilities.
+ * 2. Order. tailwind-merge does not know these classes, so when an element carries two of
+ *    one family the later rule wins. The defaults a primitive sets for itself come first and
+ *    the classes a caller can also pass come after them, so the caller's class wins
+ *    (`<Button className="sk-outline sk-raised-lg">`).
+ *
+ * components/ui is where these classes belong; a hand-rolled surface follows the outline
+ * style only if it uses them instead of `border` / `shadow-*`.
+ */
+@layer components {
+  /* The shadow goes through --tw-shadow so focus and selection rings still stack on top of it. */
+  .sk-btn,
+  .sk-card-hover,
+  .sk-raised,
+  .sk-raised-md,
+  .sk-raised-lg,
+  .sk-raised-xl,
+  .sk-flat-sm {
+    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+  }
+
+  /* ---- Primitive defaults. Keep these above the caller-facing classes. ---- */
+
+  /* Filled buttons, which have no border when soft. */
+  .sk-outline-filled {
+    border-width: var(--outline-width, 0px);
+    border-color: var(--outline-color, hsl(var(--border)));
+  }
+
+  /*
+   * Buttons. Soft: flat at rest, shadow-sm on hover when motion is allowed (unchanged).
+   * Hard: primary, destructive and outline buttons (sk-btn-raised) carry the offset shadow
+   * at rest and keep it on hover. The other variants stay flat: a hard theme has no blurred
+   * shadow.
+   */
+  .sk-btn {
+    --tw-shadow: 0 0 #0000;
+  }
+  .sk-btn-raised {
+    --tw-shadow: var(--outline-shadow, 0 0 #0000);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .sk-btn:where(:hover) {
+      --tw-shadow: var(--outline-flat, theme("boxShadow.sm"));
+    }
+    .sk-btn-raised:where(:hover) {
+      --tw-shadow: var(--outline-shadow, theme("boxShadow.sm"));
+    }
+  }
+
+  /*
+   * Item and box card wrappers (components/selectable.tsx). The wrapper carries the hover
+   * shadow and the selection ring; the Card inside it carries sk-raised.
+   *
+   * Soft: no shadow at rest, shadow-lg on hover when motion is allowed (unchanged).
+   * Hard: the hover shadow is the same offset shadow the card already has, on a box of the
+   * same size, so it sits exactly under the card's and nothing blurred appears.
+   */
+  .sk-card-hover {
+    --tw-shadow: 0 0 #0000;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .sk-card-hover:where(:hover) {
+      --tw-shadow: var(--outline-shadow, theme("boxShadow.lg"));
+    }
+  }
+
+  /* ---- Caller-facing classes: hand-built surfaces, and overrides passed to a primitive. ---- */
+
+  /* Surfaces: cards, dialogs, menus, popovers. */
+  .sk-outline {
+    border-width: var(--outline-width, 1px);
+    border-color: var(--outline-color, hsl(var(--border)));
+  }
+  /* Form controls and the outline button, whose soft border is --input. */
+  .sk-outline-control {
+    border-width: var(--outline-width, 1px);
+    border-color: var(--outline-color, hsl(var(--input)));
+  }
+  /* Surfaces whose soft border is quieter than --border. Hard is the same ink line as the rest. */
+  .sk-outline-faint {
+    border-width: var(--outline-width, 1px);
+    border-color: var(--outline-color, hsl(var(--border) / 0.5));
+  }
+  .sk-outline-muted {
+    border-width: var(--outline-width, 1px);
+    border-color: var(--outline-color, hsl(var(--muted)));
+  }
+
+  /*
+   * Rules: nav bars, panel headers and footers, section dividers. Soft is the 1px --border
+   * hairline. Hard is the same ink line as every other outline, so a hard page has one line
+   * weight and one line colour instead of ink sitting next to grey hairlines.
+   */
+  .sk-rule-t {
+    border-top-width: var(--outline-width, 1px);
+    border-top-color: var(--outline-color, hsl(var(--border)));
+  }
+  .sk-rule-b {
+    border-bottom-width: var(--outline-width, 1px);
+    border-bottom-color: var(--outline-color, hsl(var(--border)));
+  }
+
+  /* Raised surfaces. Soft is Tailwind's shadow for that elevation; hard is the offset shadow. */
+  .sk-raised {
+    --tw-shadow: var(--outline-shadow, theme("boxShadow.DEFAULT"));
+  }
+  .sk-raised-md {
+    --tw-shadow: var(--outline-shadow, theme("boxShadow.md"));
+  }
+  .sk-raised-lg {
+    --tw-shadow: var(--outline-shadow, theme("boxShadow.lg"));
+  }
+  .sk-raised-xl {
+    --tw-shadow: var(--outline-shadow, theme("boxShadow.xl"));
+  }
+
+  /*
+   * Backdrops. A hard page raises objects only (cards, buttons, dialogs, floating chrome);
+   * the panels they sit on are ruled with sk-outline and stay flat. sk-flat-* is for a panel
+   * or bar that has a faint soft shadow: unchanged when soft, none when hard.
+   */
+  .sk-flat-sm {
+    --tw-shadow: var(--outline-flat, theme("boxShadow.sm"));
+  }
+  .sk-flat-bar {
+    box-shadow: var(--outline-flat, 0 -4px 20px hsl(var(--foreground) / 0.08));
+  }
+
+  /*
+   * A floating control whose soft shadow grows on hover; hard keeps its offset shadow.
+   * Below the sk-raised* rules, which also match while hovered.
+   */
+  .sk-raised-hover-xl:where(:hover) {
+    --tw-shadow: var(--outline-shadow, theme("boxShadow.xl"));
+  }
+
+  /*
+   * Hard only. The wrapper's selection / drop-target ring is a box-shadow, and the card's
+   * offset shadow is painted over its right and bottom edges. An outline is drawn above
+   * descendants, so repeat the ring as one: same colour and footprint as ring-2 with
+   * ring-offset-2 (and as the hover ring, ring-2 with no offset). The width falls back to
+   * 0, so a soft theme shows the box-shadow ring alone, as before.
+   */
+  .sk-ring-selected {
+    outline: var(--outline-width, 0px) solid hsl(var(--primary));
+    outline-offset: 2px;
+  }
+  .sk-ring-hover:where(:hover) {
+    outline: var(--outline-width, 0px) solid hsl(var(--selectable-hover-ring));
+    outline-offset: 0px;
+  }
+
+  /*
+   * One raised level. Inside a raised surface the offset shadow is switched off, so a button
+   * in a card, or a card in a dialog, is outlined but flat: no shadow inside a shadow.
+   * Soft: --outline-flat is undefined, which makes this declaration invalid at computed-value
+   * time and leaves --outline-shadow undefined as well, so every soft fallback still applies.
+   */
+  :where(.sk-raised, .sk-raised-md, .sk-raised-lg, .sk-raised-xl) > * {
+    --outline-shadow: var(--outline-flat);
+  }
+}
+
 /* Fluid typography: scale with viewport to prevent clipping on small screens */
 @layer utilities {
   .text-fluid-xs {
@@ -227,6 +404,153 @@
     .sk-coach-scrim {
       animation: none;
       opacity: 0;
+    }
+  }
+
+  /*
+   * Content that has just replaced a skeleton fades in instead of popping. Opacity only: it
+   * never moves or resizes anything (docs/DESIGN.md → Layout stability).
+   */
+  @keyframes sk-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  .sk-fade-in {
+    animation: sk-fade-in 200ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sk-fade-in {
+      animation: none;
+    }
+  }
+
+  /* A one-line strip that scrolls sideways (tag chips): a thin, quiet scrollbar. */
+  .sk-scroll-x {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
+}
+
+/*
+ * Landing (marketing poster) motion. `/landing` only — do not reuse on themed product surfaces.
+ * See docs/DESIGN.md → Motion.
+ */
+@layer utilities {
+  /* Hero intro: words and figures start scattered (--sk-mess) and snap into place. */
+  @keyframes sk-landing-settle {
+    from {
+      transform: var(--sk-mess, none);
+    }
+    to {
+      transform: none;
+    }
+  }
+  .sk-landing-settle {
+    animation: sk-landing-settle 1.1s cubic-bezier(0.2, 0.9, 0.25, 1.08) both;
+    animation-delay: var(--sk-delay, 0ms);
+  }
+
+  @keyframes sk-landing-marquee {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  .sk-landing-marquee {
+    animation: sk-landing-marquee 60s linear infinite;
+  }
+
+  @keyframes sk-landing-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .sk-landing-spin {
+    animation: sk-landing-spin 28s linear infinite;
+    transform-origin: 50% 50%;
+  }
+
+  @keyframes sk-landing-hop {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0);
+    }
+    35% {
+      transform: translateY(-18%) rotate(-5deg);
+    }
+    70% {
+      transform: translateY(0) rotate(3deg);
+    }
+  }
+  /*
+   * Added on pointer enter and removed on animationend (hero-motto.tsx), not tied to :hover,
+   * so a hop always plays to the end even if the pointer has already left.
+   */
+  .sk-landing-hop-run {
+    animation: sk-landing-hop 0.5s ease-out;
+  }
+
+  /* Blind-box machine */
+  @keyframes sk-landing-jiggle {
+    0%,
+    100% {
+      transform: translate(0, 0) rotate(0);
+    }
+    20% {
+      transform: translate(-2px, 1px) rotate(-1.5deg);
+    }
+    40% {
+      transform: translate(2px, -2px) rotate(1.5deg);
+    }
+    60% {
+      transform: translate(-1px, 2px) rotate(-1deg);
+    }
+    80% {
+      transform: translate(1px, -1px) rotate(1deg);
+    }
+  }
+  .sk-landing-jiggle {
+    animation: sk-landing-jiggle 0.35s linear 2;
+  }
+
+  @keyframes sk-landing-crank {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .sk-landing-crank {
+    animation: sk-landing-crank 0.7s cubic-bezier(0.5, 0, 0.3, 1);
+  }
+
+  @keyframes sk-landing-pop {
+    0% {
+      transform: translateY(-40%) scale(0.4) rotate(-12deg);
+      opacity: 0;
+    }
+    60% {
+      transform: translateY(4%) scale(1.08) rotate(3deg);
+      opacity: 1;
+    }
+    100% {
+      transform: none;
+      opacity: 1;
+    }
+  }
+  .sk-landing-pop {
+    animation: sk-landing-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sk-landing-settle,
+    .sk-landing-marquee,
+    .sk-landing-spin,
+    .sk-landing-hop-run,
+    .sk-landing-jiggle,
+    .sk-landing-crank,
+    .sk-landing-pop {
+      animation: none;
     }
   }
 }

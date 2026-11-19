@@ -86,7 +86,7 @@ export function RootAudiencePanel({
   return (
     <div className="mt-8 w-full flex justify-center">
       <div className="mt-8 w-full max-w-2xl mx-auto">
-        <div className="rounded-lg border border-border bg-card text-card-foreground shadow-sm p-4 sm:p-5 mb-8">
+        <div className="rounded-lg sk-outline bg-card text-card-foreground sk-flat-sm p-4 sm:p-5 mb-8">
           <div className="space-y-4">
             <div>
               <h2 className="text-fluid-lg font-semibold">Root box</h2>
@@ -100,7 +100,7 @@ export function RootAudiencePanel({
               onChange={setRoot}
               idPrefix="root"
             />
-            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+            <div className="flex flex-wrap items-center justify-end gap-2 sk-rule-t pt-4">
               {saved && (
                 <span className="text-fluid-sm text-muted-foreground mr-auto">Sharing settings saved.</span>
               )}

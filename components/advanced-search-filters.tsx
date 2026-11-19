@@ -2,6 +2,7 @@
 
 import { Tag, TAG_COLORS, type SearchFiltersState, type TagColor } from "@/lib/types"
 import { getTagChipStyle } from "@/lib/utils"
+import { toggleIncludeTag } from "@/lib/tag-quick-filter"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -39,11 +40,8 @@ export default function AdvancedSearchFilters({
     onApply?.()
   }
 
-  const toggleIncludeTag = (tagId: string) => {
-    const next = filters.includeTags.includes(tagId)
-      ? filters.includeTags.filter((id) => id !== tagId)
-      : [...filters.includeTags, tagId]
-    const nextFilters = { ...filters, includeTags: next }
+  const handleToggleIncludeTag = (tagId: string) => {
+    const nextFilters = toggleIncludeTag(filters, tagId)
     update(nextFilters)
     onApply?.(nextFilters)
   }
@@ -68,7 +66,7 @@ export default function AdvancedSearchFilters({
 
   return (
     <div className={className}>
-      <div className="rounded-lg border bg-light-muted p-4 space-y-4 min-w-0">
+      <div className="rounded-lg sk-outline bg-light-muted p-4 space-y-4 min-w-0">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <Label className="text-fluid-xs">Value min</Label>
@@ -146,7 +144,7 @@ export default function AdvancedSearchFilters({
               <button
                 key={t.id}
                 type="button"
-                onClick={() => toggleIncludeTag(t.id)}
+                onClick={() => handleToggleIncludeTag(t.id)}
                 className={`rounded-md px-2 py-0.5 text-fluid-xs font-medium ${filters.includeTags.includes(t.id) ? "ring-2 ring-primary" : ""}`}
                 style={getTagChipStyle(t.color ?? "blue")}
               >
@@ -163,7 +161,7 @@ export default function AdvancedSearchFilters({
                 key={t.id}
                 type="button"
                 onClick={() => toggleExcludeTag(t.id)}
-                className={`rounded-md px-2 py-0.5 text-fluid-xs font-medium border ${filters.excludeTags.includes(t.id) ? "ring-2 ring-destructive" : ""}`}
+                className={`rounded-md px-2 py-0.5 text-fluid-xs font-medium sk-outline ${filters.excludeTags.includes(t.id) ? "ring-2 ring-destructive" : ""}`}
                 style={{ borderColor: `hsl(var(--tag-${t.color ?? "blue"}))` }}
               >
                 {t.name}
@@ -188,7 +186,7 @@ export default function AdvancedSearchFilters({
           </div>
         </div>
         {showClear && onClear && (
-          <div className="pt-2 border-t">
+          <div className="pt-2 sk-rule-t">
             <Button variant="ghost" size="sm" onClick={onClear}>
               <X className="h-4 w-4 mr-1" />
               Clear filters

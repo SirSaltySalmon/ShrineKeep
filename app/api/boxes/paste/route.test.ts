@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { POST } from "./route"
-import { ItemCapExceededError } from "@/lib/api/item-cap-error"
 
 const {
   mockCreateSupabaseServerClient,
@@ -77,7 +76,7 @@ describe("POST /api/boxes/paste", () => {
   it("returns 403 on item_limit_reached rpc errors", async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: null,
-      error: { message: "item_limit_reached:10:10" },
+      error: { code: "P0001", message: "item_limit_reached:10:10", details: null, hint: null },
     })
     mockCreateSupabaseServerClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
@@ -126,19 +125,30 @@ describe("POST /api/boxes/paste", () => {
     await expect(response.json()).resolves.toEqual({ success: true, createdBoxIds: ["box-a"] })
   })
 
-  it("maps ItemCapExceededError to 403", async () => {
+  it("does not report a cap hit for a different rpc error that echoes the cap text", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        code: "22P02",
+        message: 'invalid input syntax for type numeric: "item_limit_reached:1:2"',
+      },
+    })
     mockCreateSupabaseServerClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+      rpc,
     })
     mockGetSubscriptionStatus.mockResolvedValue({ isPro: false })
-    mockGetEffectiveCap.mockResolvedValue(100)
-    mockFlattenBoxCopyTreesForAtomicPaste.mockImplementation(() => {
-      throw new ItemCapExceededError(100, 100)
+    mockGetEffectiveCap.mockResolvedValue(10)
+    mockFlattenBoxCopyTreesForAtomicPaste.mockReturnValue({
+      nodes: [],
+      items: [],
+      wishlistItems: [],
     })
 
     const response = await POST(
       makeRequest({ trees: [{ name: "Root", children: [], items: [], wishlist_items: [] }] }) as any
     )
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({ error: "Failed to paste box tree" })
   })
 })

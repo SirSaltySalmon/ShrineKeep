@@ -7,14 +7,17 @@ import { Box } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { ChevronRight, Home } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getBoxDragId } from "@/components/droppable-box-card"
+import { BREADCRUMB_BOX_DROP_ID_PREFIX, isBoxDropBlocked } from "@/lib/dashboard-drop-targets"
+import { useFadeOnChange } from "@/lib/hooks/use-fade-on-change"
 
 export const BREADCRUMB_ROOT_DROP_ID = "breadcrumb-root"
 
-const BREADCRUMB_BOX_PREFIX = "breadcrumb-box-"
+/** Dashed outline on a crumb that would accept the drag in progress; the "is over" ring is the stronger state. */
+const CRUMB_DROP_CUE_CLASS = "outline-dashed outline-1 outline-primary/60"
+const CRUMB_OVER_CLASS = "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
 
 export function getBreadcrumbBoxDropId(boxId: string) {
-  return BREADCRUMB_BOX_PREFIX + boxId
+  return BREADCRUMB_BOX_DROP_ID_PREFIX + boxId
 }
 
 interface BreadcrumbsProps {
@@ -26,6 +29,11 @@ interface BreadcrumbsProps {
   activeDragId?: string | null
   /** Selected box ids when dragging boxes (avoid dropping onto a box being moved). */
   selectedBoxIds?: ReadonlySet<string>
+  /**
+   * Called with the root-first chain of boxes down to `currentBoxId` each time it is loaded.
+   * Pass a stable function (a state setter, `useCallback`): a new one reloads the chain.
+   */
+  onPathChange?: (path: Box[]) => void
 }
 
 function DroppableHomeCrumb({
@@ -50,7 +58,8 @@ function DroppableHomeCrumb({
       ref={setNodeRef}
       className={cn(
         "flex min-h-11 min-w-11 items-center justify-center rounded-md p-2 transition-colors shrink-0 touch-none",
-        isOver && "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
+        dragActive && !dropDisabled && !isOver && CRUMB_DROP_CUE_CLASS,
+        isOver && CRUMB_OVER_CLASS
       )}
     >
       <Button
@@ -83,15 +92,14 @@ function DroppableBoxCrumb({
   isLast?: boolean
 }) {
   const dropId = getBreadcrumbBoxDropId(box.id)
-  const isDraggingThisBox = activeDragId === getBoxDragId(box.id)
-  const isBoxDrag = Boolean(activeDragId?.startsWith("box-drag-"))
-  const isSelectedMoveTarget = isBoxDrag && selectedBoxIds.has(box.id)
+  // The box being dragged, or (for box drags) any selected box, is not a move target.
+  const dropDisabled = isBoxDropBlocked(activeDragId, box.id, selectedBoxIds.has(box.id))
   const dragActive = activeDragId != null
 
   const { isOver, setNodeRef } = useDroppable({
     id: dropId,
     data: { type: "breadcrumb", targetBoxId: box.id },
-    disabled: isDraggingThisBox || isSelectedMoveTarget,
+    disabled: dropDisabled,
   })
 
   return (
@@ -100,7 +108,8 @@ function DroppableBoxCrumb({
         ref={setNodeRef}
         className={cn(
           "flex min-h-11 min-w-0 max-w-full items-center rounded-md px-2 py-1 transition-colors touch-none",
-          isOver && "bg-primary/10 ring-2 ring-primary/40 ring-offset-2 ring-offset-background"
+          dragActive && !dropDisabled && !isOver && CRUMB_DROP_CUE_CLASS,
+          isOver && CRUMB_OVER_CLASS
         )}
       >
         <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -130,41 +139,49 @@ export default function Breadcrumbs({
   enableDropTargets = false,
   activeDragId = null,
   selectedBoxIds = new Set(),
+  onPathChange,
 }: BreadcrumbsProps) {
   const [path, setPath] = useState<Box[]>([])
-  const supabase = createSupabaseClient()
   const dragActive = activeDragId != null
+  // The chain arrives after the view does. It fades in as a whole when it is a different chain;
+  // a crumb that only switches between its droppable and plain forms does not.
+  const crumbsRef = useFadeOnChange<HTMLDivElement>(path.map((box) => box.id).join("/"))
 
   useEffect(() => {
-    loadPath()
-  }, [currentBoxId])
+    // The chain is one request per level. Navigating again before it finishes must not let
+    // this (older) load overwrite the newer one.
+    let cancelled = false
 
-  const loadPath = async () => {
-    if (!currentBoxId) {
-      setPath([])
-      return
-    }
+    const loadPath = async () => {
+      const supabase = createSupabaseClient()
+      const boxes: Box[] = []
+      let currentId: string | null = currentBoxId
 
-    const boxes: Box[] = []
-    let currentId: string | null = currentBoxId
+      while (currentId) {
+        const { data } = (await supabase
+          .from("boxes")
+          .select("*")
+          .eq("id", currentId)
+          .single()) as { data: Box | null }
+        if (cancelled) return
 
-    while (currentId) {
-      const { data } = (await supabase
-        .from("boxes")
-        .select("*")
-        .eq("id", currentId)
-        .single()) as { data: Box | null }
-
-      if (data) {
-        boxes.unshift(data)
-        currentId = data.parent_box_id || null
-      } else {
-        break
+        if (data) {
+          boxes.unshift(data)
+          currentId = data.parent_box_id || null
+        } else {
+          break
+        }
       }
+
+      setPath(boxes)
+      onPathChange?.(boxes)
     }
 
-    setPath(boxes)
-  }
+    void loadPath()
+    return () => {
+      cancelled = true
+    }
+  }, [currentBoxId, onPathChange])
 
   return (
     <nav className="flex items-center space-x-2 text-fluid-sm layout-shrink-visible">
@@ -187,6 +204,7 @@ export default function Breadcrumbs({
           </Button>
         </div>
       )}
+      <div ref={crumbsRef} className="flex min-w-0 flex-1 items-center space-x-2">
       {path.map((box, index) => {
         const isLast = index === path.length - 1
         if (enableDropTargets && isLast) {
@@ -254,6 +272,7 @@ export default function Breadcrumbs({
           </div>
         )
       })}
+      </div>
     </nav>
   )
 }

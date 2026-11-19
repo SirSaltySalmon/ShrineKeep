@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import { PRIVATE_SHARING_DEFAULTS } from "./contracts"
 import {
+  ROOT_BOX_SCOPE,
+  countChildBoxesByParent,
   countDescendantsById,
   laterSharingRevision,
   normalizeBox,
@@ -48,6 +50,26 @@ describe("countDescendantsById", () => {
     ])
     expect(counts.a).toBeGreaterThanOrEqual(0)
     expect(counts.b).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe("countChildBoxesByParent", () => {
+  it("counts direct children only, with top-level boxes under the root scope", () => {
+    expect(
+      countChildBoxesByParent([
+        { id: "a", parent_box_id: null },
+        { id: "b" },
+        { id: "a1", parent_box_id: "a" },
+        { id: "a2", parent_box_id: "a" },
+        { id: "a1x", parent_box_id: "a1" },
+      ]),
+    ).toEqual({ [ROOT_BOX_SCOPE]: 2, a: 2, a1: 1 })
+  })
+
+  it("always has a root count, and no entry for a box with nothing inside", () => {
+    expect(countChildBoxesByParent([])).toEqual({ [ROOT_BOX_SCOPE]: 0 })
+    const counts = countChildBoxesByParent([{ id: "a", parent_box_id: null }])
+    expect(counts.a).toBeUndefined()
   })
 })
 

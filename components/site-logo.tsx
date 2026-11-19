@@ -66,7 +66,11 @@ export function SiteLogo({
         strokeWidth={markStrokeWidth}
         className={cn("h-7 w-7 text-foreground", iconClassName)}
       />
-      <span className={cn("truncate min-w-0 font-heading font-semibold text-fluid-sm hover:underline flex items-center space-x-1 whitespace-nowrap", textClassName)}>{label}</span>
+      {/*
+        `truncate-line`, not `truncate`: the link is `leading-none`, and `truncate` clips both axes,
+        which cuts descenders off heading fonts taller than Inter (Lora, Playfair, ...).
+      */}
+      <span className={cn("truncate-line min-w-0 font-heading font-semibold text-fluid-sm hover:underline flex items-center space-x-1 whitespace-nowrap", textClassName)}>{label}</span>
     </>
   )
 

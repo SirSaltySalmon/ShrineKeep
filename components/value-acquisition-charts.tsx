@@ -10,6 +10,8 @@ import {
 import { format } from "date-fns"
 import { formatCurrency } from "@/lib/utils"
 import type { ValueChartPoint, AcquisitionChartPoint } from "@/lib/hooks/use-box-stats"
+import { mergeStatsSeries } from "@/lib/stats/box-stats-series"
+import { localDayEndMs, localDayStartMs } from "@/lib/stats/local-day"
 import {
   ChartContainer,
   ChartTooltip,
@@ -18,18 +20,6 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-
-export function getGraphValueColor(): string {
-  if (typeof window === "undefined") return "#22c55e"
-  const value = getComputedStyle(document.documentElement).getPropertyValue("--graph-value-color").trim()
-  return value ? `hsl(${value})` : "#22c55e"
-}
-
-export function getGraphAcquisitionColor(): string {
-  if (typeof window === "undefined") return "#ef4444"
-  const value = getComputedStyle(document.documentElement).getPropertyValue("--graph-acquisition-color").trim()
-  return value ? `hsl(${value})` : "#ef4444"
-}
 
 /** Short format for Y-axis so labels fit (e.g. $900, $1.2k, $2.5M). */
 function formatAxisCurrency(value: number): string {
@@ -78,47 +68,30 @@ function getSharedTimeDomain(
     ...acquisitionData.map((p) => p.date),
   ].filter(Boolean)
   if (dates.length === 0) return undefined
-  const ms = dates.map((d) => new Date(d).getTime())
+  const ms = dates.map(localDayStartMs)
   return [Math.min(...ms), Math.max(...ms)]
 }
 
-/** Start of day and end of day in ms for a YYYY-MM-DD string. */
+/** Start of the first day to the end of the last, in ms, for YYYY-MM-DD strings. */
 function dateRangeToDomain(fromDate: string, toDate: string): [number, number] {
-  const from = new Date(fromDate + "T00:00:00.000Z").getTime()
-  const to = new Date(toDate + "T23:59:59.999Z").getTime()
-  return [from, to]
+  return [localDayStartMs(fromDate), localDayEndMs(toDate)]
 }
 
 type MergedChartPoint = { date: string; dateMs: number; value: number; cumulativeAcquisition: number }
 
+/**
+ * Both series on one shared set of dates, zero-filled before each series starts and carried
+ * forward after its last figure (`mergeStatsSeries`). Every chart here draws this, overlay
+ * or separate, so a line never starts or stops partway across the axis.
+ */
 function getMergedChartData(
   valueData: ValueChartPoint[],
   acquisitionData: AcquisitionChartPoint[]
 ): MergedChartPoint[] {
-  const allDates = Array.from(
-    new Set([
-      ...valueData.map((p) => p.date),
-      ...acquisitionData.map((p) => p.date),
-    ])
-  ).filter(Boolean).sort()
-  if (allDates.length === 0) return []
-  const valueByDate = new Map(valueData.map((p) => [p.date, p.value]))
-  const acquisitionSorted = [...acquisitionData].sort((a, b) => a.date.localeCompare(b.date))
-  let lastAcquisition = 0
-  return allDates.map((date) => {
-    const value =
-      valueByDate.get(date) ??
-      valueData.filter((p) => p.date <= date).sort((a, b) => a.date.localeCompare(b.date)).pop()?.value ??
-      0
-    const acqPoint = acquisitionSorted.filter((p) => p.date <= date).pop()
-    if (acqPoint) lastAcquisition = acqPoint.cumulativeAcquisition
-    return {
-      date,
-      dateMs: new Date(date).getTime(),
-      value: Number(value),
-      cumulativeAcquisition: lastAcquisition,
-    }
-  })
+  return mergeStatsSeries(valueData, acquisitionData).map((point) => ({
+    ...point,
+    dateMs: localDayStartMs(point.date),
+  }))
 }
 
 const tooltipWrapperStyle = { maxWidth: "90vw", minWidth: 120, overflowX: "auto" as const }
@@ -155,7 +128,7 @@ function CurrencyLineChart<T extends { date: string }>({
   }
   const dataWithMs: ChartPointWithMs<T>[] = data.map((d) => ({
     ...d,
-    dateMs: new Date(d.date).getTime(),
+    dateMs: localDayStartMs(d.date),
   }))
   return (
     <div>
@@ -228,8 +201,9 @@ export function ValueAcquisitionCharts({
   const hasAcquisition = acquisitionChartData.length > 0
   const hasAny = hasValue || hasAcquisition
 
+  const mergedData = hasAny ? getMergedChartData(valueChartData, acquisitionChartData) : []
+
   if (graphOverlay && hasAny) {
-    const mergedData = getMergedChartData(valueChartData, acquisitionChartData)
     return (
       <div className="space-y-2">
         <h3 className="text-sm font-semibold">Value & acquisition over time</h3>
@@ -279,8 +253,12 @@ export function ValueAcquisitionCharts({
 
   return (
     <div className="space-y-6">
+      {/*
+        Separate charts draw the same merged, zero-filled series as the overlay chart, one line
+        each. A series with no figures of its own still shows its empty message, not a flat 0.
+      */}
       <CurrencyLineChart
-        data={valueChartData}
+        data={hasValue ? mergedData : []}
         dataKey="value"
         title="Total value over time"
         emptyMessage="No value history. Update item values to see the graph."
@@ -290,7 +268,7 @@ export function ValueAcquisitionCharts({
         height={height}
       />
       <CurrencyLineChart
-        data={acquisitionChartData}
+        data={hasAcquisition ? mergedData : []}
         dataKey="cumulativeAcquisition"
         title="Cumulative acquisition cost"
         emptyMessage="No acquisition data. Add acquisition date and price to items to see the graph."

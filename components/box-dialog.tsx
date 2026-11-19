@@ -207,7 +207,7 @@ export default function BoxDialog({
                 type="button"
                 onClick={() => setDeleteMode("delete-all")}
                 className={cn(
-                  "w-full rounded-md border border-input bg-background p-3 text-left transition-colors hover:bg-accent",
+                  "w-full rounded-md sk-outline-control bg-background p-3 text-left transition-colors hover:bg-accent",
                   deleteMode === "delete-all" && "ring-2 ring-inset ring-primary",
                 )}
               >
@@ -220,7 +220,7 @@ export default function BoxDialog({
                 type="button"
                 onClick={() => setDeleteMode("move-up")}
                 className={cn(
-                  "w-full rounded-md border border-input bg-background p-3 text-left transition-colors hover:bg-accent",
+                  "w-full rounded-md sk-outline-control bg-background p-3 text-left transition-colors hover:bg-accent",
                   deleteMode === "move-up" && "ring-2 ring-inset ring-primary",
                 )}
               >
@@ -266,7 +266,7 @@ export default function BoxDialog({
               />
             </div>
             {ownerSharing?.available && box && (
-              <div className="border-t pt-4 space-y-4">
+              <div className="sk-rule-t pt-4 space-y-4">
                 <ContainerAudienceFields
                   containerLabel={box.name}
                   value={sharing}

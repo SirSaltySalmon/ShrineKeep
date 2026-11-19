@@ -4,12 +4,15 @@ import type { Item, ItemCopyPayload, Tag, TagColor } from "./types"
 import type { SearchFiltersState } from "./types"
 import { TAG_COLORS } from "./types"
 
-/** Canonical ring: ring-2 ring-primary ring-offset-2. Keep SELECTION_RING_CLASS and FOCUS_RING_CLASS in sync. */
-export const SELECTION_RING_CLASS = "ring-2 ring-primary ring-offset-2"
+/**
+ * Canonical ring: ring-2 ring-primary ring-offset-2, with the offset filled in the page colour
+ * (Tailwind's default offset fill is white). Keep SELECTION_RING_CLASS and FOCUS_RING_CLASS in sync.
+ */
+export const SELECTION_RING_CLASS = "ring-2 ring-primary ring-offset-2 ring-offset-background"
 
 /** Focus-visible ring for inputs/controls; same ring as SELECTION_RING_CLASS. Update both when changing the ring. */
 export const FOCUS_RING_CLASS =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 
 /** Lighter ring on hover for selectables (items, boxes) when in selection mode. Color from theme (--selectable-hover-ring). Ring only, no offset fill. */
 export const SELECTABLE_HOVER_RING_CLASS =
@@ -67,21 +70,16 @@ export function itemMatchesLocalSearch(
 
 /** Tag text color from theme (--tag-foreground). Use for text inside tag chips. */
 export function getTagForeground(): string {
-  if (typeof document === "undefined") return "hsl(0 0% 100%)"
-  const v = getComputedStyle(document.documentElement).getPropertyValue("--tag-foreground").trim()
-  return v ? `hsl(${v})` : "hsl(0 0% 100%)"
+  return "hsl(var(--tag-foreground))"
 }
 
-/** Background and text color for a tag chip from theme. Use everywhere tag chips are rendered. */
+/**
+ * Background and text color for a tag chip from theme. Use everywhere tag chips are rendered.
+ * Returns `var()` references, not resolved colours: the server and the client render the same
+ * markup, and the chip follows whichever theme is in scope where it is drawn.
+ */
 export function getTagChipStyle(color: TagColor): { background: string; color: string } {
-  if (typeof document === "undefined") return { background: "hsl(217 91% 60%)", color: "hsl(0 0% 100%)" }
-  const root = document.documentElement
-  const bg = getComputedStyle(root).getPropertyValue(`--tag-${color ?? "blue"}`).trim()
-  const fg = getComputedStyle(root).getPropertyValue("--tag-foreground").trim()
-  return {
-    background: bg ? `hsl(${bg})` : "hsl(217 91% 60%)",
-    color: fg ? `hsl(${fg})` : "hsl(0 0% 100%)",
-  }
+  return { background: `hsl(var(--tag-${color ?? "blue"}))`, color: getTagForeground() }
 }
 
 /** Sort tags by color (rainbow order) then alphabetically by name. Use wherever tags are listed. */

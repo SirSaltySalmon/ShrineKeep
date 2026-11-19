@@ -3,6 +3,7 @@
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { useQueryClient } from "@tanstack/react-query"
 import TurnstileWidget, { type TurnstileWidgetRef } from "@/components/turnstile-widget"
 import { SiteLogoMark } from "@/components/site-logo"
 import { Button } from "@/components/ui/button"
@@ -33,6 +34,7 @@ export default function JudgeEntryClient({
   expiredNotice: boolean
 }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const turnstileRef = useRef<TurnstileWidgetRef>(null)
   const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -63,6 +65,8 @@ export default function JudgeEntryClient({
           /* ignore */
         }
       }
+      // Either path signs this tab in as a new account, and some query keys carry no user id.
+      queryClient.clear()
       router.push("/dashboard")
       router.refresh()
     } catch (cause) {

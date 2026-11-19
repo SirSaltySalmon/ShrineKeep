@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { createSupabaseServiceClient } from "@/lib/supabase/service"
 import { generateShareToken } from "@/lib/settings"
 import { Theme } from "@/lib/types"
+import { isThemeRadius, normalizeStoredTheme, sanitizeTheme } from "@/lib/theme-colors"
 import { FONT_OPTIONS } from "@/lib/fonts"
 import type { FontFamilyId } from "@/lib/fonts"
 import { NAME_MAX_LENGTH, NAME_MAX_MESSAGE } from "@/lib/validation"
@@ -51,14 +52,8 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Merge stored display prefs into color_scheme for clients (graph_overlay is separate)
-    const colorScheme = settings.color_scheme as Theme | null | undefined
-    if (colorScheme && typeof colorScheme === "object") {
-      settings.color_scheme = {
-        ...colorScheme,
-        radius: settings.border_radius ?? colorScheme.radius ?? "0.5rem",
-      }
-    }
+    // Merge stored display prefs into color_scheme for clients (graph_overlay is separate).
+    settings.color_scheme = normalizeStoredTheme(settings.color_scheme, settings.border_radius)
 
     return NextResponse.json(await attachOwnerSharing(user.id, settings))
   } catch (error) {
@@ -93,14 +88,15 @@ export async function PUT(request: NextRequest) {
       avatar_url: avatarUrl,
     } = body
 
-    const themePayload = theme ?? color_scheme
-    if (themePayload !== undefined && themePayload !== null) {
-      if (typeof themePayload !== "object") {
-        return NextResponse.json(
-          { error: "Invalid theme format" },
-          { status: 400 }
-        )
-      }
+    // `theme` and `color_scheme` are the same field. An object replaces the saved theme (only
+    // what sanitizeTheme() keeps is stored); null clears it; leaving both out changes nothing.
+    const themePayload: unknown = theme !== undefined ? theme : color_scheme
+    const sanitizedTheme = sanitizeTheme(themePayload)
+    if (themePayload !== undefined && themePayload !== null && !sanitizedTheme) {
+      return NextResponse.json(
+        { error: "Invalid theme format" },
+        { status: 400 }
+      )
     }
 
     const updateData: {
@@ -129,9 +125,13 @@ export async function PUT(request: NextRequest) {
       updateData.ai_tutorial_reset_at = new Date().toISOString()
     }
 
-    if (themePayload !== undefined) {
-      updateData.color_scheme = themePayload
-      updateData.border_radius = themePayload.radius ?? undefined
+    if (sanitizedTheme) {
+      updateData.color_scheme = sanitizedTheme
+      // The legacy column wins on read, so keep it in step with the theme's radius.
+      updateData.border_radius = sanitizedTheme.radius
+    } else if (themePayload === null) {
+      updateData.color_scheme = null
+      updateData.border_radius = null
     }
 
     const validFontValues = new Set(FONT_OPTIONS.map((o) => o.value))
@@ -145,8 +145,9 @@ export async function PUT(request: NextRequest) {
         ? body_font_family
         : "Inter"
     }
-    if (border_radius !== undefined && typeof border_radius === "string") {
-      updateData.border_radius = border_radius.trim() || null
+    if (typeof border_radius === "string") {
+      // Anything that is not an allowed radius, the empty string included, clears the override.
+      updateData.border_radius = isThemeRadius(border_radius) ? border_radius : null
     }
     if (graph_overlay !== undefined) {
       updateData.graph_overlay = Boolean(graph_overlay)
@@ -221,7 +222,8 @@ export async function PUT(request: NextRequest) {
       userUpdates.avatar_url = allowed ? (avatarUrl || null) : null
     }
     if (userUpdates.name !== undefined || userUpdates.avatar_url !== undefined) {
-      await supabase.from("users").update(userUpdates).eq("id", user.id)
+      const { error: userError } = await supabase.from("users").update(userUpdates).eq("id", user.id)
+      if (userError) throw userError
     }
 
     return NextResponse.json(await attachOwnerSharing(user.id, updated))

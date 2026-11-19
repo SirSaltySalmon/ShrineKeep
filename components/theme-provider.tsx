@@ -1,7 +1,8 @@
 "use client"
 
 import { ThemeProvider as NextThemesProvider } from "next-themes"
-import { useEffect, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useState } from "react"
+import type { ComponentProps } from "react"
 import { usePathname } from "next/navigation"
 import { applyColorScheme, getDefaultColorScheme } from "@/lib/settings"
 import { Theme } from "@/lib/types"
@@ -27,17 +28,9 @@ function isPublicWishlistSharePath(pathname: string): boolean {
   return pathname.startsWith("/wishlist/") && pathname !== "/wishlist"
 }
 
-/** Do not fetch /api/colors on these routes. */
+/** Routes that never show the account theme: do not fetch /api/colors, and keep it off the document. */
 function isExcludedFromAccountThemeFetch(pathname: string): boolean {
   return shouldResetDocumentToDefaults(pathname) || isPublicWishlistSharePath(pathname)
-}
-
-interface ThemeProviderProps {
-  children: React.ReactNode
-  attribute?: string
-  defaultTheme?: string
-  enableSystem?: boolean
-  disableTransitionOnChange?: boolean
 }
 
 interface ColorsResponse {
@@ -46,10 +39,23 @@ interface ColorsResponse {
   body_font_family: FontFamilyId
 }
 
-export function ThemeProvider({
-  children,
-  ...props
-}: ThemeProviderProps) {
+export interface SavedAccountTheme {
+  theme: Theme
+  headerFontFamily: FontFamilyId
+  bodyFontFamily: FontFamilyId
+}
+
+const AccountThemeSavedContext = createContext<(saved: SavedAccountTheme) => void>(() => {})
+
+/**
+ * Report a theme that was just saved. The provider only refetches on navigation, so without
+ * this the next route would show the theme it loaded earlier until /api/colors answers.
+ */
+export function useAccountThemeSaved() {
+  return useContext(AccountThemeSavedContext)
+}
+
+export function ThemeProvider({ children, ...props }: ComponentProps<typeof NextThemesProvider>) {
   const pathname = usePathname()
   const [customColors, setCustomColors] = useState<Theme | null>(null)
   const [headerFontFamily, setHeaderFontFamily] = useState<FontFamilyId>(
@@ -98,11 +104,10 @@ export function ThemeProvider({
 
     const root = document.documentElement
 
-    if (isPublicWishlistSharePath(pathname)) {
-      return
-    }
-
-    if (shouldResetDocumentToDefaults(pathname)) {
+    // Marketing and auth pages use the built-in defaults; a shared wishlist scopes the owner's
+    // style to its own subtree (PublicTheme). Either way nothing of the viewer's may stay on
+    // <html>: not the saved theme, not an unsaved Settings preview, not the fonts.
+    if (isExcludedFromAccountThemeFetch(pathname)) {
       Object.keys(applyColorScheme(getDefaultColorScheme())).forEach((property) => {
         root.style.removeProperty(property)
       })
@@ -134,26 +139,17 @@ export function ThemeProvider({
     })
   }, [customColors, headerFontFamily, bodyFontFamily, isLoading, pathname])
 
-  return <NextThemesProvider>{children}</NextThemesProvider>
-}
+  const handleAccountThemeSaved = useCallback((saved: SavedAccountTheme) => {
+    setCustomColors(saved.theme)
+    setHeaderFontFamily(saved.headerFontFamily)
+    setBodyFontFamily(saved.bodyFontFamily)
+  }, [])
 
-/**
- * Apply custom colors for public wishlist view
- * This is used when viewing someone else's public wishlist
- */
-export function applyPublicWishlistColors(colors: Theme | null) {
-  if (!colors) return
-
-  const cssVars = applyColorScheme(colors)
-  const root = document.documentElement
-
-  Object.entries(cssVars).forEach(([property, value]) => {
-    root.style.setProperty(property, value)
-  })
-
-  return () => {
-    Object.keys(cssVars).forEach((property) => {
-      root.style.removeProperty(property)
-    })
-  }
+  return (
+    <NextThemesProvider {...props}>
+      <AccountThemeSavedContext.Provider value={handleAccountThemeSaved}>
+        {children}
+      </AccountThemeSavedContext.Provider>
+    </NextThemesProvider>
+  )
 }

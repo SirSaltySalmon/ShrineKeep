@@ -91,8 +91,9 @@ describe("owner containers still own their chrome", () => {
   it("box card keyboard path stays on the shared Selectable control", () => {
     const selectable = readFileSync(fileURLToPath(new URL("../../../components/selectable.tsx", import.meta.url)), "utf8")
     expect(selectable).toContain("touch-manipulation")
-    expect(selectable).toContain("tabIndex={-1}")
-    expect(selectable).toContain("onFocus")
+    // A keyboard button: focusable, and Enter or Space acts as a click.
+    expect(selectable).toContain('role = "button"')
+    expect(selectable).toContain("onKeyDown")
   })
 })
 

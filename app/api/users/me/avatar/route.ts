@@ -21,10 +21,14 @@ export async function DELETE() {
       console.error("Error detaching avatar asset:", profileError)
     }
 
-    await supabase
+    const { error: userError } = await supabase
       .from("users")
       .update({ avatar_url: null, updated_at: new Date().toISOString() })
       .eq("id", authUser.id)
+    if (userError) {
+      console.error("Error clearing avatar url:", userError)
+      return NextResponse.json({ error: "Failed to remove avatar" }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true, deletedFromStorage: false })
   } catch (error) {

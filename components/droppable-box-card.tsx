@@ -4,9 +4,13 @@ import { useDraggable, useDroppable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { useCallback } from "react"
 import { Box } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import { BOX_DRAG_ID_PREFIX, BOX_DROP_ID_PREFIX, shouldCueBoxDrop } from "@/lib/dashboard-drop-targets"
 import { Selectable } from "@/components/selectable"
 import { OWNER_CAPABILITIES } from "@/lib/sharing/presentation/capabilities"
 import { presentOwnerBox } from "@/lib/sharing/presentation/adapters"
+import type { CardDensity } from "@/lib/card-density"
+import type { BoxSparklineSeries } from "@/lib/stats/box-sparkline"
 import BoxCard from "./box-card"
 
 interface DroppableBoxCardProps {
@@ -17,21 +21,35 @@ interface DroppableBoxCardProps {
   selected?: boolean
   selectionMode?: boolean
   registerBoxCardRef?: (id: string, el: HTMLDivElement | null) => void
+  /** Forwarded to `BoxCard`. */
+  density?: CardDensity
+  /** Forwarded to `BoxCard`: a series, `null` to keep the row empty, or leave out for no row. */
+  sparkline?: BoxSparklineSeries | null
 }
 
-const DROP_ID_PREFIX = "box-"
-const DRAG_ID_PREFIX = "box-drag-"
-
 export function getBoxDropId(boxId: string) {
-  return DROP_ID_PREFIX + boxId
+  return BOX_DROP_ID_PREFIX + boxId
 }
 
 export function getBoxDragId(boxId: string) {
-  return DRAG_ID_PREFIX + boxId
+  return BOX_DRAG_ID_PREFIX + boxId
 }
 
-export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStats, selected = false, selectionMode = false, registerBoxCardRef }: DroppableBoxCardProps) {
+export default function DroppableBoxCard({
+  box,
+  onBoxClick,
+  onRename,
+  onShowStats,
+  selected = false,
+  selectionMode = false,
+  registerBoxCardRef,
+  density,
+  sparkline,
+}: DroppableBoxCardProps) {
+  // `active` is taken from this hook rather than `useDndContext()`, whose value changes on
+  // every pointer move. This one changes when a drag starts, crosses to another target or ends.
   const {
+    active,
     attributes,
     listeners,
     setNodeRef: setDragRef,
@@ -48,6 +66,11 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
     disabled: isDragging,
   })
 
+  // Every box card advertises itself as soon as a drag starts, except the dragged box and,
+  // for box drags, the rest of the selection.
+  const activeDragId = active ? String(active.id) : null
+  const showDropCue = shouldCueBoxDrop(activeDragId, box.id, selected) && !isOver
+
   const style = {
     transform: CSS.Translate.toString(transform),
     opacity: isDragging ? 0.5 : 1,
@@ -63,8 +86,6 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
     [setDropRef, setDragRef, registerBoxCardRef, box.id]
   )
 
-  const presented = presentOwnerBox(box)
-
   return (
     <Selectable
       ref={mergedRef}
@@ -72,16 +93,24 @@ export default function DroppableBoxCard({ box, onBoxClick, onRename, onShowStat
       selectionMode={selectionMode}
       isOver={isOver}
       style={style}
-      className={isDragging ? "item-card-no-select !transition-none" : "item-card-no-select"}
+      className={cn(
+        "item-card-no-select",
+        // Draggable, so a grab hand instead of Selectable's pointer.
+        isDragging ? "cursor-grabbing !transition-none" : "cursor-grab active:cursor-grabbing",
+        // Same footprint as the "is over" ring (2px at a 2px offset), which replaces it on hover.
+        showDropCue && "outline-dashed outline-2 outline-offset-2 outline-primary/60"
+      )}
       data-box-id={box.id}
       onClick={(e) => onBoxClick(box, e)}
       {...attributes}
       {...listeners}
     >
       <BoxCard
-        box={presented}
+        box={presentOwnerBox(box)}
         capabilities={OWNER_CAPABILITIES}
         frame="embedded"
+        density={density}
+        sparkline={sparkline}
         onBoxClick={() => {}}
         onRename={onRename ? () => onRename(box) : undefined}
         onShowStats={onShowStats ? () => onShowStats(box) : undefined}

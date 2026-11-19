@@ -1,85 +1,40 @@
 "use client"
 
-import BoxGrid from "@/components/box-grid"
-import ItemGrid from "@/components/item-grid"
 import BoxStatsPanel from "@/components/box-stats-panel"
 import ValueGraph from "@/components/value-graph"
-import ItemCard from "@/components/item-card"
-import { OWNER_CAPABILITIES } from "@/lib/sharing/presentation/capabilities"
-import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
-import { Skeleton } from "boneyard-js/react"
-import {
-  BOX_SKELETON_FIXTURES,
-  COLLECTION_ITEM_SKELETON_FIXTURES,
-  WISHLIST_ITEM_SKELETON_FIXTURES,
-} from "@/components/boneyard-fixtures"
 import {
   BONEYARD_BOX_STATS_FIXTURE,
   BONEYARD_VALUE_GRAPH_HISTORY_FIXTURE,
 } from "@/components/boneyard-stats-fixtures"
 import Link from "next/link"
+import BoneyardCardSections from "../card-sections"
 
+/**
+ * Start URL for `npx boneyard-js build`. The crawler only follows links found on this page,
+ * so every other preview page has to be linked from here.
+ */
 export default function BoneyardPreviewPage() {
   return (
     <main className="container mx-auto px-4 py-8 space-y-8">
-      <h1 className="text-2xl font-semibold">Boneyard Preview</h1>
+      <h1 className="text-2xl font-semibold">Boneyard Preview — Comfortable cards</h1>
       <BoxStatsPanel
         boxId="root"
         boxName="Root"
         previewData={BONEYARD_BOX_STATS_FIXTURE}
       />
-      <BoxGrid
-        boxes={BOX_SKELETON_FIXTURES}
-        currentBoxId={null}
-        onBoxClick={() => {}}
-        onRename={() => {}}
-        onShowStats={() => {}}
-        onCreateBox={async () => {}}
-        toggleBoxSelection={() => {}}
-      />
-      <ItemGrid
-        items={COLLECTION_ITEM_SKELETON_FIXTURES}
-        currentBoxId={null}
-        onItemUpdate={() => {}}
-        sectionTitle="Items"
-        totalItemCount={12}
-        itemCap={50}
-        isPro={false}
-      />
-      <ItemGrid
-        items={WISHLIST_ITEM_SKELETON_FIXTURES}
-        currentBoxId={null}
-        onItemUpdate={() => {}}
-        sectionTitle="Wishlist"
-        variant="wishlist"
-        addButtonLabel="Add to Wishlist"
-        totalItemCount={12}
-        itemCap={50}
-        isPro={false}
-      />
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Search Results</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {COLLECTION_ITEM_SKELETON_FIXTURES.map((item) => (
-            <Skeleton
-              key={item.id}
-              name="search-results-card"
-              loading
-              animate="shimmer"
-              color="hsl(var(--muted))"
-              darkColor="hsl(var(--muted))"
-              fixture={<ItemCard item={presentOwnerItem(item)} variant="collection" capabilities={OWNER_CAPABILITIES} onClick={() => {}} />}
-            >
-              <ItemCard item={presentOwnerItem(item)} variant="collection" capabilities={OWNER_CAPABILITIES} onClick={() => {}} />
-            </Skeleton>
-          ))}
-        </div>
-      </section>
+      <BoneyardCardSections density="comfortable" />
       <ValueGraph
         itemId="33333333-3333-3333-3333-333333333301"
         previewHistory={BONEYARD_VALUE_GRAPH_HISTORY_FIXTURE}
       />
-      <Link href="./2">Next Preview</Link>
+      <nav className="flex flex-wrap gap-4 text-sm">
+        <Link href="/boneyard-preview/2" className="underline underline-offset-4">
+          Box stats dialog
+        </Link>
+        <Link href="/boneyard-preview/3" className="underline underline-offset-4">
+          Compact cards
+        </Link>
+      </nav>
     </main>
   )
 }

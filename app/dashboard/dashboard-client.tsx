@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createSupabaseClient } from "@/lib/supabase/client"
-import { Box, Item, Tag, type Theme } from "@/lib/types"
+import { Box, Item, Tag } from "@/lib/types"
 import {
   DEFAULT_SEARCH_FILTERS,
   hasAnySearchFilter,
@@ -16,14 +16,22 @@ import {
   itemMatchesLocalSearch,
   sortTagsByColorThenName,
 } from "@/lib/utils"
+import {
+  collectItemTags,
+  filterItemsByIncludeTags,
+  getHiddenItemIds,
+  toggleIncludeTag,
+} from "@/lib/tag-quick-filter"
 import AdvancedSearchFilters from "@/components/advanced-search-filters"
+import TagQuickFilter from "@/components/tag-quick-filter"
+import CardDensityToggle from "@/components/card-density-toggle"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Search, Sword, Filter, Sparkle } from "lucide-react"
 import { DndContext } from "@dnd-kit/core"
 import { dashboardDndCollisionDetection } from "@/lib/dashboard-dnd-collision"
-import { getItemDragId } from "@/components/draggable-item-card"
+import { ITEM_DRAG_ID_PREFIX } from "@/lib/dashboard-drop-targets"
 import BoxGrid from "@/components/box-grid"
 import BoxDialog from "@/components/box-dialog"
 import BoxStatsDialog from "@/components/box-stats-dialog"
@@ -36,9 +44,9 @@ import { SelectionModeToggle } from "@/components/selection-mode-toggle"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import UpsellModal from "@/components/upsell-modal"
-import { FREE_TIER_CAP } from "@/lib/subscription"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
+import { markItemAcquired } from "@/lib/items/mark-acquired"
 import { useLiveSubscription } from "@/lib/hooks/use-live-subscription"
 import { useDashboardData } from "@/lib/hooks/use-dashboard-data"
 import { useDashboardDialogs } from "@/lib/hooks/use-dashboard-dialogs"
@@ -58,7 +66,11 @@ import {
   type CoachEvent,
   type CoachState,
 } from "@/lib/webmcp/first-run-coach"
-import { chooseFirstRun, coachToolsSettled } from "@/lib/webmcp/first-run-chooser"
+import {
+  chooseFirstRun,
+  coachToolsSettled,
+  FIRST_RUN_CHECK_TIMEOUT_MS,
+} from "@/lib/webmcp/first-run-chooser"
 
 const DASHBOARD_DND_CONTEXT_ID = "dashboard-dnd-context"
 
@@ -66,8 +78,6 @@ interface DashboardClientProps {
   aiWidgetVisible?: boolean
   tutorialResetAt?: string | null
   user: any
-  /** Theme (color_scheme) from user_settings; not used for graph overlay. */
-  initialTheme?: Theme | null
   /** Chart overlay preference from user_settings (separate from theme). */
   initialGraphOverlay?: boolean
   isPro?: boolean
@@ -77,13 +87,13 @@ interface DashboardClientProps {
   itemCount?: number
   /** null when Pro (unlimited) */
   itemCap?: number | null
-  freeTierCap?: number
   /** Tutorial completed or skipped; can be reset in Personal settings. */
   demoPromptDismissed?: boolean
   initialBoxes?: Box[]
   initialItems?: Item[]
   initialUserTags?: Tag[]
   initialDescendantCounts?: Record<string, number>
+  initialChildBoxCounts?: Record<string, number>
   initialOwnerSharing?: DashboardOwnerSharing
 }
 
@@ -91,19 +101,18 @@ export default function DashboardClient({
   aiWidgetVisible = true,
   tutorialResetAt = null,
   user,
-  initialTheme,
   initialGraphOverlay = true,
   isPro = false,
   subscriptionStatus = null,
   pastDueGraceEndsAt: pastDueGraceEndsAtProp = null,
   itemCount = 0,
   itemCap = null,
-  freeTierCap = FREE_TIER_CAP,
   demoPromptDismissed = false,
   initialBoxes = [],
   initialItems = [],
   initialUserTags = [],
   initialDescendantCounts = {},
+  initialChildBoxCounts,
   initialOwnerSharing,
 }: DashboardClientProps) {
   const router = useRouter()
@@ -116,6 +125,8 @@ export default function DashboardClient({
   )
   const [currentBoxId, setCurrentBoxId] = useState<string | null>(null)
   const [currentBox, setCurrentBox] = useState<Box | null>(null)
+  // Ancestor chain as last loaded by <Breadcrumbs>; reused to name the move-to-parent target.
+  const [breadcrumbPath, setBreadcrumbPath] = useState<Box[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const {
     boxes,
@@ -126,6 +137,8 @@ export default function DashboardClient({
     userTags,
     loading,
     folderLoading,
+    expectedBoxCount,
+    itemsLoaded,
     loadBoxes,
     loadItems,
     patchBox,
@@ -140,8 +153,17 @@ export default function DashboardClient({
     initialItems,
     initialUserTags,
     initialDescendantCounts,
+    initialChildBoxCounts,
     initialOwnerSharing,
   })
+  // The open box's row. `currentBox` is set by a click on a card or crumb; when the view moved
+  // without one (the open box was deleted, so its parent is shown) the breadcrumb chain has it.
+  const openBox =
+    currentBoxId == null
+      ? null
+      : currentBox?.id === currentBoxId
+        ? currentBox
+        : (breadcrumbPath.find((box) => box.id === currentBoxId) ?? null)
   const [activeItemsTab, setActiveItemsTab] = useState<"items" | "unacquired">("items")
   const {
     editBox,
@@ -190,14 +212,11 @@ export default function DashboardClient({
     registerItemCardRef,
     registerBoxCardRef,
     handleMouseDown,
-    marquee,
     MarqueeOverlay,
     clearSelection,
     hasSelection,
     toggleBoxSelection,
     isBoxSelected,
-    isItemSelected,
-    toggleItemSelection,
   } = useDashboardSelection(currentBoxId)
   const {
     dndMoveLoading,
@@ -207,7 +226,7 @@ export default function DashboardClient({
     handleDragEnd,
   } = useDashboardDnd({
     currentBoxId,
-    currentBox,
+    currentBox: openBox,
     items,
     boxes,
     selectedItemIds,
@@ -216,7 +235,7 @@ export default function DashboardClient({
     loadBoxes,
     bumpStatsRefreshKey: () => setStatsRefreshKey((k) => k + 1),
   })
-  const itemDragActive = dndActiveId?.startsWith("item-") ?? false
+  const itemDragActive = dndActiveId?.startsWith(ITEM_DRAG_ID_PREFIX) ?? false
   useMobileSafariDragGuard(dndActiveId !== null)
   const contentSkeletonLoading = folderLoading || dndMoveLoading
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
@@ -226,15 +245,53 @@ export default function DashboardClient({
     return [...fromCollection, ...fromUnacquired]
   }, [items, unacquiredItems, selectedItemIds])
 
-  const visibleUnacquiredItems = useMemo(() => {
+  const searchedUnacquiredItems = useMemo(() => {
     const query = searchQuery.trim()
     if (!query) return unacquiredItems
     return unacquiredItems.filter((item) => itemMatchesLocalSearch(item, query))
   }, [unacquiredItems, searchQuery])
 
+  // Tag chips and the Filters panel share `searchFilters.includeTags`. Locally it narrows each
+  // grid to the included tags that grid actually has; tags from other boxes are left to search.
+  const includeTags = searchFilters.includeTags
+  const visibleItems = useMemo(
+    () => filterItemsByIncludeTags(items, includeTags),
+    [items, includeTags]
+  )
+  const visibleUnacquiredItems = useMemo(
+    () => filterItemsByIncludeTags(searchedUnacquiredItems, includeTags),
+    [searchedUnacquiredItems, includeTags]
+  )
+
   const hasUnacquiredTab = !!currentBoxId && unacquiredItems.length > 0
-  const itemsInActiveItemsGrid =
-    hasUnacquiredTab && activeItemsTab === "unacquired" ? visibleUnacquiredItems : items
+  const showingUnacquiredTab = hasUnacquiredTab && activeItemsTab === "unacquired"
+  const itemsInActiveItemsGrid = showingUnacquiredTab ? visibleUnacquiredItems : visibleItems
+  const quickFilterSourceItems = showingUnacquiredTab ? searchedUnacquiredItems : items
+  const quickFilterTags = useMemo(
+    () => collectItemTags(quickFilterSourceItems),
+    [quickFilterSourceItems]
+  )
+
+  // Bulk actions and multi-item drags act on the whole selection, so an item hidden by a tag
+  // chip or by the local search (wishlist items) must not stay selected behind the filter.
+  const hiddenItemIds = useMemo(
+    () =>
+      getHiddenItemIds(
+        [...items, ...unacquiredItems],
+        [...visibleItems, ...visibleUnacquiredItems]
+      ),
+    [items, unacquiredItems, visibleItems, visibleUnacquiredItems]
+  )
+  useEffect(() => {
+    if (hiddenItemIds.length === 0) return
+    setSelectedItemIds((prev) => {
+      const hidden = hiddenItemIds.filter((id) => prev.has(id))
+      if (hidden.length === 0) return prev
+      const next = new Set(prev)
+      for (const id of hidden) next.delete(id)
+      return next
+    })
+  }, [hiddenItemIds, setSelectedItemIds])
   const selectedBoxes = boxes.filter((b) => selectedBoxIds.has(b.id))
   const showSelectionBar =
     hasSelection ||
@@ -251,7 +308,7 @@ export default function DashboardClient({
   const [nameDraft, setNameDraft] = useState("")
   const [coachError, setCoachError] = useState<string | null>(null)
   const [coachBusy, setCoachBusy] = useState(false)
-  const [checkElapsed, setCheckElapsed] = useState(0)
+  const [firstRunCheckTimedOut, setFirstRunCheckTimedOut] = useState(false)
   const [firstRunConsumed, setFirstRunConsumed] = useState(false)
   const [showTutorialComplete, setShowTutorialComplete] = useState(false)
 
@@ -276,17 +333,19 @@ export default function DashboardClient({
     })
   }, [tutorialResetAt])
 
+  // chooseFirstRun() only asks whether the tool check has outlasted its timeout, so one timer
+  // at that threshold is enough; a ticking clock would re-render the dashboard all session.
   useEffect(() => {
-    const started = Date.now()
-    const id = window.setInterval(() => setCheckElapsed(Date.now() - started), 250)
-    return () => window.clearInterval(id)
+    setFirstRunCheckTimedOut(false)
+    const id = window.setTimeout(() => setFirstRunCheckTimedOut(true), FIRST_RUN_CHECK_TIMEOUT_MS)
+    return () => window.clearTimeout(id)
   }, [user.id])
 
   const createBox = async (name: string, description: string) => {
     if (!name.trim()) return
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("boxes")
         .insert({
           name: name,
@@ -315,7 +374,7 @@ export default function DashboardClient({
     userId: user?.id,
     page: "dashboard",
     currentBoxId,
-    currentBoxName: currentBox?.name ?? "Root",
+    currentBoxName: openBox?.name ?? "Root",
     selectedItems,
     onApplied: refreshCurrentBoxData,
     onToolStart: (name) => dispatchCoach({ type: "tool_start", name }),
@@ -325,7 +384,7 @@ export default function DashboardClient({
   const firstRun = chooseFirstRun({
     dismissed: demoPromptDismissed || firstRunConsumed,
     coachTools: agentSuggestions.coachToolStatuses,
-    elapsedMs: checkElapsed,
+    elapsedMs: firstRunCheckTimedOut ? FIRST_RUN_CHECK_TIMEOUT_MS : 0,
   })
   const webMcpAvailable = coachToolsSettled(agentSuggestions.coachToolStatuses) === "ready"
 
@@ -422,23 +481,21 @@ export default function DashboardClient({
 
     setMarkingAcquired(true)
     try {
-      const { error } = await supabase
-        .from("items")
-        .update({
-          is_wishlist: false,
-          acquisition_date: payload.acquisitionDate,
-          acquisition_price: payload.acquisitionPrice,
-          box_id: targetBoxId,
-          wishlist_target_box_id: null,
-        })
-        .eq("id", itemToMark.id)
-        .eq("user_id", user.id)
-
-      if (error) throw error
+      const result = await markItemAcquired({
+        id: itemToMark.id,
+        acquisitionDate: payload.acquisitionDate,
+        acquisitionPrice: payload.acquisitionPrice,
+        boxId: targetBoxId,
+      })
       setItemToMark(null)
-      refreshCurrentBoxData()
+      if (result.ok) {
+        refreshCurrentBoxData()
+      } else {
+        setShowItemCapUpsell(true)
+      }
     } catch (error) {
       console.error("Error marking as acquired:", error)
+      alert(error instanceof Error ? error.message : "Could not mark the item as acquired.")
     } finally {
       setMarkingAcquired(false)
     }
@@ -459,6 +516,14 @@ export default function DashboardClient({
     openEditBox(latest)
   }
 
+  // Name the box one level up. The breadcrumb chain loaded for the previous view already
+  // holds it (going down, the parent was that view's last crumb; going up, an earlier one),
+  // so this needs no request of its own. Until a chain has it, the zone says "Move to parent".
+  const parentBoxId = openBox?.parent_box_id ?? null
+  const parentBoxName = parentBoxId
+    ? breadcrumbPath.find((box) => box.id === parentBoxId)?.name
+    : undefined
+
   const ActiveItemsIcon = activeItemsTab === "unacquired" ? Sparkle : Sword
   const localSearchEmptyCopy = getLocalItemSearchEmptyCopy(searchQuery, searchFilters)
   const localSearchEmptyText = localSearchEmptyCopy ? (
@@ -475,14 +540,28 @@ export default function DashboardClient({
       </span>
     </>
   ) : undefined
+  // Known for a view already on screen (a refetch, or a search in the same box); a box being
+  // opened for the first time has no count yet and gets one row of skeleton cards.
+  const expectedItemCount = itemsLoaded ? visibleItems.length : undefined
+  // The tag filter changes what the grids show without a load, so it has to say so itself.
+  const itemViewKey = includeTags.join(",")
+  // An account with no tags has no strip. One with tags always has it, so a box's tags
+  // arriving (or a box having none) never moves the grid.
+  const tagQuickFilter =
+    userTags.length > 0 ? (
+      <TagQuickFilter
+        tags={quickFilterTags}
+        activeTagIds={includeTags}
+        loading={!itemsLoaded}
+        onToggle={(tagId) => setSearchFilters((prev) => toggleIncludeTag(prev, tagId))}
+      />
+    ) : undefined
   const tabbedItemsHeader = (
     <div className="flex items-center gap-2 min-w-0">
       <ActiveItemsIcon className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
       <TabsList>
         <TabsTrigger value="items">Items</TabsTrigger>
-        <TabsTrigger value="unacquired">
-          Wishlist ({unacquiredItems.length} remaining)
-        </TabsTrigger>
+        <TabsTrigger value="unacquired">Wishlist</TabsTrigger>
       </TabsList>
     </div>
   )
@@ -548,7 +627,7 @@ export default function DashboardClient({
 
       {/* past_due warning banner */}
       {liveSubscriptionStatus === "past_due" && (
-        <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-3 text-fluid-sm text-destructive">
+        <div className="bg-destructive/10 sk-rule-b border-destructive/20 px-4 py-3 text-fluid-sm text-destructive">
           {livePastDueGraceEndsAt ? (
             liveIsPro ? (
               <>
@@ -625,9 +704,10 @@ export default function DashboardClient({
             <Breadcrumbs
               currentBoxId={currentBoxId}
               onBoxClick={handleBoxClick}
-              enableDropTargets={!loading && !contentSkeletonLoading}
+              enableDropTargets={!contentSkeletonLoading}
               activeDragId={dndActiveId}
               selectedBoxIds={selectedBoxIds}
+              onPathChange={setBreadcrumbPath}
             />
           </div>
           <div
@@ -682,6 +762,7 @@ export default function DashboardClient({
                   searchFilters.dateTo ? 1 : 0,
                 ].reduce((a, b) => a + b, 0)})` : ""}
               </Button>
+              <CardDensityToggle />
             </div>
             {showAdvancedFilters && (
               <AdvancedSearchFilters
@@ -724,161 +805,130 @@ export default function DashboardClient({
           onDismissCompletion={() => setShowTutorialComplete(false)}
         />
 
-        {loading ? (
-          <>
-            <BoxStatsPanel
-              boxId={currentBoxId ?? "root"}
-              boxName={currentBox?.name ?? "Root"}
-              refreshKey={statsRefreshKey}
-              graphOverlay={initialGraphOverlay}
-            />
-            <BoxGrid
-              loading
-              boxes={[]}
-              currentBoxId={currentBoxId}
-              onBoxClick={handleBoxClick}
-              onRename={handleOpenEditBox}
-              onShowStats={() => {}}
-              onCreateBox={createBox}
-              isBoxSelected={isBoxSelected}
-              toggleBoxSelection={toggleBoxSelection}
-              selectionMode={selectionMode}
-              onEnterSelectionMode={() => setSelectionMode(true)}
-              registerBoxCardRef={registerBoxCardRef}
-            />
-            <ItemGrid
-              loading
-              items={[]}
-              currentBoxId={currentBoxId}
-              onItemUpdate={refreshCurrentBoxData}
-              sectionTitle="Items"
-              selectionMode={selectionMode}
-              onEnterSelectionMode={() => setSelectionMode(true)}
-              selectionProps={{
-                selectedIds: selectedItemIds,
-                setSelectedIds: setSelectedItemIds,
-                registerCardRef: registerItemCardRef,
-              }}
-              totalItemCount={liveItemCount}
-              itemCap={itemCap}
-              isPro={liveIsPro}
-              onCapReached={() => setShowItemCapUpsell(true)}
-            />
-          </>
-        ) : (
-          <>
-            <BoxStatsPanel
-              boxId={currentBoxId ?? "root"}
-              boxName={currentBox?.name ?? "Root"}
-              refreshKey={statsRefreshKey}
-              graphOverlay={initialGraphOverlay}
-            />
+        <BoxStatsPanel
+          boxId={currentBoxId ?? "root"}
+          boxName={openBox?.name ?? "Root"}
+          refreshKey={statsRefreshKey}
+          graphOverlay={initialGraphOverlay}
+        />
 
-            <BoxGrid
-              boxes={boxes}
-              loading={contentSkeletonLoading}
-              currentBoxId={currentBoxId}
-              onBoxClick={handleBoxClick}
-              onRename={handleOpenEditBox}
-              onShowStats={(box) => {
-                setStatsBoxId(box.id)
-                setStatsBoxName(box.name)
-                setShowStatsDialog(true)
-              }}
-              onCreateBox={createBox}
-              isBoxSelected={isBoxSelected}
-              toggleBoxSelection={toggleBoxSelection}
-              selectionMode={selectionMode}
-              onEnterSelectionMode={() => setSelectionMode(true)}
-              registerBoxCardRef={registerBoxCardRef}
+        {/*
+          One render path for loading and loaded: every block below keeps its place and its
+          height while a view loads, so nothing under it jumps (docs/DESIGN.md, Layout stability).
+        */}
+        <BoxGrid
+          boxes={boxes}
+          loading={contentSkeletonLoading}
+          expectedCount={expectedBoxCount}
+          statsRefreshKey={statsRefreshKey}
+          currentBoxId={currentBoxId}
+          onBoxClick={handleBoxClick}
+          onRename={handleOpenEditBox}
+          onShowStats={(box) => {
+            setStatsBoxId(box.id)
+            setStatsBoxName(box.name)
+            setShowStatsDialog(true)
+          }}
+          onCreateBox={createBox}
+          isBoxSelected={isBoxSelected}
+          toggleBoxSelection={toggleBoxSelection}
+          selectionMode={selectionMode}
+          registerBoxCardRef={registerBoxCardRef}
+        />
+        {/* In every box, from the first frame: it does not wait for the box to load. */}
+        {currentBoxId != null && (
+          <div className="mb-6 sk-fade-in">
+            <MoveToParentZone
+              isRoot={openBox != null && !openBox.parent_box_id}
+              parentBoxName={parentBoxName}
             />
-            {currentBox != null && (
-              <div className="mb-6">
-                <MoveToParentZone
-                  isRoot={!currentBox.parent_box_id}
-                />
-              </div>
-            )}
-            <div>
-              {currentBoxId && unacquiredItems.length > 0 ? (
-                <Tabs
-                  value={activeItemsTab}
-                  onValueChange={(v) => setActiveItemsTab(v as "items" | "unacquired")}
-                >
-                  <TabsContent value="items">
-                    <ItemGrid
-                      items={items}
-                      loading={contentSkeletonLoading}
-                      currentBoxId={currentBoxId}
-                      onItemUpdate={refreshCurrentBoxData}
-                      headerContent={tabbedItemsHeader}
-                      emptyText={localSearchEmptyText}
-                      selectionMode={selectionMode}
-                      onEnterSelectionMode={() => setSelectionMode(true)}
-                      selectionProps={{
-                        selectedIds: selectedItemIds,
-                        setSelectedIds: setSelectedItemIds,
-                        registerCardRef: registerItemCardRef,
-                      }}
-                      totalItemCount={liveItemCount}
-                      itemCap={itemCap}
-                      isPro={liveIsPro}
-                      onCapReached={() => setShowItemCapUpsell(true)}
-                    />
-                  </TabsContent>
-                  <TabsContent value="unacquired">
-                    <ItemGrid
-                      items={visibleUnacquiredItems}
-                      loading={contentSkeletonLoading}
-                      currentBoxId={currentBoxId}
-                      onItemUpdate={refreshCurrentBoxData}
-                      headerContent={tabbedItemsHeader}
-                      variant="wishlist"
-                      addButtonLabel="New Wishlist Item"
-                      defaultNewItemMode="wishlist"
-                      emptyText={
-                        searchQuery.trim()
-                          ? "No wishlist items in this box match your search."
-                          : 'No wishlist items in this box yet. Click "New Wishlist Item" to add one linked to this box.'
-                      }
-                      selectionMode={selectionMode}
-                      onEnterSelectionMode={() => setSelectionMode(true)}
-                      selectionProps={{
-                        selectedIds: selectedItemIds,
-                        setSelectedIds: setSelectedItemIds,
-                        registerCardRef: registerItemCardRef,
-                      }}
-                      totalItemCount={liveItemCount}
-                      itemCap={itemCap}
-                      isPro={liveIsPro}
-                      onCapReached={() => setShowItemCapUpsell(true)}
-                      onMarkAcquired={(item) => setItemToMark(item)}
-                    />
-                  </TabsContent>
-                </Tabs>
-              ) : (
-                <ItemGrid
-                  items={items}
-                  loading={contentSkeletonLoading}
-                  currentBoxId={currentBoxId}
-                  onItemUpdate={refreshCurrentBoxData}
-                  sectionTitle="Items"
-                  emptyText={localSearchEmptyText}
-                  selectionMode={selectionMode}
-                  onEnterSelectionMode={() => setSelectionMode(true)}
-                  selectionProps={{
-                    selectedIds: selectedItemIds,
-                    setSelectedIds: setSelectedItemIds,
-                    registerCardRef: registerItemCardRef,
-                  }}
-                  totalItemCount={liveItemCount}
-                  itemCap={itemCap}
-                  isPro={liveIsPro}
-                  onCapReached={() => setShowItemCapUpsell(true)}
-                />
-              )}
-            </div>
-          </>
+          </div>
+        )}
+        {hasUnacquiredTab ? (
+          <Tabs
+            value={activeItemsTab}
+            onValueChange={(v) => setActiveItemsTab(v as "items" | "unacquired")}
+          >
+            {/* No top margin: the section must sit where the untabbed one does. */}
+            <TabsContent value="items" className="mt-0">
+              <ItemGrid
+                items={visibleItems}
+                loading={contentSkeletonLoading}
+                expectedCount={expectedItemCount}
+                viewKey={itemViewKey}
+                fadeOnMount
+                currentBoxId={currentBoxId}
+                onItemUpdate={refreshCurrentBoxData}
+                headerContent={tabbedItemsHeader}
+                headerMiddle={tagQuickFilter}
+                emptyText={localSearchEmptyText}
+                selectionMode={selectionMode}
+                selectionProps={{
+                  selectedIds: selectedItemIds,
+                  setSelectedIds: setSelectedItemIds,
+                  registerCardRef: registerItemCardRef,
+                }}
+                totalItemCount={liveItemCount}
+                itemCap={itemCap}
+                isPro={liveIsPro}
+                onCapReached={() => setShowItemCapUpsell(true)}
+              />
+            </TabsContent>
+            <TabsContent value="unacquired" className="mt-0">
+              <ItemGrid
+                items={visibleUnacquiredItems}
+                loading={contentSkeletonLoading}
+                expectedCount={visibleUnacquiredItems.length}
+                viewKey={itemViewKey}
+                fadeOnMount
+                currentBoxId={currentBoxId}
+                onItemUpdate={refreshCurrentBoxData}
+                headerContent={tabbedItemsHeader}
+                headerMiddle={tagQuickFilter}
+                variant="wishlist"
+                addButtonLabel="New Wishlist Item"
+                defaultNewItemMode="wishlist"
+                emptyText={
+                  searchQuery.trim()
+                    ? "No wishlist items in this box match your search."
+                    : 'No wishlist items in this box yet. Click "New Wishlist Item" to add one linked to this box.'
+                }
+                selectionMode={selectionMode}
+                selectionProps={{
+                  selectedIds: selectedItemIds,
+                  setSelectedIds: setSelectedItemIds,
+                  registerCardRef: registerItemCardRef,
+                }}
+                totalItemCount={liveItemCount}
+                itemCap={itemCap}
+                isPro={liveIsPro}
+                onCapReached={() => setShowItemCapUpsell(true)}
+                onMarkAcquired={(item) => setItemToMark(item)}
+              />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <ItemGrid
+            items={visibleItems}
+            loading={contentSkeletonLoading}
+            expectedCount={expectedItemCount}
+            viewKey={itemViewKey}
+            currentBoxId={currentBoxId}
+            onItemUpdate={refreshCurrentBoxData}
+            sectionTitle="Items"
+            headerMiddle={tagQuickFilter}
+            emptyText={localSearchEmptyText}
+            selectionMode={selectionMode}
+            selectionProps={{
+              selectedIds: selectedItemIds,
+              setSelectedIds: setSelectedItemIds,
+              registerCardRef: registerItemCardRef,
+            }}
+            totalItemCount={liveItemCount}
+            itemCap={itemCap}
+            isPro={liveIsPro}
+            onCapReached={() => setShowItemCapUpsell(true)}
+          />
         )}
 
         {!loading && currentBoxId == null && ownerSharing?.available && (
@@ -933,6 +983,7 @@ export default function DashboardClient({
             }
             loadBoxes()
             loadItems(currentBoxId === box.id ? (box.parent_box_id ?? null) : currentBoxId)
+            setStatsRefreshKey((k) => k + 1)
           }}
           onOwnerSharingChange={setOwnerSharing}
         />
@@ -941,6 +992,7 @@ export default function DashboardClient({
           boxName={statsBoxName}
           open={showStatsDialog}
           onOpenChange={setShowStatsDialog}
+          refreshKey={statsRefreshKey}
           graphOverlay={initialGraphOverlay}
         />
         <SelectionModeToggle

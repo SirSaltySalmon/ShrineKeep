@@ -10,9 +10,12 @@ import { WishlistSharingPanel } from "@/components/wishlist-sharing-panel"
 import { GuestWishlistPreview } from "@/components/wishlist/guest-preview"
 import { PRIVATE_SHARING_DEFAULTS, type SharingSettings } from "@/lib/sharing/contracts"
 import ItemGrid from "@/components/item-grid"
+import CardDensityToggle from "@/components/card-density-toggle"
 import { SelectionActionBar } from "@/components/selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import MarkAcquiredDialog from "@/components/mark-acquired-dialog"
+import UpsellModal from "@/components/upsell-modal"
+import { markItemAcquired } from "@/lib/items/mark-acquired"
 import { Sparkle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAgentSuggestions } from "@/lib/hooks/use-agent-suggestions"
@@ -63,6 +66,7 @@ export default function WishlistClient({
   const [loading, setLoading] = useState(true)
   const [itemToMark, setItemToMark] = useState<Item | null>(null)
   const [marking, setMarking] = useState(false)
+  const [showItemCapUpsell, setShowItemCapUpsell] = useState(false)
   const [wishlistLinkEnabled, setWishlistLinkEnabled] = useState(initialWishlistLinkEnabled)
   const [wishlistShareToken, setWishlistShareToken] = useState<string | null>(initialWishlistShareToken)
   const [wishlistApplyColors, setWishlistApplyColors] = useState(initialWishlistApplyColors)
@@ -183,22 +187,21 @@ export default function WishlistClient({
     if (!itemToMark) return
     setMarking(true)
     try {
-      const { error } = await supabase
-        .from("items")
-        .update({
-          is_wishlist: false,
-          acquisition_date: payload.acquisitionDate,
-          acquisition_price: payload.acquisitionPrice,
-          box_id: itemToMark.wishlist_target_box_id ?? null,
-          wishlist_target_box_id: null,
-        })
-        .eq("id", itemToMark.id)
-
-      if (error) throw error
+      const result = await markItemAcquired({
+        id: itemToMark.id,
+        acquisitionDate: payload.acquisitionDate,
+        acquisitionPrice: payload.acquisitionPrice,
+        boxId: itemToMark.wishlist_target_box_id ?? null,
+      })
       setItemToMark(null)
-      loadWishlistItems()
+      if (result.ok) {
+        loadWishlistItems()
+      } else {
+        setShowItemCapUpsell(true)
+      }
     } catch (error) {
       console.error("Error marking as acquired:", error)
+      alert(error instanceof Error ? error.message : "Could not mark the item as acquired.")
     } finally {
       setMarking(false)
     }
@@ -215,9 +218,13 @@ export default function WishlistClient({
           <p className="text-fluid-sm text-muted-foreground">
             {previewing ? "Public preview of saved sharing settings." : null}
           </p>
-          <Button type="button" variant={previewing ? "secondary" : "outline"} onClick={() => setPreviewing((current) => !current)}>
-            {previewing ? "Exit preview" : "Preview public wishlist"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* The public preview is laid out for visitors, so density does not apply to it. */}
+            {!previewing && <CardDensityToggle />}
+            <Button type="button" variant={previewing ? "secondary" : "outline"} onClick={() => setPreviewing((current) => !current)}>
+              {previewing ? "Exit preview" : "Preview public wishlist"}
+            </Button>
+          </div>
         </div>
         {previewing ? (
           <GuestWishlistPreview
@@ -284,6 +291,11 @@ export default function WishlistClient({
                 onConfirm={handleMarkAsAcquiredConfirm}
               />
             )}
+            <UpsellModal
+              open={showItemCapUpsell}
+              onOpenChange={setShowItemCapUpsell}
+              reason="cap_hit"
+            />
             <AgentSuggestionReviewDialog
               key={agentSuggestions.batch?.id ?? "no-agent-suggestions"}
               batch={agentSuggestions.batch}

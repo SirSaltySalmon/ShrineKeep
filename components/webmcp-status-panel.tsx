@@ -192,7 +192,7 @@ export default function WebMcpStatusPanel({
     <section
       onMouseDown={(event) => event.stopPropagation()}
       className={cn(
-        "mb-6 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm",
+        "mb-6 overflow-hidden rounded-lg sk-outline bg-card text-card-foreground sk-flat-sm",
         spotlight && "relative z-50"
       )}
     >
@@ -205,7 +205,7 @@ export default function WebMcpStatusPanel({
                 Use AI with ShrineKeep
               </h2>
               {coach ? (
-                <span className="rounded-full border border-primary/25 bg-primary/10 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-primary">
+                <span className="rounded-full sk-outline border-primary/25 bg-primary/10 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-primary">
                   Tutorial
                 </span>
               ) : null}
@@ -235,7 +235,7 @@ export default function WebMcpStatusPanel({
         </div>
         {coach ? <div id="agent-tutorial"><CoachSteps coach={coach} /></div> : null}
         {completionNotice ? (
-          <div className="mt-4 flex items-start justify-between gap-3 rounded-md border border-primary/25 bg-primary/5 p-3 sm:p-4">
+          <div className="mt-4 flex items-start justify-between gap-3 rounded-md sk-outline border-primary/25 bg-primary/5 p-3 sm:p-4">
             <p className="min-w-0 text-fluid-sm font-medium text-foreground">
               You completed the tutorial. You can keep using this panel with your agent anytime.
             </p>
@@ -252,7 +252,7 @@ export default function WebMcpStatusPanel({
         ) : null}
       </div>
 
-      {expanded && !coach && <div id="agent-feature-details" className="space-y-4 border-t border-border bg-light-muted px-4 py-4 sm:px-5">
+      {expanded && !coach && <div id="agent-feature-details" className="space-y-4 sk-rule-t bg-light-muted px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-fluid-sm font-semibold"><MessageSquareText className="h-4 w-4 text-primary" />Try asking, &quot;Via ShrineKeep WebMCP in this browser...&quot;</div>
@@ -263,12 +263,12 @@ export default function WebMcpStatusPanel({
           </Button>
         </div>
         <div className={cn("grid items-start gap-2", prompts.length > 1 && "md:grid-cols-2 xl:grid-cols-4")}>
-          {prompts.map((prompt) => <details key={prompt.title} className="group overflow-hidden rounded-md border border-border bg-card">
+          {prompts.map((prompt) => <details key={prompt.title} className="group overflow-hidden rounded-md sk-outline bg-card">
             <summary className="flex cursor-pointer list-none items-start gap-2 px-3 py-2.5 marker:content-none">
               <span className="min-w-0 flex-1 text-fluid-sm font-medium leading-snug">“{prompt.title}”</span>
               <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
-            <p className="border-t border-border px-3 py-2.5 text-fluid-xs leading-relaxed text-muted-foreground">{prompt.detail}</p>
+            <p className="sk-rule-t px-3 py-2.5 text-fluid-xs leading-relaxed text-muted-foreground">{prompt.detail}</p>
           </details>)}
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={() => { setVisibilityError(null); setHideDialogOpen(true) }}>
@@ -295,7 +295,7 @@ export default function WebMcpStatusPanel({
 
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="left-auto right-0 top-0 flex h-[100dvh] w-full max-w-md translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-y-0 border-r-0 p-0 data-[state=open]:!slide-in-from-right-full data-[state=open]:!slide-in-from-top-0 data-[state=open]:!zoom-in-100 data-[state=closed]:!slide-out-to-right-full data-[state=closed]:!slide-out-to-top-0 data-[state=closed]:!zoom-out-100 sm:w-[28rem] sm:rounded-none">
-        <DialogHeader className="shrink-0 border-b border-border px-5 py-5 pr-12 text-left">
+        <DialogHeader className="shrink-0 sk-rule-b px-5 py-5 pr-12 text-left">
           <div className="flex items-start gap-3">
             <span className="rounded-md bg-muted p-2 text-primary"><Bot className="h-4 w-4" /></span>
             <div className="min-w-0">
@@ -303,7 +303,7 @@ export default function WebMcpStatusPanel({
               <DialogDescription className="mt-1">See what ShrineKeep exposes to AI agents and what they have done.</DialogDescription>
             </div>
           </div>
-          <div className={cn("mt-4 flex items-start gap-2 rounded-lg border p-3 text-fluid-sm", ready ? "border-primary/25 bg-primary/5" : status === "error" ? "border-destructive/25 bg-destructive/5" : "bg-light-muted")}>
+          <div className={cn("mt-4 flex items-start gap-2 rounded-lg sk-outline p-3 text-fluid-sm", ready ? "border-primary/25 bg-primary/5" : status === "error" ? "border-destructive/25 bg-destructive/5" : "bg-light-muted")}>
             <ShieldCheck className={cn("mt-0.5 h-4 w-4 shrink-0", ready ? "text-primary" : "text-muted-foreground")} />
             <span>{connectionCopy(status, registeredToolCount, toolCount)}</span>
           </div>
@@ -317,7 +317,7 @@ export default function WebMcpStatusPanel({
 
           <TabsContent value="tools" className="min-h-0 flex-1 overflow-y-auto pr-1">
             <div className="space-y-3 py-2">
-              {tools.map((tool) => <article key={tool.name} className="rounded-lg border border-border bg-card p-3.5">
+              {tools.map((tool) => <article key={tool.name} className="rounded-lg sk-outline bg-card p-3.5">
                 <div className="flex items-start gap-3">
                   <span className="mt-0.5 rounded-md bg-muted p-2 text-muted-foreground">{tool.readOnly ? <Eye className="h-4 w-4" /> : <PencilLine className="h-4 w-4" />}</span>
                   <div className="min-w-0 flex-1">
@@ -327,18 +327,18 @@ export default function WebMcpStatusPanel({
                     </div>
                     <code className="mt-1 block break-all text-[11px] text-primary">{tool.name}</code>
                     <p className="mt-2 text-fluid-sm leading-relaxed text-muted-foreground">{tool.description}</p>
-                    <span className="mt-2 inline-flex rounded-full border border-border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{tool.readOnly ? "Read only" : "Stages for review"}</span>
+                    <span className="mt-2 inline-flex rounded-full sk-outline px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{tool.readOnly ? "Read only" : "Stages for review"}</span>
                   </div>
                 </div>
               </article>)}
             </div>
 
-            <details className="group mt-3 rounded-lg border border-border bg-light-muted">
+            <details className="group mt-3 rounded-lg sk-outline bg-light-muted">
               <summary className="flex cursor-pointer list-none items-center gap-2 px-3.5 py-3 text-fluid-sm font-semibold marker:content-none">
                 <MessageSquareText className="h-4 w-4 text-primary" />Try these prompts
                 <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
               </summary>
-              <div className="space-y-2 border-t border-border p-3">
+              <div className="space-y-2 sk-rule-t p-3">
                 {prompts.map((prompt) => <div key={prompt.title} className="rounded-md bg-card p-3">
                   <p className="text-fluid-sm font-medium">“{prompt.title}”</p>
                   <p className="mt-1 text-fluid-xs leading-relaxed text-muted-foreground">{prompt.detail}</p>
@@ -354,7 +354,7 @@ export default function WebMcpStatusPanel({
               <h3 className="mt-3 text-fluid-sm font-semibold">No agent activity yet</h3>
               <p className="mt-1 max-w-xs text-fluid-sm leading-relaxed text-muted-foreground">Calls made through ShrineKeep’s WebMCP tools will appear here while this page is open.</p>
             </div> : <div className="space-y-2 py-2">
-              {activity.map((item) => <article key={item.id} className="rounded-lg border border-border bg-card p-3.5">
+              {activity.map((item) => <article key={item.id} className="rounded-lg sk-outline bg-card p-3.5">
                 <div className="flex items-start gap-3">
                   <span className="mt-0.5 rounded-md bg-muted p-2 text-muted-foreground"><Bot className="h-4 w-4" /></span>
                   <div className="min-w-0 flex-1">
@@ -402,7 +402,7 @@ function CoachSteps({ coach }: { coach: NonNullable<Props["coach"]> }) {
   }
 
   return (
-    <div className="mt-4 space-y-3 rounded-md border border-border bg-light-muted p-3 sm:p-4">
+    <div className="mt-4 space-y-3 rounded-md sk-outline bg-light-muted p-3 sm:p-4">
       <p className="text-fluid-xs font-medium uppercase tracking-wide text-primary">Follow these steps</p>
       {webMcpAvailable ? (
         <>

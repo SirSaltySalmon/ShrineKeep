@@ -13,14 +13,14 @@ export function NotFoundCode() {
 
   if (!code) {
     return (
-      <code className="block break-all text-sm font-mono text-foreground bg-background/80 px-3 py-2 rounded border border-border animate-pulse">
+      <code className="block break-all text-sm font-mono text-foreground bg-background/80 px-3 py-2 rounded sk-outline animate-pulse">
         …
       </code>
     )
   }
 
   return (
-    <code className="block break-all text-sm font-mono text-foreground bg-background/80 px-3 py-2 rounded border border-border">
+    <code className="block break-all text-sm font-mono text-foreground bg-background/80 px-3 py-2 rounded sk-outline">
       {code}
     </code>
   )

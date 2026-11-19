@@ -115,7 +115,7 @@ export function ColorPicker({ value, onChange, label, className }: ColorPickerPr
         />
       </div>
       {isOpen && (
-        <div className="absolute z-50 mt-2 p-3 bg-popover border border-border rounded-md shadow-lg">
+        <div className="absolute z-50 mt-2 p-3 bg-popover sk-outline rounded-md sk-raised-lg">
           <HexColorPicker color={hexValue} onChange={handleColorChange} />
         </div>
       )}

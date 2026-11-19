@@ -47,7 +47,7 @@ export function SelectionModeToggle({
         className={cn("fixed z-30 flex flex-col items-end", className)}
         style={{ right: 24, bottom: bottomOffset }}
       >
-        <div className="min-w-[220px] rounded-2xl border border-border bg-card/95 backdrop-blur shadow-xl overflow-hidden transition-all duration-200 py-2.5 px-3">
+        <div className="min-w-[220px] rounded-2xl sk-outline bg-card/95 backdrop-blur sk-raised-xl overflow-hidden transition-all duration-200 py-2.5 px-3">
           <p className="text-xs text-muted-foreground text-center mb-2">
             Tap items or boxes to select
           </p>
@@ -102,8 +102,8 @@ export function SelectionModeToggle({
         variant="secondary"
         size="icon"
         className={cn(
-          "h-12 w-12 rounded-2xl border border-border bg-card/95 backdrop-blur shadow-lg transition-all duration-200",
-          "hover:scale-105 hover:shadow-xl hover:bg-card",
+          "h-12 w-12 rounded-2xl sk-outline bg-card/95 backdrop-blur sk-raised-lg transition-all duration-200",
+          "hover:scale-105 sk-raised-hover-xl hover:bg-card",
           "opacity-90 hover:opacity-100"
         )}
         onClick={onEnterSelectionMode}

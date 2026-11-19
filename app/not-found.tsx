@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { EmptyStateKeeper } from "@/components/empty-state"
 import { NotFoundCode } from "@/components/not-found-code"
 import { SiteLogo } from "@/components/site-logo"
 
@@ -15,14 +16,17 @@ export default function NotFound() {
             textClassName="text-xl font-semibold"
           />
         </div>
-        <h1 className="text-6xl sm:text-7xl font-bold text-foreground tracking-tight">
-          404
-        </h1>
+        <div className="space-y-2">
+          <EmptyStateKeeper figure="notFound" />
+          <h1 className="text-6xl sm:text-7xl font-bold text-foreground tracking-tight">
+            404
+          </h1>
+        </div>
         <p className="text-lg text-muted-foreground">
           This page doesn&apos;t exist or has been moved.
         </p>
 
-        <div className="rounded-lg border border-border bg-light-muted p-4 text-left">
+        <div className="rounded-lg sk-outline bg-light-muted p-4 text-left">
           <p className="text-sm font-medium text-muted-foreground mb-1">
             Path / code from URL
           </p>

@@ -76,7 +76,7 @@ try {
   await observer.query(`INSERT INTO auth.users (id,email,raw_user_meta_data) SELECT
     ('91000000-0000-4000-8000-' || lpad(n::text,12,'0'))::uuid,
     'concurrency-' || n || '@test.invalid',jsonb_build_object('username','concurrency-' || n)
-    FROM generate_series(1,10) n`)
+    FROM generate_series(1,13) n`)
   const duplicate = await contend(
     `SELECT public.social_mutate('${uuid(1)}','${uuid(2)}','send_request')`,
     `SELECT public.social_mutate('${uuid(1)}','${uuid(2)}','send_request')`)
@@ -181,6 +181,47 @@ try {
   assert.equal(deleteWait.ok, true)
   assert.equal((await observer.query(`SELECT count(*) FROM public.boxes WHERE id='${deleteTarget}'`)).at(-1), "0")
   console.log("PASS delete/sharing contention: move-up waits for account lock")
+
+  // Lock order is account lock, then the users row. Each case below parks the
+  // follower on the account lock and then has the leader write the users row
+  // (an item insert bumps users.sharing_revision). A follower that took the
+  // users row before the account lock deadlocks here.
+  const asOwner = (id) => `SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='${id}'`
+  async function leaderWritesUsersRowWhileFollowerWaits(owner, followerSql) {
+    await leader.query(`BEGIN; SET LOCAL ROLE service_role; SELECT sharing_private.lock_accounts('${owner}')`)
+    const followed = follower.query(`BEGIN; ${asOwner(owner)}; ${followerSql}; COMMIT`)
+    followed.catch(() => {})
+    await waitForAdvisoryBlock()
+    await leader.query(`INSERT INTO public.items(user_id,name) VALUES ('${owner}','Leader item'); COMMIT`)
+    return followed
+  }
+
+  const paster = uuid(11)
+  await leaderWritesUsersRowWhileFollowerWaits(paster, `SELECT public.paste_box_trees_atomic('${paster}', NULL, NULL,
+    '[{"temp_id":"97000000-0000-4000-8000-000000000001","name":"Pasted box"}]',
+    '[{"box_temp_id":"97000000-0000-4000-8000-000000000001","name":"Pasted item"}]', '[]')`)
+  assert.equal((await observer.query(`SELECT count(*) FROM public.items WHERE user_id='${paster}'`)).at(-1), "2")
+  console.log("PASS paste/item-write contention: paste takes the account lock before the users row")
+
+  const renamer = uuid(12)
+  await leaderWritesUsersRowWhileFollowerWaits(renamer, `UPDATE public.users SET name='Renamed under contention' WHERE id='${renamer}'`)
+  assert.equal((await observer.query(`SELECT name FROM public.users WHERE id='${renamer}'`)).at(-1), "Renamed under contention")
+  console.log("PASS rename/item-write contention: a users UPDATE takes the account lock before the row")
+
+  // Without a users row lock, the cap still serializes on the account lock.
+  const capped = uuid(13)
+  await observer.query(`INSERT INTO public.items(user_id,name) SELECT '${capped}','seed ' || g FROM generate_series(1,99) g`)
+  await follower.query(`CREATE FUNCTION pg_temp.try_insert_item(p_user uuid, p_name text) RETURNS text LANGUAGE plpgsql AS $f$
+    BEGIN INSERT INTO public.items(user_id,name) VALUES (p_user, p_name); RETURN 'inserted';
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN RETURN SQLERRM; END $f$`)
+  await leader.query(`BEGIN; ${asOwner(capped)}; INSERT INTO public.items(user_id,name) VALUES ('${capped}','slot 100')`)
+  const lastSlot = follower.query(`BEGIN; ${asOwner(capped)}; SELECT pg_temp.try_insert_item('${capped}','slot 101'); COMMIT`)
+  lastSlot.catch(() => {})
+  await waitForAdvisoryBlock()
+  await leader.query("COMMIT")
+  assert.equal((await lastSlot).at(-1), "item_limit_reached:100:100")
+  assert.equal((await observer.query(`SELECT count(*) FROM public.items WHERE user_id='${capped}' AND NOT is_wishlist`)).at(-1), "100")
+  console.log("PASS concurrent inserts at cap-1: the second waits for the first and is refused")
 } finally {
   for (const session of sessions) session.close()
 }

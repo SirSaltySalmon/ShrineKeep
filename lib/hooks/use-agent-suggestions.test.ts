@@ -137,6 +137,42 @@ describe("pricing evidence MCP flow", () => {
     })
   }
 
+  describe("approved creates rejected by the server", () => {
+    async function applyWith(failure: Response) {
+      vi.stubGlobal("fetch", vi.fn(async (_url, init) =>
+        JSON.parse(init.body).mode === "preview"
+          ? Response.json({ items: [{ name: "Item", existingMatch: null }] })
+          : failure))
+      render()
+      await harness.tools.get("stage_items_in_current_box")!.execute({ items: [{ name: "Item", status: "owned" }] })
+      const batch = harness.batches[0]
+      if (batch.kind !== "create_items") throw new Error("Expected creation stage")
+      const approved = buildApprovedCreatedItems(batch.entries, new Set(batch.entries.map((row) => row.key)))
+      await expect(render().applyCreatedItems(approved, false)).rejects.toThrow()
+      return render().error
+    }
+
+    it("explains the free plan limit with its numbers instead of the raw code", async () => {
+      const error = await applyWith(
+        Response.json({ error: "item_limit_reached", currentCount: 95, cap: 100 }, { status: 403 })
+      )
+      expect(error).toBe(
+        "Creating these would go past the free plan limit of 100 items (you have 95). Approve fewer owned items, switch some to Wishlist, or upgrade to Pro."
+      )
+    })
+
+    it("still explains the limit when the numbers are missing", async () => {
+      const error = await applyWith(Response.json({ error: "item_limit_reached" }, { status: 403 }))
+      expect(error).toContain("the free plan item limit")
+      expect(error).not.toContain("item_limit_reached")
+    })
+
+    it("keeps other server errors as they are", async () => {
+      const error = await applyWith(Response.json({ error: "Target box not found" }, { status: 404 }))
+      expect(error).toBe("Target box not found")
+    })
+  })
+
   it.each(["dashboard", "wishlist"] as const)("exposes full-description reads on %s", async (page) => {
     const bodies: Record<string, unknown>[] = []
     vi.stubGlobal("fetch", vi.fn(async (url, init) => {

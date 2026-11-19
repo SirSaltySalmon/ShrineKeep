@@ -1,10 +1,12 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { Box, Item, Tag } from "@/lib/types"
 import { normalizeItem, sortTagsByColorThenName } from "@/lib/utils"
 import {
+  ROOT_BOX_SCOPE,
+  countChildBoxesByParent,
   countDescendantsById,
   normalizeBox,
   parseOwnerSharingSummary,
@@ -20,6 +22,8 @@ interface UseDashboardDataParams {
   initialItems: Item[]
   initialUserTags: Tag[]
   initialDescendantCounts?: Record<string, number>
+  /** Direct child-box counts for the whole tree (`countChildBoxesByParent`), from the server render. */
+  initialChildBoxCounts?: Record<string, number>
   initialOwnerSharing?: DashboardOwnerSharing
 }
 
@@ -28,7 +32,12 @@ type AffectedBoxInput = string | null | Array<string | null> | undefined
 interface BoxesQueryData {
   boxes: Box[]
   descendantCounts: Record<string, number>
+  /** Direct child-box counts for every box in the tree, not only this folder's. */
+  childBoxCounts?: Record<string, number>
 }
+
+/** One array for "nothing loaded", so the lists keep their identity between renders. */
+const NO_ITEMS: Item[] = []
 
 export function useDashboardData({
   userId,
@@ -39,6 +48,7 @@ export function useDashboardData({
   initialItems,
   initialUserTags,
   initialDescendantCounts = {},
+  initialChildBoxCounts,
   initialOwnerSharing,
 }: UseDashboardDataParams) {
   const queryClient = useQueryClient()
@@ -55,7 +65,8 @@ export function useDashboardData({
   const unacquiredKey = ["dashboard", "unacquired", userId, currentBoxId ?? "root"] as const
   const tagsKey = ["dashboard", "tags", userId] as const
   const ownerSharingKey = ["dashboard", "owner-sharing", userId] as const
-  const toScopeId = (boxId: string | null) => boxId ?? "root"
+  const toScopeId = (boxId: string | null) => boxId ?? ROOT_BOX_SCOPE
+  const scopeId = toScopeId(currentBoxId)
 
   const normalizeAffectedBoxes = (affected: AffectedBoxInput): Array<string | null> => {
     if (Array.isArray(affected)) {
@@ -73,7 +84,11 @@ export function useDashboardData({
     queryKey: boxesKey,
     enabled: queryEnabled,
     initialData: !currentBoxId && !trimmedSearch
-      ? { boxes: initialBoxes, descendantCounts: initialDescendantCounts }
+      ? {
+          boxes: initialBoxes,
+          descendantCounts: initialDescendantCounts,
+          childBoxCounts: initialChildBoxCounts,
+        }
       : undefined,
     queryFn: async (): Promise<BoxesQueryData> => {
       let query = supabase.from("boxes").select("*").eq("user_id", userId)
@@ -92,6 +107,7 @@ export function useDashboardData({
       return {
         boxes: (folder.data ?? []).map((row: Box) => normalizeBox(row, descendantCounts)),
         descendantCounts,
+        childBoxCounts: countChildBoxesByParent(tree.data ?? []),
       }
     },
   })
@@ -100,6 +116,10 @@ export function useDashboardData({
     queryKey: itemsKey,
     enabled: queryEnabled,
     initialData: !currentBoxId && !trimmedSearch ? initialItems : undefined,
+    // A search in the same box keeps the previous results (under the skeleton) until the new
+    // ones arrive, so each keystroke does not collapse the grid to an unknown size.
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey[3] === scopeId ? previousData : undefined,
     queryFn: async (): Promise<Item[]> => {
       let query = supabase
         .from("items")
@@ -259,6 +279,20 @@ export function useDashboardData({
 
   const descendantCounts = boxesQuery.data?.descendantCounts ?? initialDescendantCounts
 
+  // Every folder load brings the whole box tree, so the tree loaded for the view being left
+  // already says how many boxes the next view holds. Kept across views for that reason.
+  const [knownChildBoxCounts, setKnownChildBoxCounts] = useState(initialChildBoxCounts)
+  const latestChildBoxCounts = boxesQuery.data?.childBoxCounts
+  if (latestChildBoxCounts && latestChildBoxCounts !== knownChildBoxCounts) {
+    setKnownChildBoxCounts(latestChildBoxCounts)
+  }
+  /** Boxes this view holds: exact once loaded, from the last tree before that, else unknown. */
+  const expectedBoxCount: number | undefined = boxesQuery.data
+    ? boxesQuery.data.boxes.length
+    : knownChildBoxCounts
+      ? (knownChildBoxCounts[scopeId] ?? 0)
+      : undefined
+
   const boxes = useMemo(
     () => boxesQuery.data?.boxes ?? [],
     [boxesQuery.data?.boxes],
@@ -268,13 +302,16 @@ export function useDashboardData({
     boxes,
     descendantCounts,
     ownerSharing: ownerSharingQuery.data,
-    items: itemsQuery.data ?? [],
-    unacquiredItems: currentBoxId ? unacquiredQuery.data ?? [] : [],
+    items: itemsQuery.data ?? NO_ITEMS,
+    unacquiredItems: currentBoxId ? unacquiredQuery.data ?? NO_ITEMS : NO_ITEMS,
     setUnacquiredItems,
     userTags: tagsQuery.data ?? [],
     setUserTags,
     loading,
     folderLoading,
+    expectedBoxCount,
+    /** False until this view's items (or, during a search, the previous results) are in hand. */
+    itemsLoaded: itemsQuery.data !== undefined,
     loadBoxes,
     loadItems,
     patchBox,

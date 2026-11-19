@@ -99,7 +99,7 @@ export default function BoxPickerDialog({
             currentBoxId={currentBoxId}
             onBoxClick={(box) => setCurrentBoxId(box?.id ?? null)}
           />
-          <div className="rounded-md border bg-muted/40 p-3 text-fluid-sm">
+          <div className="rounded-md sk-outline bg-muted/40 p-3 text-fluid-sm">
             Selected box: <span className="font-medium">{currentBox?.name ?? "None (root wishlist)"}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1">

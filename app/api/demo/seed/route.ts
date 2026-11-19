@@ -3,6 +3,7 @@ import { requireMutableUser } from "@/lib/judge/require-mutable-user"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { flattenBoxCopyTreesForAtomicPaste } from "@/lib/api/copy-expand"
+import { itemCapResponse } from "@/lib/api/item-cap-error"
 import { buildDemoBoxCopyPayloads } from "@/lib/demo/build-demo-paste-trees"
 import { ensureDemoTagIds } from "@/lib/demo/ensure-demo-tags"
 import { setDashboardDemoPromptDismissed } from "@/lib/demo/set-demo-prompt-dismissed"
@@ -32,17 +33,8 @@ export async function POST(_request: NextRequest) {
     })
 
     if (error) {
-      const match = /item_limit_reached:(\d+):(\d+)/.exec(error.message ?? "")
-      if (match) {
-        return NextResponse.json(
-          {
-            error: "item_limit_reached",
-            currentCount: Number(match[1]),
-            cap: Number(match[2]),
-          },
-          { status: 403 }
-        )
-      }
+      const capResponse = itemCapResponse(error)
+      if (capResponse) return capResponse
       throw error
     }
 

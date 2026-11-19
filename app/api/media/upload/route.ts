@@ -74,10 +74,14 @@ export async function POST(request: NextRequest) {
           ? `${supabaseUrl}/storage/v1/object/public/avatars/${result.data.objectPath}`
           : null
         if (avatarUrl) {
-          await session.supabase
+          const { error } = await session.supabase
             .from("users")
             .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
             .eq("id", session.user.id)
+          if (error) {
+            console.error("Error saving avatar url:", error)
+            return json({ error: { code: "temporarily_unavailable" } }, 503)
+          }
         }
         return json({ ...result.data, publicUrl: avatarUrl }, 200)
       }

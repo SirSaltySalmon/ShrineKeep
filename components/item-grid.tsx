@@ -9,6 +9,7 @@ import { Plus, Sword, type LucideIcon } from "lucide-react"
 import DraggableItemCard from "./draggable-item-card"
 import ItemCard from "./item-card"
 import ItemDialog from "./item-dialog"
+import { EmptyState } from "./empty-state"
 import { SelectionActionBar } from "./selection-action-bar"
 import { useCopiedItem } from "@/lib/copied-item-context"
 import { useMarqueeSelection } from "@/lib/hooks/use-marquee-selection"
@@ -18,8 +19,11 @@ import {
 } from "@/components/boneyard-fixtures"
 import { OWNER_CAPABILITIES, READ_ONLY_CAPABILITIES, type CollectionCapabilities } from "@/lib/sharing/presentation/capabilities"
 import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
-
-const LOADING_ROW_VISIBILITY = ["", "hidden md:block", "hidden lg:block", "hidden xl:block"] as const
+import { ITEM_GRID_LAYOUT, getCardSkeletonName, getLoadingCardClass, takeLoadingFixtures } from "@/lib/card-density"
+import { useCardDensity } from "@/lib/hooks/use-card-density"
+import { useFadeOnChange } from "@/lib/hooks/use-fade-on-change"
+import { FadeOnChange } from "./fade-on-change"
+import { cn } from "@/lib/utils"
 
 /** When provided (e.g. by dashboard), selection is controlled by parent; otherwise ItemGrid uses internal marquee selection. */
 export interface ItemGridSelectionProps {
@@ -31,6 +35,19 @@ export interface ItemGridSelectionProps {
 interface ItemGridProps {
   items: Item[]
   loading?: boolean
+  /**
+   * How many items the loaded grid will hold, when the caller knows (a refetch of a view
+   * already on screen). While loading, the grid then shows that many skeleton cards (or the
+   * empty state for 0) and keeps its height. Leave unset when unknown: one row.
+   */
+  expectedCount?: number
+  /**
+   * Names what the grid is showing beyond its box: the active filter, for instance. The cards
+   * fade in again when it changes. A change of `currentBoxId` always counts.
+   */
+  viewKey?: string
+  /** Fade the cards in when the grid mounts already loaded, as a tab's content does. */
+  fadeOnMount?: boolean
   currentBoxId: string | null
   onItemUpdate: () => void
   /** When set, the section title and Add Item button are shown on one row (title left, button right). */
@@ -39,12 +56,16 @@ interface ItemGridProps {
   sectionIcon?: LucideIcon
   /** Optional custom header content to render in place of the section title (e.g. tabs). */
   headerContent?: ReactNode
+  /**
+   * Sits between the title (or `headerContent`) and the add button from `md` up, where it takes
+   * the free width of that row; below `md` it gets a line of its own under them. Pass it only
+   * when it renders something, and keep it one fixed-height line (the tag quick-filter).
+   */
+  headerMiddle?: ReactNode
   /** When provided, use these for selection (dashboard); otherwise use internal useMarqueeSelection (wishlist, search). */
   selectionProps?: ItemGridSelectionProps
   /** When true, click only toggles selection; when false, click opens dialog (shift-click still toggles). */
   selectionMode?: boolean
-  /** Called when shift-click happens to enable selection mode. */
-  onEnterSelectionMode?: () => void
   /** Global collection item count (all boxes); used with itemCap to block New Item at limit. */
   totalItemCount?: number
   itemCap?: number | null
@@ -73,14 +94,17 @@ interface ItemGridProps {
 export default function ItemGrid({
   items,
   loading = false,
+  expectedCount,
+  viewKey = "",
+  fadeOnMount = false,
   currentBoxId,
   onItemUpdate,
   sectionTitle,
   sectionIcon: SectionIcon = Sword,
   headerContent,
+  headerMiddle,
   selectionProps,
   selectionMode,
-  onEnterSelectionMode,
   totalItemCount,
   itemCap = null,
   isPro = true,
@@ -96,6 +120,9 @@ export default function ItemGrid({
   capabilities,
 }: ItemGridProps) {
   const resolvedCapabilities = capabilities ?? (readOnly ? READ_ONLY_CAPABILITIES : OWNER_CAPABILITIES)
+  // Per-device preference. Comfortable on the server and until hydration has finished.
+  const density = useCardDensity()
+  const gridLayout = ITEM_GRID_LAYOUT[density]
   const { copiedItemRefs, copiedBoxRefs } = useCopiedItem()
   const internalMarquee = useMarqueeSelection()
 
@@ -112,7 +139,11 @@ export default function ItemGrid({
   }, [currentBoxId, setSelectedIds, selectionProps, resolvedCapabilities.canSelect])
 
   const handleNewItem = () => {
+    // Wishlist items do not count toward the cap. The dialog opens on one when it is locked to
+    // the wishlist or defaults to it; switching it to a collection item is caught on save.
+    const opensAsWishlistItem = wishlistDialogLocked || defaultNewItemMode === "wishlist"
     const atCap =
+      !opensAsWishlistItem &&
       !isPro &&
       itemCap !== null &&
       totalItemCount !== undefined &&
@@ -160,7 +191,22 @@ export default function ItemGrid({
     variant === "wishlist"
       ? WISHLIST_ITEM_SKELETON_FIXTURES
       : COLLECTION_ITEM_SKELETON_FIXTURES
-  const displayedItems = loading ? skeletonItems.slice(0, 4) : items
+  const skeletonName = getCardSkeletonName(
+    variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card",
+    density
+  )
+  // As many skeleton cards as items are expected; one row when that is not known.
+  const displayedItems = loading ? takeLoadingFixtures(skeletonItems, gridLayout, expectedCount) : items
+  // A view known to hold no items keeps its empty state through a refetch.
+  const showEmpty = loading ? expectedCount === 0 : items.length === 0
+  // Whatever replaces bones fades in, and so does a different view of the same grid (another
+  // box, another filter). Bones themselves never fade, and an empty state that stays up through
+  // a refetch keeps the same signal, so it does not flash.
+  const showingBones = loading && !showEmpty
+  const contentRef = useFadeOnChange<HTMLDivElement>(
+    showingBones ? "bones" : `${showEmpty ? "empty" : "cards"}:${currentBoxId ?? "root"}:${viewKey}`,
+    { enabled: !showingBones, onMount: fadeOnMount }
+  )
   const showUsageStatus =
     variant === "collection" &&
     resolvedCapabilities.showItemCap &&
@@ -172,8 +218,8 @@ export default function ItemGrid({
 
   return (
     <>
-      <div className="rounded-md border bg-light-muted p-4">
-        <div className={sectionTitle || headerContent ? "flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0" : "mb-4 min-w-0"}>
+      <div className="rounded-md sk-outline bg-light-muted p-4">
+        <div className={sectionTitle || headerContent ? "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-4 min-w-0" : "mb-4 min-w-0"}>
           {sectionTitle || headerContent ? (
             <>
               {headerContent ? (
@@ -186,13 +232,19 @@ export default function ItemGrid({
                   {sectionTitle}
                 </h2>
               )}
+              {headerMiddle ? (
+                <div className="order-last min-w-0 basis-full md:order-none md:flex-1 md:basis-0">
+                  {headerMiddle}
+                </div>
+              ) : null}
               {showAdd ? addButton : null}
             </>
           ) : (
             showAdd ? addButton : null
           )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 relative">
+        <div ref={contentRef}>
+        <div className={cn(gridLayout.gridClass, "relative")}>
           {displayedItems.map((item, index) => {
             const presented = presentOwnerItem(item)
             const fixtureCard = (
@@ -200,6 +252,7 @@ export default function ItemGrid({
                 item={presented}
                 variant={variant}
                 capabilities={resolvedCapabilities}
+                density={density}
                 onClick={() => {}}
                 onMarkAcquired={variant === "wishlist" && resolvedCapabilities.canAcquire ? () => {} : undefined}
               />
@@ -214,6 +267,7 @@ export default function ItemGrid({
                 selectionMode={selectionMode ?? false}
                 onClick={handleItemClick}
                 registerCardRef={registerCardRef}
+                density={density}
               />
             ) : (
               <div
@@ -226,6 +280,7 @@ export default function ItemGrid({
                   capabilities={resolvedCapabilities}
                   selected={resolvedCapabilities.canSelect && selectedIds.has(item.id)}
                   selectionMode={resolvedCapabilities.canSelect && (selectionMode ?? false)}
+                  density={density}
                   onClick={(_, event) => handleItemClick(item, event)}
                   onMarkAcquired={resolvedCapabilities.canAcquire && onMarkAcquired ? () => onMarkAcquired(item) : undefined}
                 />
@@ -234,7 +289,7 @@ export default function ItemGrid({
 
             const skeletonNode = (
               <Skeleton
-                name={variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card"}
+                name={skeletonName}
                 loading={loading}
                 animate="shimmer"
                 color="hsl(var(--muted))"
@@ -247,7 +302,7 @@ export default function ItemGrid({
 
             if (loading) {
               return (
-                <div key={`${item.id}-${index}`} className={LOADING_ROW_VISIBILITY[index] ?? "hidden"}>
+                <div key={`${item.id}-${index}`} className={getLoadingCardClass(gridLayout, index, expectedCount)}>
                   {skeletonNode}
                 </div>
               )
@@ -256,7 +311,7 @@ export default function ItemGrid({
             return (
               <Skeleton
                 key={item.id}
-                name={variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card"}
+                name={skeletonName}
                 loading={loading}
                 animate="shimmer"
                 color="hsl(var(--muted))"
@@ -268,14 +323,18 @@ export default function ItemGrid({
             )
           })}
         </div>
-        {!loading && items.length === 0 && (
-          <div className="min-h-[424px] text-center py-12 text-muted-foreground">
+        {showEmpty && (
+          <EmptyState
+            figure={variant === "wishlist" ? "wishlist" : "items"}
+            className={density === "compact" ? "min-h-[230px] py-8" : "min-h-[424px] py-12"}
+          >
             {emptyText}
-          </div>
+          </EmptyState>
         )}
+        </div>
         {showUsageStatus && (
           <div className="mt-4 text-fluid-xs text-muted-foreground" role="status">
-            {totalItemCount} of {itemCap} items used
+            <FadeOnChange signal={totalItemCount}>{totalItemCount}</FadeOnChange> of {itemCap} items used
             {nearCap && remainingItems !== null && remainingItems > 0 && (
               <span className="ml-2">
                 — {remainingItems} item{remainingItems === 1 ? "" : "s"} left on free tier.{" "}

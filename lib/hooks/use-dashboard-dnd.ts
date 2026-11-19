@@ -5,6 +5,13 @@ import { TouchSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/
 import { NonTouchPointerSensor } from "@/lib/non-touch-pointer-sensor"
 import { MOVE_TO_PARENT_ZONE_ID } from "@/components/move-to-parent-zone"
 import { BREADCRUMB_ROOT_DROP_ID } from "@/components/breadcrumbs"
+import {
+  BOX_DRAG_ID_PREFIX,
+  ITEM_DRAG_ID_PREFIX,
+  getDropTargetBoxId,
+  isBoxDragId,
+  isBoxDropBlocked,
+} from "@/lib/dashboard-drop-targets"
 import type { Box, Item } from "@/lib/types"
 
 type AffectedBoxInput = string | null | Array<string | null> | undefined
@@ -19,6 +26,17 @@ interface UseDashboardDndParams {
   loadItems: (affected?: AffectedBoxInput) => Promise<void>
   loadBoxes: (affected?: AffectedBoxInput) => Promise<void>
   bumpStatsRefreshKey: () => void
+}
+
+/** Reads the `error` of a failed move response; a body that is not JSON gives the fallback. */
+async function moveErrorMessage(res: Response, fallback: string): Promise<string> {
+  const body = await res.json().catch(() => ({}))
+  return typeof body?.error === "string" ? body.error : fallback
+}
+
+/** A failed move leaves the cards where they were, so say why. A successful one needs no message. */
+function alertMoveFailed(error: unknown) {
+  alert(`Move failed: ${error instanceof Error ? error.message : String(error)}`)
 }
 
 export function useDashboardDnd({
@@ -51,21 +69,31 @@ export function useDashboardDnd({
     const activeId = String(active.id)
     const overId = String(over.id)
 
-    let targetParentBoxId: string | null = null
+    let targetParentBoxId: string | null
     if (overId === MOVE_TO_PARENT_ZONE_ID) {
-      targetParentBoxId = currentBox?.parent_box_id ?? null
+      // The zone is on screen before the open box's row is known. Without the row there is no
+      // telling where "up" is, and guessing the root would move things to the wrong place.
+      if (!currentBox) return
+      targetParentBoxId = currentBox.parent_box_id ?? null
     } else if (overId === BREADCRUMB_ROOT_DROP_ID) {
       targetParentBoxId = null
-    } else if (overId.startsWith("breadcrumb-box-")) {
-      targetParentBoxId = overId.slice("breadcrumb-box-".length)
-    } else if (overId.startsWith("box-")) {
-      targetParentBoxId = overId.slice("box-".length)
     } else {
+      const targetBoxId = getDropTargetBoxId(overId)
+      if (targetBoxId === undefined) return
+      targetParentBoxId = targetBoxId
+    }
+
+    // The rule the drop cues are drawn from: a box never takes itself or, while boxes are
+    // being moved, another selected box.
+    if (
+      targetParentBoxId !== null &&
+      isBoxDropBlocked(activeId, targetParentBoxId, selectedBoxIds.has(targetParentBoxId))
+    ) {
       return
     }
 
-    if (activeId.startsWith("item-")) {
-      const itemId = activeId.slice("item-".length)
+    if (activeId.startsWith(ITEM_DRAG_ID_PREFIX)) {
+      const itemId = activeId.slice(ITEM_DRAG_ID_PREFIX.length)
       const draggedItem = active.data.current?.item as Item | undefined
       if (!draggedItem) return
 
@@ -90,10 +118,7 @@ export function useDashboardDnd({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ itemIds: moveItemIds, targetBoxId: targetParentBoxId }),
         })
-        if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.error ?? "Failed to move item")
-        }
+        if (!res.ok) throw new Error(await moveErrorMessage(res, "Failed to move item"))
         await Promise.all([
           loadItems([currentItemBoxId, targetParentBoxId]),
           loadBoxes([currentBoxId]),
@@ -101,23 +126,20 @@ export function useDashboardDnd({
         bumpStatsRefreshKey()
       } catch (e) {
         console.error("Error moving item:", e)
+        alertMoveFailed(e)
       } finally {
         setDndMoveLoading(false)
       }
       return
     }
 
-    if (activeId.startsWith("box-drag-")) {
-      const boxId = activeId.slice("box-drag-".length)
+    if (isBoxDragId(activeId)) {
+      const boxId = activeId.slice(BOX_DRAG_ID_PREFIX.length)
       const draggedBox = active.data.current?.box as Box | undefined
       if (!draggedBox) return
 
-      if (targetParentBoxId !== null && selectedBoxIds.has(targetParentBoxId)) {
-        return
-      }
-
       const currentBoxParentId = draggedBox.parent_box_id ?? null
-      const moveBoxIdsBase =
+      const moveBoxIds =
         selectedBoxIds.has(boxId) && selectedBoxIds.size > 0
           ? boxes
               .filter(
@@ -128,9 +150,6 @@ export function useDashboardDnd({
               .map((b) => b.id)
           : [boxId]
 
-      const moveBoxIds = moveBoxIdsBase.filter((id) => id !== targetParentBoxId)
-      if (moveBoxIds.length === 0) return
-
       setDndMoveLoading(true)
       try {
         const res = await fetch("/api/boxes/move", {
@@ -138,10 +157,7 @@ export function useDashboardDnd({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ boxIds: moveBoxIds, targetParentBoxId }),
         })
-        if (!res.ok) {
-          const err = await res.json()
-          throw new Error(err.error ?? "Failed to move box")
-        }
+        if (!res.ok) throw new Error(await moveErrorMessage(res, "Failed to move box"))
         await Promise.all([
           loadBoxes([currentBoxParentId, targetParentBoxId]),
           loadItems(currentBoxId),
@@ -149,6 +165,7 @@ export function useDashboardDnd({
         bumpStatsRefreshKey()
       } catch (e) {
         console.error("Error moving box:", e)
+        alertMoveFailed(e)
       } finally {
         setDndMoveLoading(false)
       }

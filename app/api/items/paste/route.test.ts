@@ -101,6 +101,60 @@ describe("POST /api/items/paste", () => {
     })
   })
 
+  it("returns 400 for a body that is not a JSON object", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+    })
+
+    const malformed = new Request("http://localhost/api/items/paste", { method: "POST", body: "{not json" })
+    for (const request of [malformed, makeRequest(null)]) {
+      const response = await POST(request as any)
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({ error: "Request body must be a JSON object" })
+    }
+  })
+
+  it.each([
+    [{ items: ["Camera"] }, "items must be objects"],
+    [{ items: [{ name: 42, is_wishlist: false }] }, "name must be a string"],
+    [{ items: [{ name: "Camera", current_value: "320" }] }, "current_value must be a number or null"],
+    [{ sourceItemIds: [1], target: { boxId: null, isWishlist: false } }, "sourceItemIds must be strings"],
+    [{ sourceItemIds: ["item-1"], target: { boxId: 7, isWishlist: false } }, "target.boxId must be a string or null"],
+  ])("returns 400 for wrongly typed payload %j", async (body, error) => {
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+    })
+
+    const response = await POST(makeRequest(body) as any)
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error })
+    expect(mockExpandItemRefsToCreateInputs).not.toHaveBeenCalled()
+    expect(mockCreateItems).not.toHaveBeenCalled()
+  })
+
+  it("answers 500 with a fixed message and keeps database text out of the body", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    mockCreateSupabaseServerClient.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },
+    })
+    mockGetOwnedBoxIdSet.mockResolvedValue(new Set<string>())
+    const dbError = {
+      code: "42501",
+      message: 'new row violates row-level security policy for table "items"',
+    }
+    mockCreateItems.mockRejectedValue(dbError)
+
+    const response = await POST(
+      makeRequest({ items: [{ name: "Camera", is_wishlist: false, photos: [] }] }) as any
+    )
+
+    expect(response.status).toBe(500)
+    await expect(response.json()).resolves.toEqual({ error: "Could not paste the items. Try again." })
+    expect(consoleError).toHaveBeenCalledWith("Error creating items paste:", dbError)
+    consoleError.mockRestore()
+  })
+
   it("creates items and returns item ids for valid payload", async () => {
     mockCreateSupabaseServerClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "user-1" } } }) },

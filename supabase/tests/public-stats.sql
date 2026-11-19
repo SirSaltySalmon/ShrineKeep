@@ -65,6 +65,9 @@ BEGIN
 
   profile := public.sharing_read_stats(owner_id,NULL,NULL,'2024-01-01','2024-01-01');
   PERFORM pg_temp.assert_true((profile->'data'->>'currentValue')::numeric = 17,'profile totals visible sharing boxes A+Q once');
+  -- As buildBoxStats: A has history (none yet on 2024-01-01, so 0); Q has none, so its current value.
+  PERFORM pg_temp.assert_true((profile->'data'->'valueHistory'->0->>'value')::numeric = 7,'past day: no-history item at current value, pre-history item at 0');
+  PERFORM pg_temp.assert_true((public.sharing_read_stats(owner_id,NULL,box_q,'2024-01-01','2024-01-03')->'data'->'valueHistory'->0->>'value')::numeric = 7,'item without value history counts at current value on past days');
   PERFORM pg_temp.assert_true((profile->'data'->>'totalAcquisition')::numeric = 17,'unboxed owned items excluded from totals');
   PERFORM pg_temp.assert_true(profile::text NOT LIKE '%123.45%' AND profile::text NOT LIKE '%999%','hidden and wishlist omitted');
 

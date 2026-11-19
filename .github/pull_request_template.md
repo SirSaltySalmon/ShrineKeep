@@ -1,4 +1,4 @@
-f# Summary
+# Summary
 
 - [ ] What changed
 - [ ] Why this change exists

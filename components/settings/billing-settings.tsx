@@ -148,7 +148,7 @@ export default function BillingSettings() {
         </p>
       </div>
 
-      <div className="rounded-lg border p-4 space-y-3">
+      <div className="rounded-lg sk-outline p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-fluid-sm font-medium">

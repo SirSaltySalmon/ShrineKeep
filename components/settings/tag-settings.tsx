@@ -126,7 +126,7 @@ export default function TagSettings() {
           {tags.map((tag) => (
             <li
               key={tag.id}
-              className="flex flex-wrap items-center gap-2 rounded-lg border p-3 min-w-0"
+              className="flex flex-wrap items-center gap-2 rounded-lg sk-outline p-3 min-w-0"
             >
               {editingId === tag.id ? (
                 <>
@@ -139,7 +139,7 @@ export default function TagSettings() {
                   <select
                     value={editColor}
                     onChange={(e) => setEditColor(e.target.value as TagColor)}
-                    className="h-9 rounded-md border border-input bg-background px-3 py-1 text-fluid-sm min-w-[100px]"
+                    className="h-9 rounded-md sk-outline-control bg-background px-3 py-1 text-fluid-sm min-w-[100px]"
                   >
                     {TAG_COLORS.map((c) => (
                       <option key={c} value={c}>
@@ -157,7 +157,7 @@ export default function TagSettings() {
               ) : (
                 <>
                   <span
-                    className="rounded-md px-2 py-0.5 text-fluid-sm font-medium text-white shrink-0"
+                    className="rounded-md px-2 py-0.5 text-fluid-sm font-medium shrink-0"
                     style={getTagChipStyle((tag as Tag).color ?? "blue")}
                   >
                     {tag.name}
@@ -189,7 +189,7 @@ export default function TagSettings() {
       </div>
 
       {showCreate ? (
-        <div className="rounded-lg border p-4 space-y-2 bg-light-muted">
+        <div className="rounded-lg sk-outline p-4 space-y-2 bg-light-muted">
           <Label className="text-fluid-sm">New tag</Label>
           <div className="flex flex-wrap gap-2 items-end">
             <Input
@@ -201,7 +201,7 @@ export default function TagSettings() {
             <select
               value={newColor}
               onChange={(e) => setNewColor(e.target.value as TagColor)}
-              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-fluid-sm min-w-[100px]"
+              className="h-9 rounded-md sk-outline-control bg-background px-3 py-1 text-fluid-sm min-w-[100px]"
             >
               {TAG_COLORS.map((c) => (
                 <option key={c} value={c}>

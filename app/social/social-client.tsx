@@ -232,7 +232,7 @@ export default function SocialClient({ actorId, sandbox }: SocialClientProps) {
       </div>
 
       {sandbox ? (
-        <p className="rounded-md border border-border bg-light-muted px-3 py-2 text-fluid-sm text-muted-foreground">
+        <p className="rounded-md sk-outline bg-light-muted px-3 py-2 text-fluid-sm text-muted-foreground">
           Temporary accounts cannot send requests, accept friends, or block people.
         </p>
       ) : null}
@@ -299,7 +299,7 @@ export default function SocialClient({ actorId, sandbox }: SocialClientProps) {
             placeholder="Search friends by name"
           />
           {lookupId ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-card-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md sk-outline bg-card px-3 py-2 text-card-foreground">
               <p className="text-fluid-sm text-foreground">
                 Profile <span className="font-medium">{lookupId}</span>
               </p>
@@ -325,7 +325,7 @@ export default function SocialClient({ actorId, sandbox }: SocialClientProps) {
             emptyText={friendsQuery ? "No friends match that search." : "No friends yet."}
             onRetry={() => void friends.refetch()}
           >
-            <ul className="divide-y divide-border rounded-md border border-border bg-card">
+            <ul className="divide-y divide-border rounded-md sk-outline bg-card">
               {friendRows.map((entry) => (
                 <FriendRow
                   key={entry.profile.id}
@@ -354,7 +354,7 @@ export default function SocialClient({ actorId, sandbox }: SocialClientProps) {
             emptyText="No incoming requests."
             onRetry={() => void incoming.refetch()}
           >
-            <ul className="divide-y divide-border rounded-md border border-border bg-card">
+            <ul className="divide-y divide-border rounded-md sk-outline bg-card">
               {incomingRows.map((entry) => (
                 <RequestRow
                   key={entry.requestId}
@@ -394,7 +394,7 @@ export default function SocialClient({ actorId, sandbox }: SocialClientProps) {
             emptyText="No outgoing requests."
             onRetry={() => void outgoing.refetch()}
           >
-            <ul className="divide-y divide-border rounded-md border border-border bg-card">
+            <ul className="divide-y divide-border rounded-md sk-outline bg-card">
               {outgoingRows.map((entry) => (
                 <RequestRow
                   key={entry.requestId}
@@ -439,7 +439,7 @@ export default function SocialClient({ actorId, sandbox }: SocialClientProps) {
             emptyText="No notifications."
             onRetry={() => void notifications.refetch()}
           >
-            <ul className="divide-y divide-border rounded-md border border-border bg-card">
+            <ul className="divide-y divide-border rounded-md sk-outline bg-card">
               {notificationRows.map((entry) => (
                 <NotificationRow
                   key={entry.id}
@@ -483,7 +483,7 @@ export default function SocialClient({ actorId, sandbox }: SocialClientProps) {
             emptyText="No blocked accounts."
             onRetry={() => void blocks.refetch()}
           >
-            <ul className="divide-y divide-border rounded-md border border-border bg-card">
+            <ul className="divide-y divide-border rounded-md sk-outline bg-card">
               {blockRows.map((entry) => (
                 <BlockedRow
                   key={entry.userId}

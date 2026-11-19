@@ -84,7 +84,7 @@ test("owner preview matches a signed-out guest wishlist", async ({ browser }) =>
   await ownerPage.goto("/auth/login")
   await ownerPage.getByLabel(/email/i).fill(email!)
   await ownerPage.getByLabel(/password/i).fill(password!)
-  await ownerPage.getByRole("button", { name: /log in/i }).click()
+  await ownerPage.getByRole("button", { name: /^sign in$/i }).click()
   await expect(ownerPage).toHaveURL(/\/dashboard/)
   const ownerId = await ownerPage.evaluate(async () => {
     const response = await fetch("/api/settings")

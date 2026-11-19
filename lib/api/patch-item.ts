@@ -1,6 +1,7 @@
 import type { createSupabaseServerClient } from "@/lib/supabase/server"
 import { validateTags } from "./validation"
 import { deletePhotoRowsAndUnreferencedStorage } from "./photo-storage"
+import { itemCapErrorFromDb } from "./item-cap-error"
 import type { ItemPatch, ItemPhotoOps } from "@/lib/item-patch"
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>
@@ -231,7 +232,8 @@ export async function applyItemPatch({
       .update(scalarUpdate)
       .eq("id", itemId)
       .eq("user_id", userId)
-    if (error) throw error
+    // Wishlist -> collection takes a capped slot; the DB trigger rejects it at the cap.
+    if (error) throw itemCapErrorFromDb(error) ?? error
     operations.push("updated item scalars")
   }
 
