@@ -9,7 +9,7 @@ test("landing page renders", async ({ page }) => {
 
 test("login page renders", async ({ page }) => {
   await page.goto("/auth/login")
-  await expect(page.getByRole("button", { name: /log in/i })).toBeVisible()
+  await expect(page.getByRole("button", { name: /^sign in$/i })).toBeVisible()
 })
 
 test("dashboard redirects unauthenticated users to login", async ({ page }) => {
@@ -35,7 +35,7 @@ test("authenticated user can sign in and open dashboard", async ({ page }) => {
   await page.goto("/auth/login")
   await page.getByLabel(/email/i).fill(process.env.E2E_AUTH_EMAIL!)
   await page.getByLabel(/password/i).fill(process.env.E2E_AUTH_PASSWORD!)
-  await page.getByRole("button", { name: /log in/i }).click()
+  await page.getByRole("button", { name: /^sign in$/i }).click()
   await expect(page).toHaveURL(/\/dashboard/)
   await expect(page.getByRole("button", { name: /filters/i })).toBeVisible()
 })
@@ -46,7 +46,7 @@ test("authenticated user can create basic collection content", async ({ page }) 
   await page.goto("/auth/login")
   await page.getByLabel(/email/i).fill(process.env.E2E_AUTH_EMAIL!)
   await page.getByLabel(/password/i).fill(process.env.E2E_AUTH_PASSWORD!)
-  await page.getByRole("button", { name: /log in/i }).click()
+  await page.getByRole("button", { name: /^sign in$/i }).click()
   await expect(page).toHaveURL(/\/dashboard/)
 
   // These are intentionally broad selectors to keep smoke tests resilient to minor UI copy changes.
