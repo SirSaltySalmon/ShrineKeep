@@ -132,23 +132,32 @@ export default function LandingPage() {
             backgroundSize: "22px 22px",
           }}
         >
-          <div className="container mx-auto px-4 pb-12 pt-24 sm:pb-16 sm:pt-28">
-            {/*
-              The poster is ~0.53x as tall as it is wide, whatever faces the motto is set in (its
-              lines have fixed heights). Capping the hero column by viewport height keeps the pitch
-              and CTAs above the fold on short, wide screens. Below a 48rem floor the fold is lost
-              anyway, so the poster stops shrinking.
-            */}
-            <div className="mx-auto w-full" style={{ maxWidth: "max(48rem, calc((100svh - 19.5rem) * 1.89))" }}>
+          {/*
+            The whole hero fits one desktop screen. The poster is ~0.53x as tall as it is wide plus
+            a ~45px caption row, whatever faces the motto is set in (its lines have fixed heights),
+            so its width is capped by viewport height: from lg up, 20.5rem covers the fixed nav and
+            the trimmed padding, the gap and the pitch row. Below lg the fold is lost anyway past a
+            48rem floor; from lg the floor is 32rem, for very short windows.
+          */}
+          <div className="container mx-auto px-4 pb-12 pt-24 sm:pb-16 sm:pt-28 lg:pb-8 lg:pt-[5.5rem] [--sk-hero-poster:max(48rem,calc((100svh_-_19.5rem)_*_1.89))] lg:[--sk-hero-poster:max(32rem,calc((100svh_-_20.5rem)_*_1.887))]">
+            {/* The hero fades up on load as the sections below do on scroll; the pitch follows. */}
+            <div className="sk-landing-rise mx-auto w-full max-w-[var(--sk-hero-poster)]">
               <HeroMotto freeItemCap={FREE_TIER_CAP} />
+            </div>
 
-              {/*
-                Wraps on the column's own width, not a viewport breakpoint: this column can be far
-                narrower than the screen, and a breakpoint would squeeze the pitch beside the buttons.
-              */}
-              <div className="mt-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-6 sm:mt-10">
+            {/*
+              Its own width, at least 60rem: a poster narrowed by a short screen would otherwise wrap
+              the buttons under the pitch and make the row taller than the budget above. Wraps on
+              that width, not a viewport breakpoint, so the pitch is never squeezed beside the buttons.
+            */}
+            <div
+              className="sk-landing-rise mx-auto w-full max-w-[max(60rem,var(--sk-hero-poster))]"
+              style={{ "--sk-rise-delay": "120ms" } as React.CSSProperties}
+            >
+              <div className="mt-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-6 sm:mt-10 lg:mt-8">
                 <p className="max-w-xl flex-1 basis-[24rem] text-fluid-lg text-foreground sm:text-fluid-xl">
-                  ShrineKeep is the collection manager for people dropping big money on their hobby. Powerful file system-inspired management, financial tracking, shareable wishlists, and agentic assistance — all in your favorite color.
+                  ShrineKeep is THE collection manager for people who drop big money into their hobby.
+                  Powerful file system-inspired organization, finances, shareables, and agentic assistance. All in your favorite color.
                 </p>
                 <div className="flex flex-wrap items-start gap-3 sm:gap-4">
                   <div className="flex flex-col items-center gap-1.5">
@@ -206,8 +215,9 @@ export default function LandingPage() {
         </div>
 
         {/* Live demo */}
-        <section id="demo" className="scroll-mt-20 border-b-2 border-foreground bg-light-muted">
-          <div className="container mx-auto px-4 py-14 sm:py-20">
+        <section id="demo" className="scroll-mt-[3.875rem] border-b-2 border-foreground bg-light-muted">
+          {/* From lg up the demo window itself is nearly one screen tall (MOCK_DESKTOP_HEIGHT), below its heading. */}
+          <div className="container mx-auto px-4 py-14 sm:py-20 lg:py-8">
             <ScrollReveal>
               <SectionLabel>Live demo / very clickable</SectionLabel>
               <h2 className="mt-3 max-w-4xl text-4xl leading-[1.02] text-foreground sm:text-6xl">
@@ -220,7 +230,7 @@ export default function LandingPage() {
                Interact freely and watch your money move. Available in Comic Sans!
               </p>
             </ScrollReveal>
-            <ScrollReveal delayMs={120} threshold={0.05} className="mt-8 sm:mt-10">
+            <ScrollReveal delayMs={120} threshold={0.05} className="mt-8 sm:mt-10 lg:mt-6">
               <MockDashboard />
             </ScrollReveal>
           </div>
@@ -264,10 +274,11 @@ export default function LandingPage() {
         {/* Game */}
         <section
           id="blind-box"
-          className="scroll-mt-20 border-b-2 border-foreground"
+          className="scroll-mt-[3.875rem] border-b-2 border-foreground"
           style={{ background: "hsl(var(--tag-yellow) / 0.22)" }}
         >
-          <div className="container mx-auto px-4 py-14 sm:py-20">
+          {/* From lg up the section is one screen tall: the game lays its figures in one row. */}
+          <div className="container mx-auto px-4 py-14 sm:py-20 lg:py-8">
             <ScrollReveal>
               <SectionLabel onTint>Intermission</SectionLabel>
               <h2 className="mt-3 max-w-4xl text-4xl leading-[1.02] text-foreground sm:text-6xl">
@@ -278,7 +289,7 @@ export default function LandingPage() {
                 We love gambling. Complete the set before your wallet runs dry!
               </p>
             </ScrollReveal>
-            <ScrollReveal delayMs={120} threshold={0.05} className="mt-8 sm:mt-10">
+            <ScrollReveal delayMs={120} threshold={0.05} className="mt-8 sm:mt-10 lg:mt-5">
               <BlindBoxGame />
             </ScrollReveal>
           </div>
@@ -286,7 +297,8 @@ export default function LandingPage() {
 
         {/* Closing pitch + receipt */}
         <section className="border-b-2 border-foreground bg-foreground text-background">
-          <div className="container mx-auto grid grid-cols-1 items-center gap-10 px-4 py-16 sm:py-24 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16">
+          {/* The pitch takes its own width; the receipt sits centred in all the space left beside it (no column gap). */}
+          <div className="container mx-auto grid grid-cols-1 items-center gap-10 px-4 py-16 sm:py-24 lg:grid-cols-[auto_minmax(0,1fr)] lg:gap-x-0">
             <ScrollReveal>
               <h2 className="text-5xl leading-[0.98] sm:text-7xl">
                 <span style={{ fontFamily: FONT.playfairItalic, fontStyle: "italic", fontWeight: 900 }}>Go on... </span>
@@ -314,7 +326,7 @@ export default function LandingPage() {
               </div>
             </ScrollReveal>
 
-            <ScrollReveal delayMs={150} className="mx-auto w-full max-w-[21rem] lg:mx-0">
+            <ScrollReveal delayMs={150} className="mx-auto w-full max-w-[21rem]">
               <div
                 className="rotate-2 bg-background px-5 pb-8 pt-5 text-foreground transition-transform duration-300 motion-safe:hover:rotate-0"
                 style={{

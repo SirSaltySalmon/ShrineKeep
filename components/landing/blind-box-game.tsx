@@ -258,7 +258,8 @@ export function BlindBoxGame() {
           {busy && <p aria-hidden>Clunk clunk clunk...</p>}
         </div>
 
-        <ul className="mt-2 grid grid-cols-3 gap-2 sm:gap-3">
+        {/* One row of nine from lg up, so the game fits on a desktop screen beside the full-size machine. */}
+        <ul className="mt-2 grid grid-cols-3 gap-2 sm:gap-3 lg:grid-cols-9 lg:gap-2">
           {FIGURES.map((figure) => {
             const count = game.owned[figure.id] ?? 0
             const have = count > 0
@@ -275,7 +276,7 @@ export function BlindBoxGame() {
                 <Keeper
                   spec={figure}
                   silhouette={!have}
-                  className={cn("h-14 w-auto sm:h-[4.5rem]", fresh && "sk-landing-pop")}
+                  className={cn("h-14 w-auto sm:h-[4.5rem] lg:h-14 xl:h-[4.5rem]", fresh && "sk-landing-pop")}
                   key={fresh ? `${figure.id}-${count}` : figure.id}
                 />
                 <span className="mt-1 text-fluid-sm font-semibold text-foreground">{have ? figure.name : "???"}</span>
@@ -299,7 +300,7 @@ export function BlindBoxGame() {
           Pull and trade keep their place when the game ends and the end actions are added after
           them, so a click meant for "Pull one" can never land on "Play again" or on a link.
         */}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2 lg:mt-3">
           <Button
             key="pull"
             onClick={pull}
@@ -333,7 +334,7 @@ export function BlindBoxGame() {
         </div>
 
         {/* The same three numbers the dashboard keeps for a real collection. */}
-        <div className="mt-5 rounded-lg border-2 border-foreground bg-background p-3">
+        <div className="mt-5 rounded-lg border-2 border-foreground bg-background p-3 lg:mt-4">
           <MoneyStats value={status.value} spent={status.spent} size="md" />
           {best !== null && <p className="mt-1.5 text-fluid-xs text-muted-foreground">Your best: full set in {best} pulls.</p>}
         </div>

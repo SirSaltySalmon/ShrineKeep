@@ -453,6 +453,34 @@
     animation-delay: var(--sk-delay, 0ms);
   }
 
+  /*
+   * Hero entrance on page load: the fade-up ScrollReveal gives the sections below
+   * (700ms ease-out, up from 1.5rem), in CSS so it runs on first paint without waiting
+   * for hydration. Its own delay variable, because --sk-delay inherits into the motto.
+   */
+  @keyframes sk-landing-rise {
+    from {
+      opacity: 0;
+      transform: translateY(1.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes sk-landing-rise-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .sk-landing-rise {
+    animation: sk-landing-rise 700ms ease-out both;
+    animation-delay: var(--sk-rise-delay, 0ms);
+  }
+
   @keyframes sk-landing-marquee {
     to {
       transform: translateX(-50%);
@@ -551,6 +579,10 @@
     .sk-landing-crank,
     .sk-landing-pop {
       animation: none;
+    }
+    /* As ScrollReveal under reduced motion: still fades, does not move. */
+    .sk-landing-rise {
+      animation-name: sk-landing-rise-fade;
     }
   }
 }

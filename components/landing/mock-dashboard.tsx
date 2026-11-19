@@ -9,6 +9,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type Modifier,
 } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import {
@@ -177,6 +178,32 @@ function ItemTile({ item }: { item: DemoItem }) {
 /* --------------------------- drag-and-drop bits ------------------------- */
 
 const DEMO_DND_CONTEXT_ID = "landing-demo-dnd"
+
+/**
+ * Keeps a dragged card inside the visible part of its first scrolling ancestor (the view, from lg
+ * up). A card moved by transform past the bottom would otherwise extend the view's scroll height,
+ * auto-scroll would follow it, and the view would keep growing. Same rule as
+ * `restrictToFirstScrollableAncestor` in @dnd-kit/modifiers.
+ */
+const keepInsideScrollView: Modifier = ({ transform, draggingNodeRect, scrollableAncestorRects }) => {
+  const bounds = scrollableAncestorRects[0]
+  if (!draggingNodeRect || !bounds) return transform
+  const next = { ...transform }
+  if (draggingNodeRect.top + transform.y <= bounds.top) next.y = bounds.top - draggingNodeRect.top
+  else if (draggingNodeRect.bottom + transform.y >= bounds.top + bounds.height)
+    next.y = bounds.top + bounds.height - draggingNodeRect.bottom
+  if (draggingNodeRect.left + transform.x <= bounds.left) next.x = bounds.left - draggingNodeRect.left
+  else if (draggingNodeRect.right + transform.x >= bounds.left + bounds.width)
+    next.x = bounds.left + bounds.width - draggingNodeRect.right
+  return next
+}
+
+/**
+ * The demo's height from lg up: one screen less the fixed nav and a small margin, so the window
+ * fills the screen when scrolled to (the section heading sits above it). Very short windows stop
+ * at 28rem.
+ */
+const MOCK_DESKTOP_HEIGHT = "lg:h-[max(28rem,calc(100svh_-_6rem))]"
 
 /*
  * Surfaces inside the themed wrapper take their border and shadow from the outline classes
@@ -493,6 +520,24 @@ export function MockDashboard() {
     refocusAt.current = null
   }, [items])
 
+  // While the view scrolls inside the frame (lg up), a drag auto-scrolls only the view: the card
+  // cannot leave it, so scrolling the page would just carry the demo away. Below lg the view does
+  // not scroll and the page does.
+  const autoScroll = React.useMemo(
+    () => ({
+      canScroll: (element: Element) => {
+        const viewEl = viewRef.current
+        return !viewEl || element === viewEl || getComputedStyle(viewEl).overflowY === "visible"
+      },
+    }),
+    []
+  )
+
+  // From lg up the view scrolls inside the frame; another place starts at its top.
+  React.useEffect(() => {
+    viewRef.current?.scrollTo({ top: 0 })
+  }, [view, boxId])
+
   const acquire = (id: string) => {
     const item = items.find((candidate) => candidate.id === id)
     if (!item) return
@@ -546,9 +591,11 @@ export function MockDashboard() {
   )
 
   return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:items-start">
+    // From lg up the demo is one screen tall (`MOCK_DESKTOP_HEIGHT`): the view and the theme
+    // editor scroll inside it instead of the page growing.
+    <div className={`grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_17.5rem] lg:grid-rows-[minmax(0,1fr)] ${MOCK_DESKTOP_HEIGHT}`}>
       {/* Browser frame: landing tokens outside, shrine tokens inside. */}
-      <div className={`min-w-0 overflow-hidden rounded-lg border-2 border-foreground bg-background ${HARD_SHADOW}`}>
+      <div className={`min-w-0 overflow-hidden rounded-lg border-2 border-foreground bg-background lg:flex lg:min-h-0 lg:flex-col ${HARD_SHADOW}`}>
         <div className="flex items-center gap-3 border-b-2 border-foreground bg-light-muted px-3 py-2">
           <div className="flex gap-1.5" aria-hidden>
             {(["red", "yellow", "green"] as const).map((c) => (
@@ -564,7 +611,11 @@ export function MockDashboard() {
           <span className="hidden text-fluid-xs font-medium text-muted-foreground sm:block">Live demo</span>
         </div>
 
-        <div style={themeStyle} className="bg-background text-foreground transition-colors duration-300" data-demo-theme={theme.id}>
+        <div
+          style={themeStyle}
+          className="bg-background text-foreground transition-colors duration-300 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
+          data-demo-theme={theme.id}
+        >
           <div className="flex items-center gap-2 overflow-x-auto sk-rule-b px-3 py-2 text-fluid-sm sm:gap-3 sm:px-4">
             <span className="flex shrink-0 items-center gap-1 font-heading font-semibold">
               <SiteLogoMark className="h-6 w-6" />
@@ -580,12 +631,14 @@ export function MockDashboard() {
             </span>
           </div>
 
-          <div ref={viewRef} className="min-h-[36rem] space-y-3 p-3 sm:p-4">
+          <div ref={viewRef} className="min-h-[36rem] space-y-3 p-3 sm:p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {view === "dashboard" ? (
               <DndContext
                 id={DEMO_DND_CONTEXT_ID}
                 sensors={sensors}
                 collisionDetection={dashboardDndCollisionDetection}
+                modifiers={[keepInsideScrollView]}
+                autoScroll={autoScroll}
                 onDragStart={({ active }) => setActiveDrag((active.data.current as DragData | undefined) ?? null)}
                 onDragEnd={handleDragEnd}
                 onDragCancel={() => setActiveDrag(null)}
@@ -775,7 +828,10 @@ export function MockDashboard() {
       </div>
 
       {/* Theme controls: the same three knobs the real theme editor exposes. */}
-      <aside className={`rounded-lg border-2 border-foreground bg-background p-4 ${HARD_SHADOW}`} aria-label="Demo theme controls">
+      <aside
+        className={`rounded-lg border-2 border-foreground bg-background p-4 lg:min-h-0 lg:overflow-y-auto ${HARD_SHADOW}`}
+        aria-label="Demo theme controls"
+      >
         <p className="text-fluid-xs font-semibold uppercase tracking-wider text-muted-foreground" style={{ fontFamily: LANDING_FONT.mono }}>
           Theme editor
         </p>
