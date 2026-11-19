@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { Repeat, RotateCcw } from "lucide-react"
-import { cn, formatCurrency } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Keeper, RARITY_LABEL } from "@/components/keeper"
 import { MoneyStats } from "@/components/landing/money-stats"
@@ -15,7 +15,6 @@ import {
   oddsSentence,
   PULL_COST,
   pullFigure,
-  START_WALLET,
   TRADE_COST,
   tradeSpares,
   type Draw,
@@ -128,7 +127,7 @@ export function BlindBoxGame() {
     setLast(null)
   }
 
-  let message = `Nine figures. ${formatCurrency(START_WALLET)} of cash. You know what to do.`
+  let message = `You know what to do.`
   if (last?.source === "trade") message = `Traded ${TRADE_COST} spares for ${last.figure.name}. Somebody out there is happy too.`
   else if (last?.isNew) message = `New: ${last.figure.name}. ${RARITY_LABEL[last.figure.rarity]}, worth about $${last.figure.value}.`
   else if (last) message = `Another ${last.figure.name}. That's a spare.`

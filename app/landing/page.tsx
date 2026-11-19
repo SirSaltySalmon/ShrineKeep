@@ -45,7 +45,7 @@ const FEATURES: { title: string; body: string; font: React.CSSProperties; chip: 
   },
   {
     title: "Worth vs. paid",
-    body: "Every item tracks its value and what you paid, graphed over time. Wishlist items join the numbers the day you mark them acquired.",
+    body: "Every item tracks its value and what you paid, graphed over time. Your numbers change the moment you tick something off your wishlist!",
     font: { fontFamily: FONT.playfairItalic, fontStyle: "italic", fontWeight: 900 },
     chip: "tag-green",
   },
@@ -57,7 +57,7 @@ const FEATURES: { title: string; body: string; font: React.CSSProperties; chip: 
   },
   {
     title: "Bring your own agent",
-    body: "In a browser with WebMCP, your own AI agent can research a set, fill in a box and update values. Nothing changes until you approve it.",
+    body: "In a browser with WebMCP, your own AI agent can research a set, fill in a box and update values. You approve the changes before anything goes.",
     font: { fontFamily: FONT.mono, fontWeight: 600, fontSize: "0.8em" },
     chip: "tag-blue",
   },
@@ -148,8 +148,7 @@ export default function LandingPage() {
               */}
               <div className="mt-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-6 sm:mt-10">
                 <p className="max-w-xl flex-1 basis-[24rem] text-fluid-lg text-foreground sm:text-fluid-xl">
-                  ShrineKeep is a collection manager for people who take the hobby seriously. Boxes inside boxes, what
-                  it&apos;s worth, what you paid, and what&apos;s still on the wishlist, in your favorite color.
+                  ShrineKeep is the collection manager for people dropping big money on their hobby. Powerful file system-inspired management, financial tracking, shareable wishlists, and agentic assistance — all in your favorite color.
                 </p>
                 <div className="flex flex-wrap items-start gap-3 sm:gap-4">
                   <div className="flex flex-col items-center gap-1.5">
@@ -218,7 +217,7 @@ export default function LandingPage() {
                 <span style={{ fontFamily: FONT.bebas, fontSize: "1.2em", letterSpacing: "0.01em" }}>SCREENSHOT.</span>
               </h2>
               <p className="mt-4 max-w-2xl text-fluid-lg text-muted-foreground">
-                Open a box, drag items around, filter by tag, clear the wishlist and watch your money move. Available in Comic Sans!
+               Interact freely and watch your money move. Available in Comic Sans!
               </p>
             </ScrollReveal>
             <ScrollReveal delayMs={120} threshold={0.05} className="mt-8 sm:mt-10">
@@ -270,13 +269,13 @@ export default function LandingPage() {
         >
           <div className="container mx-auto px-4 py-14 sm:py-20">
             <ScrollReveal>
-              <SectionLabel onTint>Intermission...</SectionLabel>
+              <SectionLabel onTint>Intermission</SectionLabel>
               <h2 className="mt-3 max-w-4xl text-4xl leading-[1.02] text-foreground sm:text-6xl">
                 <span style={{ fontFamily: FONT.bebas, fontSize: "1.2em", letterSpacing: "0.01em" }}>JUST ONE MORE </span>
-                <span style={{ fontFamily: FONT.playfairItalic, fontStyle: "italic", fontWeight: 900 }}>pull.</span>
+                <span style={{ fontFamily: FONT.playfairItalic, fontStyle: "italic", fontWeight: 900 }}>pull...</span>
               </h2>
               <p className="mt-4 max-w-2xl text-fluid-lg text-foreground/80">
-                Everyone loves a gambling minigame. Complete the set before your wallet runs dry!
+                We love gambling. Complete the set before your wallet runs dry!
               </p>
             </ScrollReveal>
             <ScrollReveal delayMs={120} threshold={0.05} className="mt-8 sm:mt-10">
@@ -290,12 +289,11 @@ export default function LandingPage() {
           <div className="container mx-auto grid grid-cols-1 items-center gap-10 px-4 py-16 sm:py-24 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-16">
             <ScrollReveal>
               <h2 className="text-5xl leading-[0.98] sm:text-7xl">
-                <span style={{ fontFamily: FONT.playfairItalic, fontStyle: "italic", fontWeight: 900 }}>Go on. </span>
+                <span style={{ fontFamily: FONT.playfairItalic, fontStyle: "italic", fontWeight: 900 }}>Go on... </span>
                 <span style={{ fontFamily: FONT.bebas, fontSize: "1.2em", letterSpacing: "0.01em" }}>get ORGANIZED </span>
               </h2>
               <p className="mt-5 max-w-xl text-fluid-lg text-background/75">
-                Poke around the sandbox first if you&apos;d rather not hand
-                over an email yet.
+                Rather not spend time making an account yet? Open the sandbox and poke around, no sign up required.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
                 <Button
@@ -360,7 +358,7 @@ export default function LandingPage() {
                       "repeating-linear-gradient(90deg, hsl(var(--foreground)) 0 2px, transparent 2px 5px, hsl(var(--foreground)) 5px 6px, transparent 6px 9px, hsl(var(--foreground)) 9px 12px, transparent 12px 14px)",
                   }}
                 />
-                <p className="mt-2 text-center text-[11px] tracking-widest text-muted-foreground">THANK YOU !!! A LOT !!!</p>
+                <p className="mt-2 text-center text-[11px] tracking-widest text-muted-foreground">THANK YOU FOR HAVING FUN !!!</p>
               </div>
             </ScrollReveal>
           </div>
