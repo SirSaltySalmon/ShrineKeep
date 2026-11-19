@@ -108,12 +108,12 @@ export function OptionsSettings({
 
       <div className="space-y-4">
         <div>
-          <h3 className="text-fluid-lg font-semibold mb-2">Items not in a box</h3>
+          <h3 className="text-fluid-lg font-semibold mb-2">Root box</h3>
           <p className="text-fluid-sm text-muted-foreground mb-4">
-            Loose collection items and wishes with no target box belong to this container.
+            All items and boxes belong to this container.
           </p>
           <ContainerAudienceFields
-            containerLabel="Items not in a box"
+            containerLabel="Root box"
             value={root}
             onChange={onRootChange}
             idPrefix="root"
