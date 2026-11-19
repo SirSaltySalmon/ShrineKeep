@@ -101,7 +101,7 @@ export default function PublicWishlistClient({
             </h2>
           </div>
           {items.length === 0 ? (
-            <EmptyState figure="wishlist" className="py-8 text-fluid-sm">
+            <EmptyState className="py-8 text-fluid-sm">
               This wishlist is empty.
             </EmptyState>
           ) : (

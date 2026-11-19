@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 /**
  * "Keepers" are ShrineKeep's blind-box figures: one parametric SVG, nine
  * variants. The landing page uses them on the hero shelf and in the game; the
- * product uses one per empty state (see `components/empty-state.tsx`).
+ * product draws one per empty state (see `components/empty-state.tsx`).
  * They paint only with theme tokens, so they follow whatever scheme is in
  * scope: a user's theme, a shared public theme, or the landing mock's.
  */
@@ -30,18 +30,20 @@ export interface KeeperSpec {
   topper: KeeperTopper
   face: KeeperFace
   rarity: KeeperRarity
+  /** Relative pull odds: the blind-box game and the empty-state draw both pick by it. */
+  weight: number
 }
 
 export const KEEPERS: KeeperSpec[] = [
-  { id: "moss", name: "Moss", colorVar: "tag-green", topper: "sprout", face: "smile", rarity: "common" },
-  { id: "ember", name: "Ember", colorVar: "tag-orange", topper: "flame", face: "stern", rarity: "common" },
-  { id: "tide", name: "Tide", colorVar: "tag-blue", topper: "antenna", face: "o", rarity: "common" },
-  { id: "plum", name: "Plum", colorVar: "tag-violet", topper: "bow", face: "wink", rarity: "common" },
-  { id: "dusk", name: "Dusk", colorVar: "tag-indigo", topper: "ears", face: "sleepy", rarity: "common" },
-  { id: "oni", name: "Oni", colorVar: "tag-red", topper: "horns", face: "stern", rarity: "rare" },
-  { id: "saint", name: "Saint", colorVar: "tag-yellow", topper: "halo", face: "smile", rarity: "rare" },
-  { id: "ink", name: "Ink", colorVar: "foreground", topper: "ears", face: "wink", rarity: "rare" },
-  { id: "gilt", name: "Gilt", colorVar: "thumbnail-color", topper: "crown", face: "star", rarity: "secret" },
+  { id: "moss", name: "Moss", colorVar: "tag-green", topper: "sprout", face: "smile", rarity: "common", weight: 15 },
+  { id: "ember", name: "Ember", colorVar: "tag-orange", topper: "flame", face: "stern", rarity: "common", weight: 15 },
+  { id: "tide", name: "Tide", colorVar: "tag-blue", topper: "antenna", face: "o", rarity: "common", weight: 15 },
+  { id: "plum", name: "Plum", colorVar: "tag-violet", topper: "bow", face: "wink", rarity: "common", weight: 15 },
+  { id: "dusk", name: "Dusk", colorVar: "tag-indigo", topper: "ears", face: "sleepy", rarity: "common", weight: 15 },
+  { id: "oni", name: "Oni", colorVar: "tag-red", topper: "horns", face: "stern", rarity: "rare", weight: 6.5 },
+  { id: "saint", name: "Saint", colorVar: "tag-yellow", topper: "halo", face: "smile", rarity: "rare", weight: 6.5 },
+  { id: "ink", name: "Ink", colorVar: "foreground", topper: "ears", face: "wink", rarity: "rare", weight: 6.5 },
+  { id: "gilt", name: "Gilt", colorVar: "thumbnail-color", topper: "crown", face: "star", rarity: "secret", weight: 5.5 },
 ]
 
 export const RARITY_LABEL: Record<KeeperRarity, string> = {
@@ -229,8 +231,8 @@ export function Keeper({
             strokeLinejoin="round"
           />
           <ellipse cx="32" cy="37.5" rx="15" ry="12" fill={PAPER} stroke={INK} strokeWidth={2} />
-          <circle cx="21.5" cy="41" r="2.2" fill="hsl(var(--tag-red))" opacity={0.45} />
-          <circle cx="42.5" cy="41" r="2.2" fill="hsl(var(--tag-red))" opacity={0.45} />
+          <circle cx="21.5" cy="41" r="2.2" fill="hsl(var(--tag-red))" opacity={0.22} />
+          <circle cx="42.5" cy="41" r="2.2" fill="hsl(var(--tag-red))" opacity={0.22} />
           <Face kind={spec.face} />
           <path
             d="M25 56.5q7 3.5 14 0"

@@ -191,7 +191,6 @@ export default function BoxGrid({
         // As tall as the row of cards the grid reserves while loading, so the section does not
         // jump between loading and empty; the 64px figure and its line sit centred in it.
         <EmptyState
-          figure="boxes"
           size="sm"
           className={cn(cardMinHeightClass, "flex flex-col justify-center", density === "compact" ? "py-2" : "py-6")}
         >

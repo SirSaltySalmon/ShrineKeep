@@ -325,7 +325,6 @@ export default function ItemGrid({
         </div>
         {showEmpty && (
           <EmptyState
-            figure={variant === "wishlist" ? "wishlist" : "items"}
             className={density === "compact" ? "min-h-[230px] py-8" : "min-h-[424px] py-12"}
           >
             {emptyText}

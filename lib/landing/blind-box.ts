@@ -1,4 +1,7 @@
 import { KEEPERS, RARITY_LABEL, type KeeperRarity, type KeeperSpec } from "@/components/keeper"
+import { weightedPick } from "@/lib/weighted-pick"
+
+export { weightedPick }
 
 /**
  * Rules of the landing page's blind-box game (`components/landing/blind-box-game.tsx`).
@@ -11,27 +14,27 @@ export const PULL_COST = 8
 export const TRADE_COST = 3
 
 /**
- * Game-only numbers per Keeper id: mock resale value in dollars, and relative pull weight.
- * They live here, not on `KEEPERS`, because the product shows Keepers too and has no use for them.
+ * Game-only mock resale value in dollars, per Keeper id. It lives here, not on `KEEPERS`,
+ * because the product has no use for it. Pull odds are `KeeperSpec.weight`, shared with
+ * the empty states.
  */
-const FIGURE_STATS: Record<string, { value: number; weight: number }> = {
-  moss: { value: 6, weight: 15 },
-  ember: { value: 6, weight: 15 },
-  tide: { value: 7, weight: 15 },
-  plum: { value: 7, weight: 15 },
-  dusk: { value: 8, weight: 15 },
-  oni: { value: 18, weight: 6.5 },
-  saint: { value: 22, weight: 6.5 },
-  ink: { value: 25, weight: 6.5 },
-  gilt: { value: 120, weight: 5.5 },
+const FIGURE_VALUE: Record<string, number> = {
+  moss: 6,
+  ember: 6,
+  tide: 7,
+  plum: 7,
+  dusk: 8,
+  oni: 18,
+  saint: 22,
+  ink: 25,
+  gilt: 120,
 }
 
 export interface GameFigure extends KeeperSpec {
   value: number
-  weight: number
 }
 
-export const FIGURES: GameFigure[] = KEEPERS.map((keeper) => ({ ...keeper, ...FIGURE_STATS[keeper.id] }))
+export const FIGURES: GameFigure[] = KEEPERS.map((keeper) => ({ ...keeper, value: FIGURE_VALUE[keeper.id] }))
 
 export interface GameState {
   /** Copies held, by figure id. */
@@ -48,17 +51,6 @@ export interface Draw {
   isNew: boolean
   source: "pull" | "trade"
   next: GameState
-}
-
-/** Picks in proportion to `weight`. Returns `undefined` only for an empty list. */
-export function weightedPick<T extends { weight: number }>(candidates: T[], roll: number): T | undefined {
-  const total = candidates.reduce((sum, candidate) => sum + candidate.weight, 0)
-  let remaining = roll * total
-  for (const candidate of candidates) {
-    remaining -= candidate.weight
-    if (remaining < 0) return candidate
-  }
-  return candidates[candidates.length - 1]
 }
 
 const count = (state: GameState, figure: GameFigure) => state.owned[figure.id] ?? 0

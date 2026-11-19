@@ -17,7 +17,7 @@ export default function NotFound() {
           />
         </div>
         <div className="space-y-2">
-          <EmptyStateKeeper figure="notFound" />
+          <EmptyStateKeeper />
           <h1 className="text-6xl sm:text-7xl font-bold text-foreground tracking-tight">
             404
           </h1>
