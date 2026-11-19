@@ -55,7 +55,7 @@ describe("POST /api/demo/seed", () => {
   it("maps item_limit_reached rpc response to 403", async () => {
     const rpc = vi.fn().mockResolvedValue({
       data: null,
-      error: { message: "item_limit_reached:1:1" },
+      error: { code: "P0001", message: "item_limit_reached:1:1", details: null, hint: null },
     })
     mockCreateSupabaseServerClient.mockResolvedValue({
       auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1" } } }) },
@@ -76,5 +76,11 @@ describe("POST /api/demo/seed", () => {
 
     const response = await POST(new Request("http://localhost/api/demo/seed") as any)
     expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: "item_limit_reached",
+      currentCount: 1,
+      cap: 1,
+    })
+    expect(mockSetDashboardDemoPromptDismissed).not.toHaveBeenCalled()
   })
 })

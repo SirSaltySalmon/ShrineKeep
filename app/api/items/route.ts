@@ -4,7 +4,8 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { createItems } from "@/lib/api/create-item"
 import { applyItemPatch, ItemNotFoundError } from "@/lib/api/patch-item"
-import { ItemCapExceededError } from "@/lib/api/item-cap-error"
+import { itemCapResponse } from "@/lib/api/item-cap-error"
+import { itemCreateTypeError, itemScalarTypeError, readJsonObject } from "@/lib/api/validation"
 import { getOwnedBoxIdSet } from "@/lib/api/validate-box-ownership"
 import { captureRouteException } from "@/lib/monitoring/sentry"
 import type { ItemPatch, ItemPhotoOps } from "@/lib/item-patch"
@@ -34,13 +35,7 @@ interface ItemCreateRequest {
   value_history?: { value: number; recorded_at: string }[]
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error
-    ? error.message
-    : typeof error === "object" && error !== null && "message" in error
-      ? String((error as { message: unknown }).message)
-      : fallback
-}
+const INVALID_BODY = "Request body must be a JSON object"
 
 export async function POST(request: NextRequest) {
   let userId: string | null = null
@@ -50,14 +45,19 @@ export async function POST(request: NextRequest) {
     const { supabase, user } = session
     userId = user.id
 
-    const body: ItemCreateRequest = await request.json()
+    const raw = await readJsonObject(request)
+    if (!raw) return NextResponse.json({ error: INVALID_BODY }, { status: 400 })
 
-    if (body.id) {
+    if (raw.id) {
       return NextResponse.json(
         { error: "Use PATCH to update an existing item" },
         { status: 400 }
       )
     }
+
+    const typeError = itemCreateTypeError(raw)
+    if (typeError) return NextResponse.json({ error: typeError }, { status: 400 })
+    const body = raw as unknown as ItemCreateRequest
 
     if (!body.name || !body.name.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
@@ -120,15 +120,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, itemId: result.itemIds[0] })
   } catch (error: unknown) {
-    if (error instanceof ItemCapExceededError) {
-      return NextResponse.json(
-        { error: "item_limit_reached", currentCount: error.currentCount, cap: error.cap },
-        { status: 403 }
-      )
-    }
+    const capResponse = itemCapResponse(error)
+    if (capResponse) return capResponse
 
-    const message = errorMessage(error, "Failed to save item")
-    console.error("Error saving item:", message, error)
+    // The cause can carry Postgres or RLS text: log it, answer with a fixed message.
+    console.error("Error saving item:", error)
     captureRouteException(error, {
       area: "items",
       route: "/api/items",
@@ -137,7 +133,7 @@ export async function POST(request: NextRequest) {
         operation: "save_item",
       },
     })
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: "Could not save the item. Try again." }, { status: 500 })
   }
 }
 
@@ -149,10 +145,15 @@ export async function PATCH(request: NextRequest) {
     const { supabase, user } = session
     userId = user.id
 
-    const body = (await request.json()) as ItemPatch
-    if (!body.id || typeof body.id !== "string") {
+    const raw = await readJsonObject(request)
+    if (!raw) return NextResponse.json({ error: INVALID_BODY }, { status: 400 })
+    if (!raw.id || typeof raw.id !== "string") {
       return NextResponse.json({ error: "id is required" }, { status: 400 })
     }
+
+    const typeError = itemScalarTypeError(raw)
+    if (typeError) return NextResponse.json({ error: typeError }, { status: 400 })
+    const body = raw as unknown as ItemPatch
 
     if (body.name !== undefined && !body.name.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 })
@@ -200,12 +201,8 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 })
     }
 
-    if (error instanceof ItemCapExceededError) {
-      return NextResponse.json(
-        { error: "item_limit_reached", currentCount: error.currentCount, cap: error.cap },
-        { status: 403 }
-      )
-    }
+    const capResponse = itemCapResponse(error)
+    if (capResponse) return capResponse
 
     if (isPrivacyConflictError(error)) {
       return NextResponse.json(
@@ -217,8 +214,7 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    const message = errorMessage(error, "Failed to update item")
-    console.error("Error updating item:", message, error)
+    console.error("Error updating item:", error)
     captureRouteException(error, {
       area: "items",
       route: "/api/items",
@@ -227,6 +223,6 @@ export async function PATCH(request: NextRequest) {
         operation: "patch_item",
       },
     })
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: "Could not update the item. Try again." }, { status: 500 })
   }
 }

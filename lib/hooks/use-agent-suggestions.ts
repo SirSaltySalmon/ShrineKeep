@@ -194,9 +194,27 @@ function toolResult(message: string, details?: Record<string, unknown>) {
   return { content: [{ type: "text", text: JSON.stringify({ message, ...details }) }] }
 }
 
+/** The free-tier cap 403 carries a code, not a sentence; say what happened and what to do. */
+function itemCapMessage(payload: { currentCount?: unknown; cap?: unknown }): string {
+  const limit =
+    typeof payload.cap === "number" && typeof payload.currentCount === "number"
+      ? `the free plan limit of ${payload.cap} items (you have ${payload.currentCount})`
+      : "the free plan item limit"
+  return `Creating these would go past ${limit}. Approve fewer owned items, switch some to Wishlist, or upgrade to Pro.`
+}
+
 async function parseJsonResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json().catch(() => ({}))) as T & { error?: string }
-  if (!response.ok) throw new Error(payload.error ?? `Request failed with status ${response.status}`)
+  const payload = (await response.json().catch(() => ({}))) as T & {
+    error?: string
+    currentCount?: unknown
+    cap?: unknown
+  }
+  if (!response.ok) {
+    if (response.status === 403 && payload.error === "item_limit_reached") {
+      throw new Error(itemCapMessage(payload))
+    }
+    throw new Error(payload.error ?? `Request failed with status ${response.status}`)
+  }
   return payload
 }
 

@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { requireMutableUser } from "@/lib/judge/require-mutable-user"
 import { createBoxes } from "@/lib/api/create-box"
 import { createItems } from "@/lib/api/create-item"
-import { ItemCapExceededError } from "@/lib/api/item-cap-error"
+import { itemCapResponse } from "@/lib/api/item-cap-error"
 import { getOwnedBoxIdSet } from "@/lib/api/validate-box-ownership"
 import { creationDescription } from "@/lib/webmcp/description-context"
 
@@ -238,12 +238,8 @@ export async function POST(request: NextRequest) {
         // Best-effort rollback; retain the original creation error below.
       }
     }
-    if (error instanceof ItemCapExceededError) {
-      return NextResponse.json(
-        { error: "item_limit_reached", currentCount: error.currentCount, cap: error.cap },
-        { status: 403 }
-      )
-    }
+    const capResponse = itemCapResponse(error)
+    if (capResponse) return capResponse
     const message = error instanceof Error ? error.message : "Failed to create staged items"
     return NextResponse.json({ error: message }, { status: 500 })
   }

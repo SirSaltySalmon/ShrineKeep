@@ -3,7 +3,8 @@ import { requireMutableUser } from "@/lib/judge/require-mutable-user"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { createItems } from "@/lib/api/create-item"
-import { ItemCapExceededError } from "@/lib/api/item-cap-error"
+import { itemCapResponse } from "@/lib/api/item-cap-error"
+import { itemCreateTypeError, readJsonObject } from "@/lib/api/validation"
 import { expandItemRefsToCreateInputs } from "@/lib/api/copy-expand"
 import { getOwnedBoxIdSet } from "@/lib/api/validate-box-ownership"
 import { startRouteSpan } from "@/lib/monitoring/sentry"
@@ -52,7 +53,11 @@ export async function POST(request: NextRequest) {
         if (!session.ok) return session.response
         const { supabase, user } = session
 
-        const body = (await request.json()) as PasteItemRequest
+        const raw = await readJsonObject(request)
+        if (!raw) {
+          return NextResponse.json({ error: "Request body must be a JSON object" }, { status: 400 })
+        }
+        const body = raw as unknown as PasteItemRequest
 
         let expandedItems: PasteItemsBody["items"] = []
         if (isReferenceMode(body)) {
@@ -62,9 +67,18 @@ export async function POST(request: NextRequest) {
               { status: 400 }
             )
           }
+          if (!body.sourceItemIds.every((id) => typeof id === "string")) {
+            return NextResponse.json({ error: "sourceItemIds must be strings" }, { status: 400 })
+          }
           if (!body.target || typeof body.target.isWishlist !== "boolean") {
             return NextResponse.json(
               { error: "target with isWishlist is required" },
+              { status: 400 }
+            )
+          }
+          if (body.target.boxId != null && typeof body.target.boxId !== "string") {
+            return NextResponse.json(
+              { error: "target.boxId must be a string or null" },
               { status: 400 }
             )
           }
@@ -84,6 +98,13 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           )
         } else {
+          for (const item of body.items as unknown[]) {
+            const typeError =
+              typeof item === "object" && item !== null && !Array.isArray(item)
+                ? itemCreateTypeError(item as Record<string, unknown>)
+                : "items must be objects"
+            if (typeError) return NextResponse.json({ error: typeError }, { status: 400 })
+          }
           expandedItems = body.items
         }
 
@@ -156,12 +177,8 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, itemIds: result.itemIds, operations: result.operations })
       } catch (error: unknown) {
-        if (error instanceof ItemCapExceededError) {
-          return NextResponse.json(
-            { error: "item_limit_reached", currentCount: error.currentCount, cap: error.cap },
-            { status: 403 }
-          )
-        }
+        const capResponse = itemCapResponse(error)
+        if (capResponse) return capResponse
         if (
           error instanceof Error &&
           (error.message.includes("could not be found") ||
@@ -171,15 +188,12 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: error.message }, { status: 400 })
         }
 
-        const message =
-          error instanceof Error
-            ? error.message
-            : typeof error === "object" && error !== null && "message" in error
-              ? String((error as { message: unknown }).message)
-              : "Failed to create items"
-
-        console.error("Error creating items paste:", message, error)
-        return NextResponse.json({ error: message }, { status: 500 })
+        // The cause can carry Postgres or RLS text: log it, answer with a fixed message.
+        console.error("Error creating items paste:", error)
+        return NextResponse.json(
+          { error: "Could not paste the items. Try again." },
+          { status: 500 }
+        )
       }
     }
   )

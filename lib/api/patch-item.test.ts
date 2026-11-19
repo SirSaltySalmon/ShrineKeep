@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { applyItemPatch, ItemNotFoundError } from "./patch-item"
+import { ItemCapExceededError } from "./item-cap-error"
 
 function makeSupabase(opts: {
   item?: { id: string } | null
@@ -182,6 +183,54 @@ describe("applyItemPatch", () => {
     expect(calls.itemTagsDelete).toEqual([])
     expect(calls.itemTagsInsert).toEqual([])
     expect(calls.valueHistoryInsert).toEqual([])
+  })
+
+  it("maps the cap trigger's rejection of a wishlist -> collection move to ItemCapExceededError", async () => {
+    const { supabase, calls } = makeSupabase({
+      item: { id: "item-1" },
+      itemUpdateError: { code: "P0001", message: "item_limit_reached:100:100" },
+    })
+    const attempt = applyItemPatch({
+      supabase,
+      userId: "user-1",
+      patch: {
+        id: "item-1",
+        is_wishlist: false,
+        acquisition_date: "2026-11-18",
+        acquisition_price: 12.5,
+        box_id: "box-1",
+        wishlist_target_box_id: null,
+      },
+    })
+    await expect(attempt).rejects.toBeInstanceOf(ItemCapExceededError)
+    await expect(attempt).rejects.toMatchObject({ currentCount: 100, cap: 100 })
+    expect(calls.valueHistoryInsert).toEqual([])
+  })
+
+  it("writes every mark-as-acquired field, including the explicit nulls", async () => {
+    const { supabase, calls } = makeSupabase({ item: { id: "item-1" } })
+    await applyItemPatch({
+      supabase,
+      userId: "user-1",
+      patch: {
+        id: "item-1",
+        is_wishlist: false,
+        acquisition_date: "2026-11-18",
+        acquisition_price: null,
+        box_id: null,
+        wishlist_target_box_id: null,
+      },
+    })
+    expect(calls.itemsUpdate).toEqual([
+      {
+        is_wishlist: false,
+        acquisition_date: "2026-11-18",
+        acquisition_price: null,
+        box_id: null,
+        wishlist_target_box_id: null,
+      },
+    ])
+    expect(calls.valueHistorySelect).toBe(0)
   })
 
   it("updates photo flags without removing storage", async () => {

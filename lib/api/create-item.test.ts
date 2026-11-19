@@ -14,6 +14,27 @@ vi.mock("@/lib/subscription", () => ({
   getItemCount: mockGetItemCount,
 }))
 
+/** A client whose items insert answers `insertResult`, or echoes one id per inserted row. */
+function makeSupabase(insertResult?: { data: Array<{ id: string }> | null; error: unknown }) {
+  const insert = vi.fn((rows: unknown[]) => ({
+    select: vi.fn().mockResolvedValue(
+      insertResult ?? { data: rows.map((_, i) => ({ id: `item-${i + 1}` })), error: null }
+    ),
+  }))
+  const from = vi.fn((table: string) => {
+    if (table === "items") return { insert }
+    throw new Error(`Unexpected table: ${table}`)
+  })
+  return { supabase: { from } as any, insert }
+}
+
+const collectionItem = (name: string) => ({
+  itemData: { name, is_wishlist: false, user_id: "user-1" },
+})
+const wishlistItem = (name: string) => ({
+  itemData: { name, is_wishlist: true, user_id: "user-1" },
+})
+
 describe("createItems", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -32,59 +53,139 @@ describe("createItems", () => {
     })
   })
 
-  it("throws ItemCapExceededError when free-tier cap would be exceeded", async () => {
-    mockIsProUser.mockResolvedValue(false)
-    mockGetEffectiveCap.mockResolvedValue(100)
-    mockGetItemCount.mockResolvedValue(100)
+  describe("free-tier pre-count", () => {
+    beforeEach(() => {
+      mockIsProUser.mockResolvedValue(false)
+      mockGetEffectiveCap.mockResolvedValue(100)
+    })
 
-    await expect(
-      createItems({
-        supabase: {} as any,
+    it("creates the item that fills the last slot", async () => {
+      mockGetItemCount.mockResolvedValue(99)
+      const { supabase, insert } = makeSupabase()
+
+      const result = await createItems({
+        supabase,
         userId: "user-1",
-        items: [
-          {
-            itemData: {
-              name: "Camera",
-              is_wishlist: false,
-            },
-          },
-        ],
+        items: [collectionItem("Lens")],
       })
-    ).rejects.toBeInstanceOf(ItemCapExceededError)
+
+      expect(result.itemIds).toEqual(["item-1"])
+      expect(result.operations).toContain("created 1 item(s)")
+      expect(insert).toHaveBeenCalledTimes(1)
+    })
+
+    it("rejects a create at the cap before inserting", async () => {
+      mockGetItemCount.mockResolvedValue(100)
+      const { supabase, insert } = makeSupabase()
+
+      const attempt = createItems({
+        supabase,
+        userId: "user-1",
+        items: [collectionItem("Camera")],
+      })
+
+      await expect(attempt).rejects.toBeInstanceOf(ItemCapExceededError)
+      await expect(attempt).rejects.toMatchObject({ currentCount: 100, cap: 100 })
+      expect(insert).not.toHaveBeenCalled()
+    })
+
+    it("rejects a batch that would cross the cap", async () => {
+      mockGetItemCount.mockResolvedValue(99)
+      const { supabase, insert } = makeSupabase()
+
+      await expect(
+        createItems({
+          supabase,
+          userId: "user-1",
+          items: [collectionItem("Camera"), collectionItem("Lens")],
+        })
+      ).rejects.toMatchObject({ currentCount: 99, cap: 100 })
+      expect(insert).not.toHaveBeenCalled()
+    })
+
+    it("does not count wishlist items in the batch against the cap", async () => {
+      mockGetItemCount.mockResolvedValue(99)
+      const { supabase } = makeSupabase()
+
+      const result = await createItems({
+        supabase,
+        userId: "user-1",
+        items: [collectionItem("Lens"), wishlistItem("Tripod"), wishlistItem("Flash")],
+      })
+
+      expect(result.itemIds).toHaveLength(3)
+    })
+
+    it("skips the cap check entirely for a wishlist-only batch", async () => {
+      mockGetItemCount.mockResolvedValue(100)
+      const { supabase } = makeSupabase()
+
+      const result = await createItems({
+        supabase,
+        userId: "user-1",
+        items: [wishlistItem("Tripod")],
+      })
+
+      expect(result.itemIds).toEqual(["item-1"])
+      expect(mockIsProUser).not.toHaveBeenCalled()
+      expect(mockGetItemCount).not.toHaveBeenCalled()
+    })
+
+    it("does not cap Pro users", async () => {
+      mockIsProUser.mockResolvedValue(true)
+      mockGetEffectiveCap.mockResolvedValue(Infinity)
+      mockGetItemCount.mockResolvedValue(5000)
+      const { supabase } = makeSupabase()
+
+      const result = await createItems({
+        supabase,
+        userId: "user-1",
+        items: [collectionItem("Lens")],
+      })
+
+      expect(result.itemIds).toEqual(["item-1"])
+      expect(mockGetEffectiveCap).toHaveBeenCalledWith(supabase, "user-1", true)
+    })
   })
 
-  it("creates items when cap check is skipped", async () => {
-    const selectMock = vi.fn().mockResolvedValue({
-      data: [{ id: "item-1" }],
-      error: null,
+  describe("database errors from the insert", () => {
+    beforeEach(() => {
+      // The pre-count passes; the trigger is what rejects (a concurrent create took the slot).
+      mockIsProUser.mockResolvedValue(false)
+      mockGetEffectiveCap.mockResolvedValue(100)
+      mockGetItemCount.mockResolvedValue(99)
     })
-    const insertMock = vi.fn().mockReturnValue({
-      select: selectMock,
+
+    it("maps the cap trigger's rejection to ItemCapExceededError", async () => {
+      const { supabase } = makeSupabase({
+        data: null,
+        error: { code: "P0001", message: "item_limit_reached:100:100" },
+      })
+
+      const attempt = createItems({
+        supabase,
+        userId: "user-1",
+        items: [collectionItem("Camera")],
+      })
+
+      await expect(attempt).rejects.toBeInstanceOf(ItemCapExceededError)
+      await expect(attempt).rejects.toMatchObject({ currentCount: 100, cap: 100 })
     })
-    const fromMock = vi.fn().mockImplementation((table: string) => {
-      if (table === "items") {
-        return { insert: insertMock }
+
+    it("rethrows any other database error untouched", async () => {
+      const dbError = {
+        code: "22P02",
+        message: 'invalid input syntax for type numeric: "item_limit_reached:1:2"',
       }
-      throw new Error(`Unexpected table: ${table}`)
-    })
+      const { supabase } = makeSupabase({ data: null, error: dbError })
 
-    const result = await createItems({
-      supabase: { from: fromMock } as any,
-      userId: "user-1",
-      skipCapCheck: true,
-      items: [
-        {
-          itemData: {
-            name: "Lens",
-            is_wishlist: false,
-            user_id: "user-1",
-          },
-          currentValue: null,
-        },
-      ],
+      await expect(
+        createItems({
+          supabase,
+          userId: "user-1",
+          items: [collectionItem("Camera")],
+        })
+      ).rejects.toBe(dbError)
     })
-
-    expect(result.itemIds).toEqual(["item-1"])
-    expect(result.operations).toContain("created 1 item(s)")
   })
 })

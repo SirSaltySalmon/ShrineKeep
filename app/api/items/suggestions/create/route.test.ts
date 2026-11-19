@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { POST } from "./route"
+import { ItemCapExceededError } from "@/lib/api/item-cap-error"
 import { buildApprovedCreatedItems, switchCreateItemKind } from "@/lib/webmcp/review"
 
 const {
@@ -222,6 +223,27 @@ describe("POST /api/items/suggestions/create", () => {
           currentValue: 18,
         },
       ],
+    })
+  })
+
+  it("answers the cap 403 when the approved items would pass the free-tier limit", async () => {
+    mockCreateSupabaseServerClient.mockResolvedValue(authenticatedSupabase())
+    mockCreateItems.mockRejectedValue(new ItemCapExceededError(95, 100))
+
+    const response = await POST(
+      makeRequest({
+        mode: "apply",
+        createNewBox: false,
+        targetBoxId: "box-1",
+        items: [{ name: "Gundam Aerial", item_kind: "collection" }],
+      }) as any
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: "item_limit_reached",
+      currentCount: 95,
+      cap: 100,
     })
   })
 

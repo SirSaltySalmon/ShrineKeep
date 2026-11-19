@@ -3,7 +3,7 @@ import { requireMutableUser } from "@/lib/judge/require-mutable-user"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import type { BoxCopyPayload } from "@/lib/types"
-import { ItemCapExceededError } from "@/lib/api/item-cap-error"
+import { itemCapResponse } from "@/lib/api/item-cap-error"
 import {
   expandBoxRefsToTrees,
   flattenBoxCopyTreesForAtomicPaste,
@@ -68,17 +68,8 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
-      const match = /item_limit_reached:(\d+):(\d+)/.exec(error.message ?? "")
-      if (match) {
-        return NextResponse.json(
-          {
-            error: "item_limit_reached",
-            currentCount: Number(match[1]),
-            cap: Number(match[2]),
-          },
-          { status: 403 }
-        )
-      }
+      const capResponse = itemCapResponse(error)
+      if (capResponse) return capResponse
       throw error
     }
 
@@ -93,12 +84,6 @@ export async function POST(request: NextRequest) {
       error.message === "trees array or sourceRootBoxIds array is required"
     ) {
       return NextResponse.json({ error: error.message }, { status: 400 })
-    }
-    if (error instanceof ItemCapExceededError) {
-      return NextResponse.json(
-        { error: "item_limit_reached", currentCount: error.currentCount, cap: error.cap },
-        { status: 403 }
-      )
     }
 
     const message =
