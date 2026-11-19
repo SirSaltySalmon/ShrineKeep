@@ -9,6 +9,8 @@ import { useBoxStats } from "@/lib/hooks/use-box-stats"
 import { BoxStatsSummary, BoxStatsCharts } from "@/components/box-stats-content"
 import { DateRangeFilter } from "@/components/date-range-filter"
 import type { BoneyardBoxStatsFixture } from "@/components/boneyard-stats-fixtures"
+import { LOADED_FADE_CLASS, useSeenLoading } from "@/lib/hooks/use-seen-loading"
+import { cn } from "@/lib/utils"
 
 interface BoxStatsPanelProps {
   boxId: string
@@ -52,8 +54,16 @@ export default function BoxStatsPanel({
   const acquisitionChartDataDisplay = previewData?.acquisitionChartData ?? acquisitionChartData
   const isRefreshingDisplay = previewData ? false : isRefreshing
 
+  const panelLoading = loading || captureSkeleton
+  const seenLoading = useSeenLoading(panelLoading)
+
   const panelContent = (
-    <div className="rounded-lg sk-outline bg-card mb-6 overflow-visible min-w-0">
+    <div
+      className={cn(
+        "rounded-lg sk-outline bg-card mb-6 overflow-visible min-w-0",
+        seenLoading && !panelLoading && LOADED_FADE_CLASS
+      )}
+    >
       <div className="p-4 layout-shrink-visible">
         <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
           <div className="flex flex-wrap items-center gap-4 sm:gap-6 min-w-0 overflow-x-auto overflow-y-hidden">
@@ -124,7 +134,7 @@ export default function BoxStatsPanel({
     <Skeleton
       name="box-stats-panel"
       initialBones={panelBones as any}
-      loading={loading || captureSkeleton}
+      loading={panelLoading}
       animate="shimmer"
       color="hsl(var(--muted))"
       darkColor="hsl(var(--muted))"

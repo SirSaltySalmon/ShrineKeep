@@ -68,6 +68,7 @@ export default async function DashboardPage() {
       initialItems={rootData.initialItems}
       initialUserTags={rootData.initialTags}
       initialDescendantCounts={rootData.descendantCounts}
+      initialChildBoxCounts={rootData.childBoxCounts}
       initialOwnerSharing={initialOwnerSharing}
     />
   )

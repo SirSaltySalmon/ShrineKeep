@@ -90,6 +90,22 @@ export function countDescendantsById(rows: BoxTreeRow[]): Record<string, number>
   return Object.fromEntries(memo)
 }
 
+/** Key for the boxes that have no parent in `countChildBoxesByParent`. No box id can equal it. */
+export const ROOT_BOX_SCOPE = "root"
+
+/**
+ * How many boxes sit directly inside each box, and at the root (`ROOT_BOX_SCOPE`). A box
+ * with none has no entry, so read it as `counts[id] ?? 0`.
+ */
+export function countChildBoxesByParent(rows: BoxTreeRow[]): Record<string, number> {
+  const counts: Record<string, number> = { [ROOT_BOX_SCOPE]: 0 }
+  for (const row of rows) {
+    const parent = row.parent_box_id || ROOT_BOX_SCOPE
+    counts[parent] = (counts[parent] ?? 0) + 1
+  }
+  return counts
+}
+
 export function normalizeBox<T extends { id: string }>(
   row: T,
   descendantCounts: Record<string, number> = {},

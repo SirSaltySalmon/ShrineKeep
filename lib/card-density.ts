@@ -162,12 +162,39 @@ export const BOX_GRID_LAYOUT: Record<CardDensity, CardGridLayout> = {
 }
 
 /**
- * Skeleton cards for one loading row. There are fewer fixtures than a compact row has
- * columns, so the list wraps around.
+ * Skeleton cards to show while a grid loads. With `expectedCount`, exactly that many, so the
+ * grid is already the height the loaded one will be. Without it, one row (the caller then
+ * hides the surplus per breakpoint with `loadingCardVisibility`). The fixture list wraps around.
  */
-export function takeLoadingFixtures<T>(fixtures: readonly T[], layout: CardGridLayout): T[] {
+export function takeLoadingFixtures<T>(
+  fixtures: readonly T[],
+  layout: CardGridLayout,
+  expectedCount?: number
+): T[] {
   if (fixtures.length === 0) return []
-  return layout.loadingCardVisibility.map((_, index) => fixtures[index % fixtures.length]!)
+  const count = isKnownCardCount(expectedCount) ? expectedCount : layout.loadingCardVisibility.length
+  return Array.from({ length: count }, (_, index) => fixtures[index % fixtures.length]!)
+}
+
+/**
+ * Whether a grid was told how many cards to expect. Anything else (unset, negative, not a
+ * whole number) means "unknown" and gets the one-row skeleton.
+ */
+export function isKnownCardCount(expectedCount: number | undefined): expectedCount is number {
+  return expectedCount !== undefined && Number.isInteger(expectedCount) && expectedCount >= 0
+}
+
+/**
+ * Class for the wrapper of the skeleton card at `index`. A one-row skeleton hides the cards
+ * that would wrap at the current breakpoint; a sized skeleton shows every card.
+ */
+export function getLoadingCardClass(
+  layout: CardGridLayout,
+  index: number,
+  expectedCount?: number
+): string {
+  if (isKnownCardCount(expectedCount)) return ""
+  return layout.loadingCardVisibility[index] ?? "hidden"
 }
 
 /**

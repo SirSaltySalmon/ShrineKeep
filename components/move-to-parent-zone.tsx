@@ -5,6 +5,10 @@ import { ArrowUpToLine } from "lucide-react"
 
 export const MOVE_TO_PARENT_ZONE_ID = "drop-zone-parent"
 
+/**
+ * Drop target for "one level up". The dashboard renders it in every box, loading or not, so
+ * it never appears late and pushes the items down; only its label changes as names arrive.
+ */
 interface MoveToParentZoneProps {
   /** When true, label is "Move to root (no box)". When false, "Move to parent" or use parentBoxName if set. */
   isRoot?: boolean

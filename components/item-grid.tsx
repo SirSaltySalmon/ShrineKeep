@@ -19,8 +19,9 @@ import {
 } from "@/components/boneyard-fixtures"
 import { OWNER_CAPABILITIES, READ_ONLY_CAPABILITIES, type CollectionCapabilities } from "@/lib/sharing/presentation/capabilities"
 import { presentOwnerItem } from "@/lib/sharing/presentation/adapters"
-import { ITEM_GRID_LAYOUT, getCardSkeletonName, takeLoadingFixtures } from "@/lib/card-density"
+import { ITEM_GRID_LAYOUT, getCardSkeletonName, getLoadingCardClass, takeLoadingFixtures } from "@/lib/card-density"
 import { useCardDensity } from "@/lib/hooks/use-card-density"
+import { LOADED_FADE_CLASS, useSeenLoading } from "@/lib/hooks/use-seen-loading"
 import { cn } from "@/lib/utils"
 
 /** When provided (e.g. by dashboard), selection is controlled by parent; otherwise ItemGrid uses internal marquee selection. */
@@ -33,6 +34,12 @@ export interface ItemGridSelectionProps {
 interface ItemGridProps {
   items: Item[]
   loading?: boolean
+  /**
+   * How many items the loaded grid will hold, when the caller knows (a refetch of a view
+   * already on screen). While loading, the grid then shows that many skeleton cards (or the
+   * empty state for 0) and keeps its height. Leave unset when unknown: one row.
+   */
+  expectedCount?: number
   currentBoxId: string | null
   onItemUpdate: () => void
   /** When set, the section title and Add Item button are shown on one row (title left, button right). */
@@ -41,6 +48,12 @@ interface ItemGridProps {
   sectionIcon?: LucideIcon
   /** Optional custom header content to render in place of the section title (e.g. tabs). */
   headerContent?: ReactNode
+  /**
+   * Sits between the title (or `headerContent`) and the add button from `md` up, where it takes
+   * the free width of that row; below `md` it gets a line of its own under them. Pass it only
+   * when it renders something, and keep it one fixed-height line (the tag quick-filter).
+   */
+  headerMiddle?: ReactNode
   /** When provided, use these for selection (dashboard); otherwise use internal useMarqueeSelection (wishlist, search). */
   selectionProps?: ItemGridSelectionProps
   /** When true, click only toggles selection; when false, click opens dialog (shift-click still toggles). */
@@ -73,11 +86,13 @@ interface ItemGridProps {
 export default function ItemGrid({
   items,
   loading = false,
+  expectedCount,
   currentBoxId,
   onItemUpdate,
   sectionTitle,
   sectionIcon: SectionIcon = Sword,
   headerContent,
+  headerMiddle,
   selectionProps,
   selectionMode,
   totalItemCount,
@@ -170,8 +185,11 @@ export default function ItemGrid({
     variant === "wishlist" ? "item-grid-wishlist-card" : "item-grid-collection-card",
     density
   )
-  // One row of skeleton cards, however many columns this density has.
-  const displayedItems = loading ? takeLoadingFixtures(skeletonItems, gridLayout) : items
+  // As many skeleton cards as items are expected; one row when that is not known.
+  const displayedItems = loading ? takeLoadingFixtures(skeletonItems, gridLayout, expectedCount) : items
+  // A view known to hold no items keeps its empty state through a refetch.
+  const showEmpty = loading ? expectedCount === 0 : items.length === 0
+  const seenLoading = useSeenLoading(loading)
   const showUsageStatus =
     variant === "collection" &&
     resolvedCapabilities.showItemCap &&
@@ -184,7 +202,7 @@ export default function ItemGrid({
   return (
     <>
       <div className="rounded-md sk-outline bg-light-muted p-4">
-        <div className={sectionTitle || headerContent ? "flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0" : "mb-4 min-w-0"}>
+        <div className={sectionTitle || headerContent ? "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-4 min-w-0" : "mb-4 min-w-0"}>
           {sectionTitle || headerContent ? (
             <>
               {headerContent ? (
@@ -197,13 +215,18 @@ export default function ItemGrid({
                   {sectionTitle}
                 </h2>
               )}
+              {headerMiddle ? (
+                <div className="order-last min-w-0 basis-full md:order-none md:flex-1 md:basis-0">
+                  {headerMiddle}
+                </div>
+              ) : null}
               {showAdd ? addButton : null}
             </>
           ) : (
             showAdd ? addButton : null
           )}
         </div>
-        <div className={cn(gridLayout.gridClass, "relative")}>
+        <div className={cn(gridLayout.gridClass, "relative", seenLoading && !loading && LOADED_FADE_CLASS)}>
           {displayedItems.map((item, index) => {
             const presented = presentOwnerItem(item)
             const fixtureCard = (
@@ -261,7 +284,7 @@ export default function ItemGrid({
 
             if (loading) {
               return (
-                <div key={`${item.id}-${index}`} className={gridLayout.loadingCardVisibility[index] ?? "hidden"}>
+                <div key={`${item.id}-${index}`} className={getLoadingCardClass(gridLayout, index, expectedCount)}>
                   {skeletonNode}
                 </div>
               )
@@ -282,10 +305,13 @@ export default function ItemGrid({
             )
           })}
         </div>
-        {!loading && items.length === 0 && (
+        {showEmpty && (
           <EmptyState
             figure={variant === "wishlist" ? "wishlist" : "items"}
-            className={density === "compact" ? "min-h-[230px] py-8" : "min-h-[424px] py-12"}
+            className={cn(
+              density === "compact" ? "min-h-[230px] py-8" : "min-h-[424px] py-12",
+              seenLoading && LOADED_FADE_CLASS
+            )}
           >
             {emptyText}
           </EmptyState>

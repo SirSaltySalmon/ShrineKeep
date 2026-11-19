@@ -93,6 +93,7 @@ interface DashboardClientProps {
   initialItems?: Item[]
   initialUserTags?: Tag[]
   initialDescendantCounts?: Record<string, number>
+  initialChildBoxCounts?: Record<string, number>
   initialOwnerSharing?: DashboardOwnerSharing
 }
 
@@ -111,6 +112,7 @@ export default function DashboardClient({
   initialItems = [],
   initialUserTags = [],
   initialDescendantCounts = {},
+  initialChildBoxCounts,
   initialOwnerSharing,
 }: DashboardClientProps) {
   const router = useRouter()
@@ -135,6 +137,8 @@ export default function DashboardClient({
     userTags,
     loading,
     folderLoading,
+    expectedBoxCount,
+    itemsLoaded,
     loadBoxes,
     loadItems,
     patchBox,
@@ -149,8 +153,17 @@ export default function DashboardClient({
     initialItems,
     initialUserTags,
     initialDescendantCounts,
+    initialChildBoxCounts,
     initialOwnerSharing,
   })
+  // The open box's row. `currentBox` is set by a click on a card or crumb; when the view moved
+  // without one (the open box was deleted, so its parent is shown) the breadcrumb chain has it.
+  const openBox =
+    currentBoxId == null
+      ? null
+      : currentBox?.id === currentBoxId
+        ? currentBox
+        : (breadcrumbPath.find((box) => box.id === currentBoxId) ?? null)
   const [activeItemsTab, setActiveItemsTab] = useState<"items" | "unacquired">("items")
   const {
     editBox,
@@ -213,7 +226,7 @@ export default function DashboardClient({
     handleDragEnd,
   } = useDashboardDnd({
     currentBoxId,
-    currentBox,
+    currentBox: openBox,
     items,
     boxes,
     selectedItemIds,
@@ -361,7 +374,7 @@ export default function DashboardClient({
     userId: user?.id,
     page: "dashboard",
     currentBoxId,
-    currentBoxName: currentBox?.name ?? "Root",
+    currentBoxName: openBox?.name ?? "Root",
     selectedItems,
     onApplied: refreshCurrentBoxData,
     onToolStart: (name) => dispatchCoach({ type: "tool_start", name }),
@@ -506,7 +519,7 @@ export default function DashboardClient({
   // Name the box one level up. The breadcrumb chain loaded for the previous view already
   // holds it (going down, the parent was that view's last crumb; going up, an earlier one),
   // so this needs no request of its own. Until a chain has it, the zone says "Move to parent".
-  const parentBoxId = currentBox?.parent_box_id ?? null
+  const parentBoxId = openBox?.parent_box_id ?? null
   const parentBoxName = parentBoxId
     ? breadcrumbPath.find((box) => box.id === parentBoxId)?.name
     : undefined
@@ -527,6 +540,20 @@ export default function DashboardClient({
       </span>
     </>
   ) : undefined
+  // Known for a view already on screen (a refetch, or a search in the same box); a box being
+  // opened for the first time has no count yet and gets one row of skeleton cards.
+  const expectedItemCount = itemsLoaded ? visibleItems.length : undefined
+  // An account with no tags has no strip. One with tags always has it, so a box's tags
+  // arriving (or a box having none) never moves the grid.
+  const tagQuickFilter =
+    userTags.length > 0 ? (
+      <TagQuickFilter
+        tags={quickFilterTags}
+        activeTagIds={includeTags}
+        loading={!itemsLoaded}
+        onToggle={(tagId) => setSearchFilters((prev) => toggleIncludeTag(prev, tagId))}
+      />
+    ) : undefined
   const tabbedItemsHeader = (
     <div className="flex items-center gap-2 min-w-0">
       <ActiveItemsIcon className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" />
@@ -677,7 +704,7 @@ export default function DashboardClient({
             <Breadcrumbs
               currentBoxId={currentBoxId}
               onBoxClick={handleBoxClick}
-              enableDropTargets={!loading && !contentSkeletonLoading}
+              enableDropTargets={!contentSkeletonLoading}
               activeDragId={dndActiveId}
               selectedBoxIds={selectedBoxIds}
               onPathChange={setBreadcrumbPath}
@@ -778,163 +805,125 @@ export default function DashboardClient({
           onDismissCompletion={() => setShowTutorialComplete(false)}
         />
 
-        {loading ? (
-          <>
-            <BoxStatsPanel
-              boxId={currentBoxId ?? "root"}
-              boxName={currentBox?.name ?? "Root"}
-              refreshKey={statsRefreshKey}
-              graphOverlay={initialGraphOverlay}
-            />
-            <BoxGrid
-              loading
-              boxes={[]}
-              currentBoxId={currentBoxId}
-              onBoxClick={handleBoxClick}
-              onRename={handleOpenEditBox}
-              onShowStats={() => {}}
-              onCreateBox={createBox}
-              isBoxSelected={isBoxSelected}
-              toggleBoxSelection={toggleBoxSelection}
-              selectionMode={selectionMode}
-              registerBoxCardRef={registerBoxCardRef}
-            />
-            <ItemGrid
-              loading
-              items={[]}
-              currentBoxId={currentBoxId}
-              onItemUpdate={refreshCurrentBoxData}
-              sectionTitle="Items"
-              selectionMode={selectionMode}
-              selectionProps={{
-                selectedIds: selectedItemIds,
-                setSelectedIds: setSelectedItemIds,
-                registerCardRef: registerItemCardRef,
-              }}
-              totalItemCount={liveItemCount}
-              itemCap={itemCap}
-              isPro={liveIsPro}
-              onCapReached={() => setShowItemCapUpsell(true)}
-            />
-          </>
-        ) : (
-          <>
-            <BoxStatsPanel
-              boxId={currentBoxId ?? "root"}
-              boxName={currentBox?.name ?? "Root"}
-              refreshKey={statsRefreshKey}
-              graphOverlay={initialGraphOverlay}
-            />
+        <BoxStatsPanel
+          boxId={currentBoxId ?? "root"}
+          boxName={openBox?.name ?? "Root"}
+          refreshKey={statsRefreshKey}
+          graphOverlay={initialGraphOverlay}
+        />
 
-            <BoxGrid
-              boxes={boxes}
-              loading={contentSkeletonLoading}
-              statsRefreshKey={statsRefreshKey}
-              currentBoxId={currentBoxId}
-              onBoxClick={handleBoxClick}
-              onRename={handleOpenEditBox}
-              onShowStats={(box) => {
-                setStatsBoxId(box.id)
-                setStatsBoxName(box.name)
-                setShowStatsDialog(true)
-              }}
-              onCreateBox={createBox}
-              isBoxSelected={isBoxSelected}
-              toggleBoxSelection={toggleBoxSelection}
-              selectionMode={selectionMode}
-              registerBoxCardRef={registerBoxCardRef}
+        {/*
+          One render path for loading and loaded: every block below keeps its place and its
+          height while a view loads, so nothing under it jumps (docs/DESIGN.md, Layout stability).
+        */}
+        <BoxGrid
+          boxes={boxes}
+          loading={contentSkeletonLoading}
+          expectedCount={expectedBoxCount}
+          statsRefreshKey={statsRefreshKey}
+          currentBoxId={currentBoxId}
+          onBoxClick={handleBoxClick}
+          onRename={handleOpenEditBox}
+          onShowStats={(box) => {
+            setStatsBoxId(box.id)
+            setStatsBoxName(box.name)
+            setShowStatsDialog(true)
+          }}
+          onCreateBox={createBox}
+          isBoxSelected={isBoxSelected}
+          toggleBoxSelection={toggleBoxSelection}
+          selectionMode={selectionMode}
+          registerBoxCardRef={registerBoxCardRef}
+        />
+        {/* In every box, from the first frame: it does not wait for the box to load. */}
+        {currentBoxId != null && (
+          <div className="mb-6">
+            <MoveToParentZone
+              isRoot={openBox != null && !openBox.parent_box_id}
+              parentBoxName={parentBoxName}
             />
-            {currentBox != null && (
-              <div className="mb-6">
-                <MoveToParentZone
-                  isRoot={!currentBox.parent_box_id}
-                  parentBoxName={parentBoxName}
-                />
-              </div>
-            )}
-            <div>
-              <TagQuickFilter
-                className="mb-3"
-                tags={quickFilterTags}
-                activeTagIds={includeTags}
-                onToggle={(tagId) => setSearchFilters((prev) => toggleIncludeTag(prev, tagId))}
+          </div>
+        )}
+        {hasUnacquiredTab ? (
+          <Tabs
+            value={activeItemsTab}
+            onValueChange={(v) => setActiveItemsTab(v as "items" | "unacquired")}
+          >
+            {/* No top margin: the section must sit where the untabbed one does. */}
+            <TabsContent value="items" className="mt-0">
+              <ItemGrid
+                items={visibleItems}
+                loading={contentSkeletonLoading}
+                expectedCount={expectedItemCount}
+                currentBoxId={currentBoxId}
+                onItemUpdate={refreshCurrentBoxData}
+                headerContent={tabbedItemsHeader}
+                headerMiddle={tagQuickFilter}
+                emptyText={localSearchEmptyText}
+                selectionMode={selectionMode}
+                selectionProps={{
+                  selectedIds: selectedItemIds,
+                  setSelectedIds: setSelectedItemIds,
+                  registerCardRef: registerItemCardRef,
+                }}
+                totalItemCount={liveItemCount}
+                itemCap={itemCap}
+                isPro={liveIsPro}
+                onCapReached={() => setShowItemCapUpsell(true)}
               />
-              {currentBoxId && unacquiredItems.length > 0 ? (
-                <Tabs
-                  value={activeItemsTab}
-                  onValueChange={(v) => setActiveItemsTab(v as "items" | "unacquired")}
-                >
-                  <TabsContent value="items">
-                    <ItemGrid
-                      items={visibleItems}
-                      loading={contentSkeletonLoading}
-                      currentBoxId={currentBoxId}
-                      onItemUpdate={refreshCurrentBoxData}
-                      headerContent={tabbedItemsHeader}
-                      emptyText={localSearchEmptyText}
-                      selectionMode={selectionMode}
-                      selectionProps={{
-                        selectedIds: selectedItemIds,
-                        setSelectedIds: setSelectedItemIds,
-                        registerCardRef: registerItemCardRef,
-                      }}
-                      totalItemCount={liveItemCount}
-                      itemCap={itemCap}
-                      isPro={liveIsPro}
-                      onCapReached={() => setShowItemCapUpsell(true)}
-                    />
-                  </TabsContent>
-                  <TabsContent value="unacquired">
-                    <ItemGrid
-                      items={visibleUnacquiredItems}
-                      loading={contentSkeletonLoading}
-                      currentBoxId={currentBoxId}
-                      onItemUpdate={refreshCurrentBoxData}
-                      headerContent={tabbedItemsHeader}
-                      variant="wishlist"
-                      addButtonLabel="New Wishlist Item"
-                      defaultNewItemMode="wishlist"
-                      emptyText={
-                        searchQuery.trim()
-                          ? "No wishlist items in this box match your search."
-                          : 'No wishlist items in this box yet. Click "New Wishlist Item" to add one linked to this box.'
-                      }
-                      selectionMode={selectionMode}
-                      selectionProps={{
-                        selectedIds: selectedItemIds,
-                        setSelectedIds: setSelectedItemIds,
-                        registerCardRef: registerItemCardRef,
-                      }}
-                      totalItemCount={liveItemCount}
-                      itemCap={itemCap}
-                      isPro={liveIsPro}
-                      onCapReached={() => setShowItemCapUpsell(true)}
-                      onMarkAcquired={(item) => setItemToMark(item)}
-                    />
-                  </TabsContent>
-                </Tabs>
-              ) : (
-                <ItemGrid
-                  items={visibleItems}
-                  loading={contentSkeletonLoading}
-                  currentBoxId={currentBoxId}
-                  onItemUpdate={refreshCurrentBoxData}
-                  sectionTitle="Items"
-                  emptyText={localSearchEmptyText}
-                  selectionMode={selectionMode}
-                  selectionProps={{
-                    selectedIds: selectedItemIds,
-                    setSelectedIds: setSelectedItemIds,
-                    registerCardRef: registerItemCardRef,
-                  }}
-                  totalItemCount={liveItemCount}
-                  itemCap={itemCap}
-                  isPro={liveIsPro}
-                  onCapReached={() => setShowItemCapUpsell(true)}
-                />
-              )}
-            </div>
-          </>
+            </TabsContent>
+            <TabsContent value="unacquired" className="mt-0">
+              <ItemGrid
+                items={visibleUnacquiredItems}
+                loading={contentSkeletonLoading}
+                expectedCount={visibleUnacquiredItems.length}
+                currentBoxId={currentBoxId}
+                onItemUpdate={refreshCurrentBoxData}
+                headerContent={tabbedItemsHeader}
+                headerMiddle={tagQuickFilter}
+                variant="wishlist"
+                addButtonLabel="New Wishlist Item"
+                defaultNewItemMode="wishlist"
+                emptyText={
+                  searchQuery.trim()
+                    ? "No wishlist items in this box match your search."
+                    : 'No wishlist items in this box yet. Click "New Wishlist Item" to add one linked to this box.'
+                }
+                selectionMode={selectionMode}
+                selectionProps={{
+                  selectedIds: selectedItemIds,
+                  setSelectedIds: setSelectedItemIds,
+                  registerCardRef: registerItemCardRef,
+                }}
+                totalItemCount={liveItemCount}
+                itemCap={itemCap}
+                isPro={liveIsPro}
+                onCapReached={() => setShowItemCapUpsell(true)}
+                onMarkAcquired={(item) => setItemToMark(item)}
+              />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <ItemGrid
+            items={visibleItems}
+            loading={contentSkeletonLoading}
+            expectedCount={expectedItemCount}
+            currentBoxId={currentBoxId}
+            onItemUpdate={refreshCurrentBoxData}
+            sectionTitle="Items"
+            headerMiddle={tagQuickFilter}
+            emptyText={localSearchEmptyText}
+            selectionMode={selectionMode}
+            selectionProps={{
+              selectedIds: selectedItemIds,
+              setSelectedIds: setSelectedItemIds,
+              registerCardRef: registerItemCardRef,
+            }}
+            totalItemCount={liveItemCount}
+            itemCap={itemCap}
+            isPro={liveIsPro}
+            onCapReached={() => setShowItemCapUpsell(true)}
+          />
         )}
 
         {!loading && currentBoxId == null && ownerSharing?.available && (

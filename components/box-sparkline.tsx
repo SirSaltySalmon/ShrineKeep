@@ -46,7 +46,8 @@ export default function BoxSparkline({
     <svg
       viewBox={`0 0 ${VIEW_WIDTH} ${height}`}
       preserveAspectRatio="none"
-      className={cn("block w-full overflow-visible", className)}
+      // The series arrives after the card, into the row kept for it: fade it in, it cannot shift anything.
+      className={cn("block w-full overflow-visible sk-fade-in", className)}
       style={{ height }}
       fill="none"
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}

@@ -14,6 +14,12 @@ describe("dashboard folder load includes box editor sharing", () => {
     expect(src).toContain("countDescendantsById")
   })
 
+  it("derives child-box counts from the same tree read, with no extra request", () => {
+    expect(src).toContain("countChildBoxesByParent(tree.data ?? [])")
+    // One tree read per folder load: the counts must not add a second.
+    expect(src.split('select("id, parent_box_id")')).toHaveLength(2)
+  })
+
   it("keeps the boneyard folder skeleton up until owner sharing is ready", () => {
     expect(src).toContain("ownerSharingQuery.isPending")
     expect(src).toContain("/api/settings/profile")

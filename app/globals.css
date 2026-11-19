@@ -406,6 +406,32 @@
       opacity: 0;
     }
   }
+
+  /*
+   * Content that has just replaced a skeleton fades in instead of popping. Opacity only: it
+   * never moves or resizes anything (docs/DESIGN.md → Layout stability).
+   */
+  @keyframes sk-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  .sk-fade-in {
+    animation: sk-fade-in 200ms ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sk-fade-in {
+      animation: none;
+    }
+  }
+
+  /* A one-line strip that scrolls sideways (tag chips): a thin, quiet scrollbar. */
+  .sk-scroll-x {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+  }
 }
 
 /*

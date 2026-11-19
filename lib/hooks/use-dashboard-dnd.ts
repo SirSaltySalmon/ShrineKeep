@@ -71,7 +71,10 @@ export function useDashboardDnd({
 
     let targetParentBoxId: string | null
     if (overId === MOVE_TO_PARENT_ZONE_ID) {
-      targetParentBoxId = currentBox?.parent_box_id ?? null
+      // The zone is on screen before the open box's row is known. Without the row there is no
+      // telling where "up" is, and guessing the root would move things to the wrong place.
+      if (!currentBox) return
+      targetParentBoxId = currentBox.parent_box_id ?? null
     } else if (overId === BREADCRUMB_ROOT_DROP_ID) {
       targetParentBoxId = null
     } else {

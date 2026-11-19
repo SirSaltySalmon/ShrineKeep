@@ -10,6 +10,8 @@ import {
   getBoxCardMinHeightClass,
   getCardSkeletonName,
   getItemCardMinHeightClass,
+  getLoadingCardClass,
+  isKnownCardCount,
   parseCardDensity,
   takeLoadingFixtures,
   type CardDensityStorage,
@@ -229,6 +231,26 @@ describe("grid layouts", () => {
     expect(takeLoadingFixtures(["a", "b", "c", "d", "e"], ITEM_GRID_LAYOUT.comfortable)).toEqual(["a", "b", "c", "d"])
     expect(takeLoadingFixtures(["a", "b", "c", "d"], ITEM_GRID_LAYOUT.compact)).toEqual(["a", "b", "c", "d", "a", "b"])
     expect(takeLoadingFixtures([], ITEM_GRID_LAYOUT.compact)).toEqual([])
+  })
+
+  it("shows exactly the expected number of loading cards when the count is known", () => {
+    const layout = ITEM_GRID_LAYOUT.comfortable
+    expect(takeLoadingFixtures(["a", "b", "c"], layout, 7)).toEqual(["a", "b", "c", "a", "b", "c", "a"])
+    expect(takeLoadingFixtures(["a", "b", "c"], layout, 1)).toEqual(["a"])
+    expect(takeLoadingFixtures(["a", "b", "c"], layout, 0)).toEqual([])
+    // Every card of a sized skeleton is visible, past the first row too.
+    expect(getLoadingCardClass(layout, 1, 7)).toBe("")
+    expect(getLoadingCardClass(layout, 6, 7)).toBe("")
+  })
+
+  it("falls back to one row when the count is not a usable number", () => {
+    const layout = BOX_GRID_LAYOUT.compact
+    for (const unknown of [undefined, -1, 2.5, Number.NaN]) {
+      expect(isKnownCardCount(unknown)).toBe(false)
+      expect(takeLoadingFixtures(["a", "b"], layout, unknown)).toHaveLength(layout.loadingCardVisibility.length)
+      expect(getLoadingCardClass(layout, 2, unknown)).toBe("hidden md:block")
+      expect(getLoadingCardClass(layout, 99, unknown)).toBe("hidden")
+    }
   })
 })
 

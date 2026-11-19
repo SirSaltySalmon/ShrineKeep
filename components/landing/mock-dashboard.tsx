@@ -401,6 +401,10 @@ export function MockDashboard() {
   const [tag, setTag] = React.useState<string | null>(null)
   const [activeDrag, setActiveDrag] = React.useState<DragData | null>(null)
   const [notice, setNotice] = React.useState<string | null>(null)
+  // The mock has nothing to wait for, so "loaded" here is "you went somewhere": the contents
+  // of the place you opened fade in, as the real dashboard's do after its skeleton. Off until
+  // the first navigation so the page itself does not fade the demo in.
+  const [navigated, setNavigated] = React.useState(false)
 
   // Same split as the dashboard: mouse and pen drag after 8px, touch drags after a long-press
   // so a swipe that starts on a card still scrolls the page.
@@ -456,7 +460,16 @@ export function MockDashboard() {
   const openBox = (id: string | null) => {
     setBoxId(id)
     setTag(null)
+    setNavigated(true)
   }
+
+  const openView = (next: "dashboard" | "wishlist") => {
+    setView(next)
+    setNavigated(true)
+  }
+
+  /** Keyed by place, so the wrapper remounts (and its fade replays) on each navigation. */
+  const placeFadeClass = navigated ? "sk-fade-in" : undefined
 
   // Acquiring removes the card that holds the focused button. Once the list has re-rendered,
   // focus goes to the action now at that position: the next card's button, the last card's if
@@ -508,7 +521,7 @@ export function MockDashboard() {
   const navButton = (target: "dashboard" | "wishlist", label: string, Icon: LucideIcon) => (
     <button
       type="button"
-      onClick={() => setView(target)}
+      onClick={() => openView(target)}
       aria-current={view === target ? "page" : undefined}
       className={cn(
         // Font size comes from the nav row: tailwind-merge reads `text-fluid-*` as a colour and
@@ -627,6 +640,7 @@ export function MockDashboard() {
                   )}
                 </p>
 
+                <div key={boxId ?? "home"} className={cn("space-y-3", placeFadeClass)}>
                 {childBoxes.length > 0 && (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {childBoxes.map((box) => {
@@ -692,9 +706,10 @@ export function MockDashboard() {
                     ))}
                   </div>
                 )}
+                </div>
               </DndContext>
             ) : (
-              <>
+              <div className={cn("space-y-3", placeFadeClass)}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <h3 className="text-fluid-xl font-semibold">Wishlist</h3>
                   <p className="text-fluid-xs text-muted-foreground" aria-live="polite">
@@ -711,7 +726,7 @@ export function MockDashboard() {
                   // Same empty copy as the real wishlist (app/wishlist/wishlist-client.tsx).
                   <div className="py-12 text-center">
                     <p className="text-muted-foreground">Your wishlist is empty. Add items you want to acquire!</p>
-                    <Button size="sm" variant="outline" className="mt-4" onClick={() => setView("dashboard")} data-wishlist-action>
+                    <Button size="sm" variant="outline" className="mt-4" onClick={() => openView("dashboard")} data-wishlist-action>
                       Back to dashboard
                     </Button>
                   </div>
@@ -737,7 +752,7 @@ export function MockDashboard() {
                     ))}
                   </div>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>

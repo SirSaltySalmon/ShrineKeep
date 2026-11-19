@@ -242,6 +242,19 @@ Landing-only pieces live in `components/landing/`. The page is louder than the a
 - **Selection:** Primary ring when selected or drop-target; `--selectable-hover-ring` on hover in selection mode. Offset fill uses `ring-offset-background` so the hole matches the page, not a hardcoded white.
 - **Min width:** Landing and several app shells use `min-w-[360px]` to avoid crushed controls.
 
+### Layout stability
+
+Content arriving must not move content that is already on screen. A page that jumps while it loads (layout thrash) reads as broken and makes people miss what they were about to click. Rules for product surfaces:
+
+- **One render path.** Loading and loaded states render the same blocks in the same order. Do not swap in a simplified "loading" tree that leaves blocks out; a block that is missing while loading pushes everything down when it appears.
+- **Anything conditional on data keeps its place.** If a block depends on what a request returns (a tag strip, a drop zone, a row of tabs), either show it from the first frame or give it a slot whose size does not depend on the answer. The move-to-parent zone is on screen in every box before the box has loaded; only its label changes.
+- **Skeletons are the size of what replaces them.** A grid that knows how many cards are coming shows that many skeleton cards (`expectedCount` on `BoxGrid` and `ItemGrid`, `takeLoadingFixtures()` in `lib/card-density.ts`): the whole box tree arrives with every folder load, so a box's child count is known before it is opened, and a refetch knows the count already on screen. A count of 0 shows the empty state straight away. Only a genuinely unknown count falls back to one row.
+- **Late details load into reserved rows.** Sparklines, counts and similar extras get a fixed-height row whether or not there is anything to draw.
+- **One line, then scroll.** A strip whose length depends on data (tag chips) stays on one line at a fixed height and scrolls sideways (`sk-scroll-x`). It never wraps onto a second line.
+- **Fade, do not pop.** Content that replaces a skeleton takes `sk-fade-in` (see [Motion](#motion)). Opacity only: an entrance never translates, scales or resizes.
+
+Known exceptions: a box opened for the first time has no item count, so its item grid starts as one row; and below `md` the item header wraps when a box turns out to have wishlist tabs.
+
 ## Collection cards
 
 Item and box cards (`components/item-card.tsx`, `components/box-card.tsx`) and the grids that hold them.
@@ -261,7 +274,7 @@ Item and box cards (`components/item-card.tsx`, `components/box-card.tsx`) and t
 - **Keepers and placeholders:** `components/keeper.tsx` is a product asset: empty states show one `aria-hidden` Keeper above the message via `components/empty-state.tsx` (one figure per place, 64 to 80px, no animation), and that is the only in-app decoration. A no-photo item tile is washed in the item's first tag colour (`hsl(var(--tag-<slot>) / 0.16)`, icon in the full colour, via `lib/placeholder-tint.ts`); untagged items and surfaces that hide tags keep `bg-muted`.
 - **Keyboard:** item and box cards are buttons (`Selectable`): a tab stop with a focus-visible ring, and Enter or Space does what a click does. Focus from a pointer click is dropped, so a clicked card never keeps a ring. Dragging has no keyboard equivalent.
 - **Dragging:** draggable cards show a grab cursor (`cursor-grab`, `cursor-grabbing` while held), not the pointer. While a drag is in progress every place that would accept it advertises itself with a dashed `primary/60` edge: box cards (outline, same footprint as the selection ring), breadcrumbs, and the move-to-parent zone, which names the box it moves to. The solid primary ring or fill replaces the cue on the target under the pointer. The box being dragged and, for box drags, the rest of the selection show no cue (`lib/dashboard-drop-targets.ts`).
-- **Tag quick-filter:** `components/tag-quick-filter.tsx` is a row of chips above the item grid, one per tag carried by the items in view. A chip toggles that tag in the same include-tags filter the Filters panel edits (`aria-pressed`). Chips are painted with the `--tag-<slot>` tokens; once one is picked the others step back.
+- **Tag quick-filter:** `components/tag-quick-filter.tsx` is one line of chips in the item grid's header, one per tag carried by the items in view. From `md` up it sits between the title or tabs and the add button and takes the free width of that row; below `md` it is a line of its own under them. It never wraps: too many chips scroll sideways. An account with tags always has the line, so it says "None in this view" below `md` rather than disappearing (from `md` up an empty strip is just blank); an account with no tags has no line. A chip toggles that tag in the same include-tags filter the Filters panel edits (`aria-pressed`). Chips are painted with the `--tag-<slot>` tokens; once one is picked the others step back.
 
 ## Radius
 
@@ -338,6 +351,7 @@ Rules:
 - **Approach:** Intentional and small. Comprehension and hover feedback, not choreography.
 - **Buttons:** `transition-colors` / shadow / transform. `motion-safe:hover:-translate-y-0.5` with `motion-reduce` disabling movement (`components/ui/button.tsx`).
 - **Accordions:** 200ms ease-out height (`tailwind.config.ts`).
+- **Loaded content:** `sk-fade-in` (`app/globals.css`), a 200ms ease-out opacity fade, on whatever replaces a skeleton: card grids, empty states, tag chips, sparklines, the stats panel. `useSeenLoading()` (`lib/hooks/use-seen-loading.ts`) keeps it off content that was in the server render, so a page does not fade in on arrival. Off under `prefers-reduced-motion`. The landing mock uses the same class when you open a box or switch view.
 - **Landing:** `ScrollReveal` plus the `sk-landing-*` keyframes in `app/globals.css` (hero settle, marquee, stamp spin, figure hop, blind-box machine). All of them switch off under `prefers-reduced-motion`. Keep this on marketing unless a product surface already uses it.
 - **iOS:** `html.mobile-safari-drag-active` contains overscroll during drag so Safari chrome does not cancel DnD.
 
@@ -363,6 +377,7 @@ Flag in review or QA if code:
 - Adds a theme field without a default that keeps existing saved themes looking the same
 - Breaks contrast by pairing `foreground` with a non-`background` surface without using the matching `*-foreground` token
 - Applies the signed-in shrine on `/landing` or `/auth/*`
+- Shows or hides a block, or changes a block's height, when data arrives (see [Layout stability](#layout-stability))
 
 ## Decisions Log
 
@@ -377,4 +392,5 @@ Flag in review or QA if code:
 | 2026-11-18 | Outline style (`soft` / `hard`) added as a theme field; `hard` is the landing's 2px foreground border and solid offset shadow | The landing look should be something a user can pick for their own shrine. It lives in the `color_scheme` JSON (no migration), defaults to soft so saved themes and presets do not change, and is applied through variables with soft fallbacks so the primitives carry it. |
 | 2026-11-19 | One theme sanitiser (`sanitizeTheme()`) for saves, stored reads, imports and public pages; a theme carries only registry colors as HSL triples, one of four radii, and an outline | The settings API stored whatever it was sent, and the import, editor and public sanitiser each had their own, different rules. A value the app cannot render (comma or alpha colors, a free-form radius) is now dropped everywhere instead of being accepted in one place and breaking in another. |
 | 2026-11-19 | Outline classes: single-class selectors with states in `:where()`, primitive defaults declared before caller-facing classes | `tailwind-merge` cannot arbitrate between `sk-*` classes, so a caller's class lost to the primitive's own and hover rules outranked caller utilities. Specificity and order now make "the caller wins" true, and a test pins both. |
+| 2026-11-19 | Layout stability is a rule: one render path, sized skeletons, fixed-height slots for data-dependent blocks, opacity-only fade for loaded content | The dashboard jumped on every navigation: the move-to-parent zone and tag chips appeared after load, and each refetch collapsed the grids to one skeleton row. The tag strip moved into the item header (free from `md` up) and is always present for accounts with tags, which costs phones one line in boxes without tags. |
 | 2026-11-18 | Dashboard additions: per-device card density (comfortable / compact), sparklines on owner box cards, Keepers in empty states and tag-tinted no-photo tiles, drop cues and grab cursors while dragging, tag quick-filter chips | The dashboard should be denser and say more at a glance without new colours: all of it paints with existing tokens. Density is a device preference, not a theme field, so it lives in localStorage (no migration) and defaults to the layout everyone already has. Keepers are the one in-app decoration, and only where a view is empty. |

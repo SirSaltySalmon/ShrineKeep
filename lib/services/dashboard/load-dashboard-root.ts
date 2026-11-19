@@ -1,4 +1,4 @@
-import { countDescendantsById, normalizeBox } from "@/lib/sharing/box-editor"
+import { countChildBoxesByParent, countDescendantsById, normalizeBox } from "@/lib/sharing/box-editor"
 import { normalizeItem, sortTagsByColorThenName } from "@/lib/utils"
 import type { createSupabaseServerClient } from "@/lib/supabase/server"
 import type { Box, Item, Tag } from "@/lib/types"
@@ -10,6 +10,8 @@ export async function loadDashboardRootData(supabase: Supabase, userId: string):
   initialItems: Item[]
   initialTags: Tag[]
   descendantCounts: Record<string, number>
+  /** Direct child-box counts for the whole tree, so a box's skeleton can be sized before it loads. */
+  childBoxCounts: Record<string, number>
 }> {
   const [{ data: initialBoxes }, { data: initialItems }, { data: initialTags }, { data: tree }] = await Promise.all([
     supabase
@@ -42,5 +44,6 @@ export async function loadDashboardRootData(supabase: Supabase, userId: string):
     initialItems: (initialItems ?? []).map(normalizeItem),
     initialTags: sortTagsByColorThenName(initialTags ?? []),
     descendantCounts,
+    childBoxCounts: countChildBoxesByParent(tree ?? []),
   }
 }

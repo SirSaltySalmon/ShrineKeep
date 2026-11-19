@@ -11,8 +11,15 @@ import { EmptyState } from "./empty-state"
 import { BOX_SKELETON_FIXTURES } from "@/components/boneyard-fixtures"
 import { OWNER_CAPABILITIES, type CollectionCapabilities } from "@/lib/sharing/presentation/capabilities"
 import { presentOwnerBox } from "@/lib/sharing/presentation/adapters"
-import { BOX_GRID_LAYOUT, getBoxCardMinHeightClass, getCardSkeletonName, takeLoadingFixtures } from "@/lib/card-density"
+import {
+  BOX_GRID_LAYOUT,
+  getBoxCardMinHeightClass,
+  getCardSkeletonName,
+  getLoadingCardClass,
+  takeLoadingFixtures,
+} from "@/lib/card-density"
 import { useCardDensity } from "@/lib/hooks/use-card-density"
+import { LOADED_FADE_CLASS, useSeenLoading } from "@/lib/hooks/use-seen-loading"
 import { useBoxSparklines } from "@/lib/hooks/use-box-sparklines"
 import { cn } from "@/lib/utils"
 import {
@@ -31,6 +38,12 @@ const SKELETON_BOX_IDS: ReadonlySet<string> = new Set(BOX_SKELETON_FIXTURES.map(
 interface BoxGridProps {
   boxes: Box[]
   loading?: boolean
+  /**
+   * How many boxes the loaded grid will hold, when the caller knows. While loading, the grid
+   * then shows that many skeleton cards (or the empty state for 0) and is already its final
+   * height. Leave unset when unknown: one row of skeleton cards.
+   */
+  expectedCount?: number
   currentBoxId: string | null
   /** Called when a box is clicked (for navigation). Only called when not in selection mode and not shift-clicked. */
   onBoxClick: (box: Box | null) => void
@@ -54,6 +67,7 @@ interface BoxGridProps {
 export default function BoxGrid({
   boxes,
   loading = false,
+  expectedCount,
   currentBoxId,
   onBoxClick,
   onRename,
@@ -150,8 +164,11 @@ export default function BoxGrid({
     </Dialog>
   )
   const skeletonName = getCardSkeletonName("box-grid-card", density)
-  // One row of skeleton cards, however many columns this density has.
-  const displayedBoxes = loading ? takeLoadingFixtures(BOX_SKELETON_FIXTURES, gridLayout) : boxes
+  // As many skeleton cards as boxes are expected; one row when that is not known.
+  const displayedBoxes = loading ? takeLoadingFixtures(BOX_SKELETON_FIXTURES, gridLayout, expectedCount) : boxes
+  // A view known to hold no boxes shows its empty state straight away, not bones that vanish.
+  const showEmpty = loading ? expectedCount === 0 : boxes.length === 0
+  const seenLoading = useSeenLoading(loading)
 
   return (
     <div className="mb-8 layout-shrink-visible rounded-md sk-outline bg-light-muted p-4">
@@ -162,14 +179,23 @@ export default function BoxGrid({
         </h2>
         {capabilities.canCreate ? addButton : null}
       </div>
-      {!loading && boxes.length === 0 ? (
+      {showEmpty ? (
         // As tall as the row of cards the grid reserves while loading, so the section does not
         // jump between loading and empty; the 64px figure and its line sit centred in it.
-        <EmptyState figure="boxes" size="sm" className={cn(cardMinHeightClass, "flex flex-col justify-center", density === "compact" ? "py-2" : "py-6")}>
+        <EmptyState
+          figure="boxes"
+          size="sm"
+          className={cn(
+            cardMinHeightClass,
+            "flex flex-col justify-center",
+            density === "compact" ? "py-2" : "py-6",
+            seenLoading && LOADED_FADE_CLASS
+          )}
+        >
           {capabilities.canCreate ? "Try adding a new box!" : "Nothing is visible here."}
         </EmptyState>
       ) : (
-        <div className={cn(cardMinHeightClass, gridLayout.gridClass)}>
+        <div className={cn(cardMinHeightClass, gridLayout.gridClass, seenLoading && !loading && LOADED_FADE_CLASS)}>
           {displayedBoxes.map((box, index) => {
             const presented = presentOwnerBox(box)
             const fixtureCard = capabilities.canDrag ? (
@@ -225,7 +251,7 @@ export default function BoxGrid({
 
             if (loading) {
               return (
-                <div key={`${box.id}-${index}`} className={gridLayout.loadingCardVisibility[index] ?? "hidden"}>
+                <div key={`${box.id}-${index}`} className={getLoadingCardClass(gridLayout, index, expectedCount)}>
                   {skeletonNode}
                 </div>
               )
