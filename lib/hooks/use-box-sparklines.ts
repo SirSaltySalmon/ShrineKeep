@@ -92,6 +92,8 @@ export function useBoxSparklines(
     enabled: queryEnabled,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
+    // The read behind this is heavy and a card without its line is still a card: one retry, not three.
+    retry: 1,
     // Keep the lines on screen while a changed id list or refresh key refetches.
     placeholderData: keepPreviousData,
     queryFn: ({ signal }) => fetchBoxSparklines(ids, signal),

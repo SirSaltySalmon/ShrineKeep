@@ -216,7 +216,7 @@ describe("buildBoxSparkline", () => {
     })
     expect(sparkline.value[0]).toBe(0.3)
     expect(sparkline.currentValue).toBe(0.3)
-    expect(String(sparkline.value[1]).length).toBeLessThanOrEqual(4)
+    expect(sparkline.value[1]).toBe(3.01)
   })
 })
 

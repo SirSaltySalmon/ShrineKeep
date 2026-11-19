@@ -21,6 +21,8 @@ export interface FakeQueryCall {
   columns: string
   filters: Array<{ op: "eq" | "in" | "is"; column: string; value: unknown }>
   range: [number, number] | null
+  /** Whether the request asked for an exact row count. */
+  exactCount: boolean
 }
 
 export interface FakeSupabaseOptions {
@@ -90,6 +92,7 @@ class FakeQuery implements PromiseLike<{ data: unknown; error: unknown; count: n
       columns: this.columns,
       filters: this.filters,
       range: this.window,
+      exactCount: this.wantCount,
     })
     if (this.options.failTables.includes(this.table)) {
       return { data: null, error: { message: `${this.table} unavailable` }, count: null }

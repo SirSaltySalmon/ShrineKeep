@@ -35,6 +35,17 @@ describe("groupValueRecordsByItem", () => {
     ])
     expect(grouped.get("b")).toHaveLength(1)
   })
+
+  it("orders by code unit, the order buildBoxStats compares in", () => {
+    // Half a second apart. `localeCompare` ranks "." before "+" and would put the later record first.
+    const records = groupValueRecordsByItem([
+      { item_id: "a", value: 2, recorded_at: "2026-01-05T09:00:00.5+00:00" },
+      { item_id: "a", value: 1, recorded_at: "2026-01-05T09:00:00+00:00" },
+    ])
+    expect(records.get("a")?.map((record) => record.value)).toEqual([1, 2])
+    const stats = buildBoxStats([item("a", { current_value: 2 })], records, TODAY)
+    expect(stats.valueHistory[0]).toEqual({ date: "2026-01-05", value: 2 })
+  })
 })
 
 describe("buildBoxStats", () => {
@@ -134,13 +145,70 @@ describe("filterBoxStatsByDateRange", () => {
   it("keeps both ends of the range and leaves totals alone", () => {
     const filtered = filterBoxStatsByDateRange(stats, "2026-02-01", "2026-02-15")
     expect(filtered.valueHistory).toEqual([{ date: "2026-02-01", value: 2 }])
-    expect(filtered.acquisitionHistory).toEqual([{ date: "2026-02-15", cumulativeAcquisition: 9 }])
+    expect(filtered.acquisitionHistory.map((p) => p.date)).toEqual(["2026-02-01", "2026-02-15"])
     expect(filtered.currentValue).toBe(3)
     expect(filtered.totalAcquisition).toBe(9)
   })
 
   it("is a no-op without a range", () => {
     expect(filterBoxStatsByDateRange(stats)).toEqual(stats)
+  })
+
+  it("opens the range on the figure carried in from before it", () => {
+    const filtered = filterBoxStatsByDateRange(stats, "2026-02-10")
+    // Without the first point each line would read as starting from nothing on its next date.
+    expect(filtered.valueHistory).toEqual([
+      { date: "2026-02-10", value: 2 },
+      { date: "2026-03-01", value: 3 },
+    ])
+    expect(filtered.acquisitionHistory).toEqual([
+      { date: "2026-02-10", cumulativeAcquisition: 5 },
+      { date: "2026-02-15", cumulativeAcquisition: 9 },
+    ])
+  })
+
+  it("does not repeat a point the series already has on the first day", () => {
+    expect(filterBoxStatsByDateRange(stats, "2026-02-01").valueHistory).toEqual([
+      { date: "2026-02-01", value: 2 },
+      { date: "2026-03-01", value: 3 },
+    ])
+  })
+
+  it("carries a figure into a range that holds no point of its own", () => {
+    const filtered = filterBoxStatsByDateRange(stats, "2026-03-10", "2026-03-20")
+    expect(filtered.valueHistory).toEqual([{ date: "2026-03-10", value: 3 }])
+    expect(filtered.acquisitionHistory).toEqual([{ date: "2026-03-10", cumulativeAcquisition: 9 }])
+  })
+
+  it("adds nothing when the series starts inside or after the range", () => {
+    expect(filterBoxStatsByDateRange(stats, "2025-12-01", "2026-01-20")).toMatchObject({
+      valueHistory: [{ date: "2026-01-01", value: 1 }],
+      acquisitionHistory: [{ date: "2026-01-15", cumulativeAcquisition: 5 }],
+    })
+    expect(filterBoxStatsByDateRange(stats, "2025-06-01", "2025-12-31")).toMatchObject({
+      valueHistory: [],
+      acquisitionHistory: [],
+    })
+  })
+
+  it("is empty for a range that ends before it starts", () => {
+    expect(filterBoxStatsByDateRange(stats, "2026-03-01", "2026-02-01")).toMatchObject({
+      valueHistory: [],
+      acquisitionHistory: [],
+    })
+  })
+
+  it("only cuts the end when there is no start", () => {
+    expect(filterBoxStatsByDateRange(stats, undefined, "2026-02-01").valueHistory).toEqual([
+      { date: "2026-01-01", value: 1 },
+      { date: "2026-02-01", value: 2 },
+    ])
+  })
+
+  it("leaves the input series untouched", () => {
+    const before = JSON.stringify(stats)
+    filterBoxStatsByDateRange(stats, "2026-02-10", "2026-02-20")
+    expect(JSON.stringify(stats)).toBe(before)
   })
 })
 

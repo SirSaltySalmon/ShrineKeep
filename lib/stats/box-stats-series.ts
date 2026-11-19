@@ -1,18 +1,23 @@
-import type { AcquisitionPoint, ValuePoint } from "@/lib/hooks/use-box-stats"
-
 /**
- * Owner box stats, as pure functions.
+ * Owner box stats, as pure functions: the one definition of "value over time"
+ * behind `GET /api/boxes/[boxId]/stats` and the batched sparkline route.
  *
- * This is the same computation `GET /api/boxes/[boxId]/stats` runs inline
- * (`app/api/boxes/[boxId]/stats/route.ts`), lifted out so a second caller (the
- * batched sparkline route) cannot drift into its own definition of "value over
- * time". `box-stats-parity.test.ts` runs that route and this module over the
- * same rows and fails if the two ever disagree.
- *
- * Nothing here touches the database: callers load the rows (collection items in
- * the box and every box nested under it, plus their value history) and pass
- * them in.
+ * Nothing here touches the database: `loadBoxStatsSeries`
+ * (`lib/services/boxes/load-box-stats.ts`) loads the rows (collection items in
+ * scope plus their value history) and passes them in.
  */
+
+export interface ValuePoint {
+  /** YYYY-MM-DD. */
+  date: string
+  value: number
+}
+
+export interface AcquisitionPoint {
+  /** YYYY-MM-DD. */
+  date: string
+  cumulativeAcquisition: number
+}
 
 /** The item columns the stats read. Numerics may arrive as numbers or numeric strings. */
 export interface BoxStatsItemRow {
@@ -63,8 +68,9 @@ export function groupValueRecordsByItem(
       value: parseFloat(String(record.value)),
     })
   }
+  // Ordered by code unit, not `localeCompare`: `buildBoxStats` walks these with `<=`.
   byItem.forEach((list) => {
-    list.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))
+    list.sort((a, b) => (a.recorded_at < b.recorded_at ? -1 : a.recorded_at > b.recorded_at ? 1 : 0))
   })
   return byItem
 }
@@ -72,7 +78,7 @@ export function groupValueRecordsByItem(
 /**
  * Value and acquisition series for one scope.
  *
- * @param items collection items in scope (the box and all boxes nested in it)
+ * @param items collection items in scope (a box and all boxes nested in it, or the whole collection)
  * @param recordsByItem value history from `groupValueRecordsByItem`; records of
  *   items outside `items` are ignored, so one map can serve many scopes
  * @param today `statsToday()`
@@ -148,7 +154,7 @@ export function buildBoxStats(
 
 /**
  * Carry the acquisition total forward to the latest date either series reaches, so the cost
- * line ends where the value line does. Same step `useBoxStats` applies before charting.
+ * line ends where the value line does. `useBoxStats` and the sparkline both chart this.
  */
 export function extendAcquisitionToLatestDate(
   valueHistory: readonly ValuePoint[],
@@ -181,8 +187,11 @@ export interface MergedStatsPoint {
  * first figure (the "zero fill"). Nothing was owned or valued yet, so 0 is the true figure,
  * and it gives both lines the same start and end.
  *
- * The overlay chart, the two separate charts and the box-card sparkline all draw this, so a
- * box looks the same wherever it is graphed.
+ * The overlay chart, the two separate charts and the box-card sparkline all draw this, so the
+ * owner sees a box the same wherever it is graphed. A public profile's figures are a separate
+ * computation (the SQL function `sharing_read_stats`), which is bucketed by day, month or year
+ * and counts an item with no value history as 0 before today, where `buildBoxStats` counts it
+ * at its current value on every day; the two can differ for such items.
  */
 export function mergeStatsSeries(
   valueData: readonly ValuePoint[],
@@ -210,20 +219,37 @@ export function mergeStatsSeries(
   })
 }
 
+/**
+ * The points of an ascending series inside the range. When the series began before `fromDate`
+ * and has no point on it, the range opens with the figure carried in from the last earlier
+ * point: without it the line would read as starting from nothing.
+ */
+function sliceSeriesToRange<T extends { date: string }>(
+  points: readonly T[],
+  fromDate?: string,
+  toDate?: string
+): T[] {
+  const kept = points.filter(
+    (p) => (!fromDate || p.date >= fromDate) && (!toDate || p.date <= toDate)
+  )
+  if (!fromDate || (toDate && toDate < fromDate) || kept[0]?.date === fromDate) return kept
+  let carriedIn: T | undefined
+  for (const point of points) {
+    if (point.date >= fromDate) break
+    carriedIn = point
+  }
+  return carriedIn ? [{ ...carriedIn, date: fromDate }, ...kept] : kept
+}
+
 /** The route's `fromDate` / `toDate` filter (inclusive, YYYY-MM-DD). Totals are not filtered. */
 export function filterBoxStatsByDateRange(
   stats: BoxStatsSeries,
   fromDate?: string,
   toDate?: string
 ): BoxStatsSeries {
-  let { valueHistory, acquisitionHistory } = stats
-  if (fromDate) {
-    valueHistory = valueHistory.filter((p) => p.date >= fromDate)
-    acquisitionHistory = acquisitionHistory.filter((p) => p.date >= fromDate)
+  return {
+    ...stats,
+    valueHistory: sliceSeriesToRange(stats.valueHistory, fromDate, toDate),
+    acquisitionHistory: sliceSeriesToRange(stats.acquisitionHistory, fromDate, toDate),
   }
-  if (toDate) {
-    valueHistory = valueHistory.filter((p) => p.date <= toDate)
-    acquisitionHistory = acquisitionHistory.filter((p) => p.date <= toDate)
-  }
-  return { ...stats, valueHistory, acquisitionHistory }
 }

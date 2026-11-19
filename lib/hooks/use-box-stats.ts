@@ -1,16 +1,13 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
+import {
+  extendAcquisitionToLatestDate,
+  type AcquisitionPoint,
+  type ValuePoint,
+} from "@/lib/stats/box-stats-series"
 
-export interface ValuePoint {
-  date: string
-  value: number
-}
-
-export interface AcquisitionPoint {
-  date: string
-  cumulativeAcquisition: number
-}
+export type { AcquisitionPoint, ValuePoint }
 
 export interface ValueChartPoint {
   date: string
@@ -41,8 +38,9 @@ export interface UseBoxStatsResult {
   currentValue: number
   totalAcquisition: number
   profit: number
+  /** True during a box's first load, before it has any figures to show. */
   loading: boolean
-  /** True while refetching after the first successful load (e.g. date range change). */
+  /** True while refetching with the same box's earlier figures still on screen (date range or refresh key change). */
   isRefreshing: boolean
 }
 
@@ -64,6 +62,10 @@ export function useBoxStats(
     enabled: queryEnabled,
     staleTime: 60_000,
     gcTime: 5 * 60_000,
+    // A new range or refresh key is a new query: keep this box's last figures on screen while
+    // it loads. Another box's figures are never carried over.
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey[1] === boxId ? previousData : undefined,
     queryFn: async (): Promise<BoxStatsResponse> => {
       const params = new URLSearchParams()
       if (fromDate) params.set("fromDate", fromDate)
@@ -93,26 +95,10 @@ export function useBoxStats(
     date: p.date,
     value: p.value,
   }))
-  const acquisitionChartData: AcquisitionChartPoint[] = (() => {
-    const base = acquisitionHistory.map((p) => ({
-      date: p.date,
-      cumulativeAcquisition: p.cumulativeAcquisition,
-    }))
-    const allDates = [
-      ...valueHistory.map((p) => p.date),
-      ...acquisitionHistory.map((p) => p.date),
-    ].filter(Boolean)
-    if (allDates.length === 0 || base.length === 0) return base
-    const endDate = allDates.reduce((a, b) => (a >= b ? a : b))
-    const last = base[base.length - 1]
-    if (last && last.date < endDate) {
-      return [
-        ...base,
-        { date: endDate, cumulativeAcquisition: last.cumulativeAcquisition },
-      ]
-    }
-    return base
-  })()
+  const acquisitionChartData: AcquisitionChartPoint[] = extendAcquisitionToLatestDate(
+    valueHistory,
+    acquisitionHistory
+  )
 
   return {
     valueHistory,

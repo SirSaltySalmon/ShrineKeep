@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { collectSubtreeBoxIds, loadBoxSparklines } from "./load-box-sparklines"
+import { loadBoxSparklines } from "./load-box-sparklines"
+import { collectSubtreeBoxIds } from "./load-box-stats"
 import {
   BOX,
   collectionFixture,

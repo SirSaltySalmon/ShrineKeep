@@ -20,6 +20,8 @@ interface BoxStatsDialogProps {
   boxName: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Change to refetch, like `BoxStatsPanel` (the dashboard's stats refresh key). */
+  refreshKey?: number
   graphOverlay?: boolean
   captureSkeleton?: boolean
   previewData?: BoneyardBoxStatsFixture
@@ -30,6 +32,7 @@ export default function BoxStatsDialog({
   boxName,
   open,
   onOpenChange,
+  refreshKey = 0,
   graphOverlay = true,
   captureSkeleton = false,
   previewData,
@@ -46,6 +49,7 @@ export default function BoxStatsDialog({
     isRefreshing,
   } = useBoxStats(boxId, {
     enabled: open && previewData == null,
+    refreshKey,
     fromDate: fromDate || undefined,
     toDate: toDate || undefined,
   })
