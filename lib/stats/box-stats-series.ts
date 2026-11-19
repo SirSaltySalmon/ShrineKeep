@@ -188,10 +188,10 @@ export interface MergedStatsPoint {
  * and it gives both lines the same start and end.
  *
  * The overlay chart, the two separate charts and the box-card sparkline all draw this, so the
- * owner sees a box the same wherever it is graphed. A public profile's figures are a separate
- * computation (the SQL function `sharing_read_stats`), which is bucketed by day, month or year
- * and counts an item with no value history as 0 before today, where `buildBoxStats` counts it
- * at its current value on every day; the two can differ for such items.
+ * owner sees a box the same wherever it is graphed. A public profile's figures come from the SQL
+ * function `sharing_read_stats`, which values each item by the same rule as `buildBoxStats`
+ * (UTC days; an item with no value history at its current value on every day) but reports
+ * one point per day, month or year bucket.
  */
 export function mergeStatsSeries(
   valueData: readonly ValuePoint[],

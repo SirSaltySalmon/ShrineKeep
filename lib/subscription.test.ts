@@ -168,39 +168,50 @@ describe("getItemCount", () => {
 })
 
 describe("free-tier numbers written out in SQL", () => {
-  // sharing_private.enforce_item_cap cannot import these constants, so the migration
-  // repeats them. Checks the newest migration that defines the function.
+  // SQL cannot import these constants, so public.item_cap_for_user repeats them,
+  // once each. Checks the newest migration that defines each function.
   const migrationsDir = fileURLToPath(new URL("../supabase/migrations/", import.meta.url))
-  const definition = /CREATE (?:OR REPLACE )?FUNCTION sharing_private\.enforce_item_cap\(\)[\s\S]*?\$\$;/i
-  const source = readdirSync(migrationsDir)
+  const newestMigrations = readdirSync(migrationsDir)
     .filter((name) => name.endsWith(".sql"))
     .sort()
     .reverse()
-    .map((name) => ({ name, body: definition.exec(readFileSync(migrationsDir + name, "utf8"))?.[0] }))
-    .find((migration) => migration.body)
+    .map((name) => ({ name, text: readFileSync(migrationsDir + name, "utf8") }))
+  const newestDefinition = (fn: string) => {
+    const escaped = fn.replace(/\./g, "\\.")
+    const definition = new RegExp(`CREATE (?:OR REPLACE )?FUNCTION ${escaped}\\([\\s\\S]*?\\$\\$;`, "i")
+    return newestMigrations
+      .map(({ name, text }) => ({ name, body: definition.exec(text)?.[0] }))
+      .find((migration) => migration.body)
+  }
 
+  const capDefinition = newestDefinition("public.item_cap_for_user")
   const numbers = (pattern: RegExp) =>
-    Array.from(source?.body?.matchAll(pattern) ?? [], (match) => Number(match[1]))
+    Array.from(capDefinition?.body?.matchAll(pattern) ?? [], (match) => Number(match[1]))
 
-  it("finds the enforce_item_cap definition", () => {
-    expect(source, "no migration defines sharing_private.enforce_item_cap()").toBeDefined()
+  it("finds the item_cap_for_user definition", () => {
+    expect(capDefinition, "no migration defines public.item_cap_for_user").toBeDefined()
   })
 
   it("uses FREE_TIER_CAP as the database item cap", () => {
-    const caps = [
-      ...numbers(/grandfathered_item_count, 0\), (\d+)\)/g),
-      ...numbers(/coalesce\(v_cap, (\d+)\)/g),
-    ]
     expect(
-      caps,
-      `enforce_item_cap in ${source?.name} and FREE_TIER_CAP in lib/subscription.ts must change together`
-    ).toEqual([FREE_TIER_CAP, FREE_TIER_CAP])
+      numbers(/(\d+) AS free_tier_cap/g),
+      `item_cap_for_user in ${capDefinition?.name} and FREE_TIER_CAP in lib/subscription.ts must change together`
+    ).toEqual([FREE_TIER_CAP])
   })
 
   it("uses PAST_DUE_GRACE_DAYS as the database grace period", () => {
     expect(
-      numbers(/interval '(\d+) days'/g),
-      `enforce_item_cap in ${source?.name} and PAST_DUE_GRACE_DAYS in lib/subscription.ts must change together`
+      numbers(/interval '(\d+) days' AS past_due_grace/g),
+      `item_cap_for_user in ${capDefinition?.name} and PAST_DUE_GRACE_DAYS in lib/subscription.ts must change together`
     ).toEqual([PAST_DUE_GRACE_DAYS])
   })
+
+  it.each(["sharing_private.enforce_item_cap", "public.paste_box_trees_atomic"])(
+    "%s reads the cap from item_cap_for_user",
+    (fn) => {
+      const source = newestDefinition(fn)
+      expect(source, `no migration defines ${fn}`).toBeDefined()
+      expect(source?.body).toContain("public.item_cap_for_user(")
+    }
+  )
 })

@@ -15,6 +15,21 @@ BEGIN
   RAISE EXCEPTION 'Assertion failed: % (statement succeeded)', label;
 END $$;
 
+-- Paste's temp tables live until commit and an earlier paste here made them,
+-- so drop them for this call, then roll the call and the drop back.
+CREATE FUNCTION pg_temp.assert_paste_succeeds(p_user uuid, p_cap integer, p_nodes jsonb,
+  p_items jsonb, p_wishlist jsonb, label text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  BEGIN
+    DROP TABLE IF EXISTS pg_temp.tmp_nodes, pg_temp.tmp_items, pg_temp.tmp_wishlist_items;
+    PERFORM public.paste_box_trees_atomic(p_user, NULL, p_cap, p_nodes, p_items, p_wishlist);
+    RAISE EXCEPTION USING ERRCODE = 'TPAST', MESSAGE = 'paste succeeded';
+  EXCEPTION
+    WHEN SQLSTATE 'TPAST' THEN RETURN;
+    WHEN OTHERS THEN RAISE EXCEPTION 'Assertion failed: % (got % %)', label, SQLSTATE, SQLERRM;
+  END;
+END $$;
+
 -- 1 free at cap, 2 free at cap-1, 3 grandfathered to 150, 4 Pro.
 INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES
  ('9c100000-0000-4000-8000-000000000001','cap-free@test.invalid','{"username":"cap-free"}'),
@@ -72,7 +87,17 @@ SELECT pg_temp.assert_fails(
      '[{"temp_id":"9c400000-0000-4000-8000-000000000001","name":"pasted"}]',
      '[{"box_temp_id":"9c400000-0000-4000-8000-000000000001","name":"pasted item"}]',
      '[]')$q$,
-  'P0001', 'paste with p_cap NULL still capped', 'item_limit_reached:%');
+  'P0001', 'paste with p_cap NULL still capped', 'item_limit_reached:100:100');
+SELECT pg_temp.assert_true(public.item_cap_for_user('9c100000-0000-4000-8000-000000000001') = 100,
+  'free cap through item_cap_for_user');
+-- Same-event triggers fire in name order; the cap relies on the account lock
+-- sharing_items_targets takes.
+SELECT pg_temp.assert_true(
+  (SELECT array_agg(tgname::text ORDER BY tgname) FROM pg_trigger
+    WHERE tgrelid = 'public.items'::regclass AND NOT tgisinternal
+      AND tgname IN ('sharing_items_targets', 'sharing_items_targets_cap', 'enforce_item_cap'))
+  = ARRAY['sharing_items_targets', 'sharing_items_targets_cap'],
+  'cap trigger fires after sharing_items_targets');
 SELECT public.paste_box_trees_atomic(
   '9c100000-0000-4000-8000-000000000001', NULL, NULL,
   '[{"temp_id":"9c400000-0000-4000-8000-000000000002","name":"wish only"}]',
@@ -103,6 +128,10 @@ SET LOCAL request.jwt.claim.role = 'authenticated';
 SET LOCAL request.jwt.claim.sub = '9c100000-0000-4000-8000-000000000003';
 INSERT INTO public.items(user_id,box_id,name,is_wishlist) VALUES
  ('9c100000-0000-4000-8000-000000000003','9c200000-0000-4000-8000-000000000003','grandfathered extra',false);
+SELECT pg_temp.assert_paste_succeeds('9c100000-0000-4000-8000-000000000003', 0,
+  '[{"temp_id":"9c400000-0000-4000-8000-000000000003","name":"pasted"}]',
+  '[{"box_temp_id":"9c400000-0000-4000-8000-000000000003","name":"pasted item"}]',
+  '[]', 'paste checks the database cap (150), not the caller''s p_cap');
 RESET ROLE;
 
 SET LOCAL ROLE authenticated;
@@ -130,6 +159,24 @@ SELECT pg_temp.assert_fails(
   $q$INSERT INTO public.items(user_id,box_id,name,is_wishlist) VALUES
      ('9c100000-0000-4000-8000-000000000004','9c200000-0000-4000-8000-000000000004','lapsed',false)$q$,
   'P0001', 'past_due beyond grace is capped', 'item_limit_reached:102:100');
+SELECT pg_temp.assert_paste_succeeds('9c100000-0000-4000-8000-000000000004', 100,
+  '[{"temp_id":"9c400000-0000-4000-8000-000000000004","name":"wish only over cap"}]',
+  '[]',
+  '[{"box_temp_id":"9c400000-0000-4000-8000-000000000004","name":"wish over cap"}]',
+  'over the cap, a paste that adds no collection items goes through');
+RESET ROLE;
+
+SELECT pg_temp.assert_true(public.item_cap_for_user('9c100000-0000-4000-8000-000000000003') = 150,
+  'grandfathered cap through item_cap_for_user');
+SELECT pg_temp.assert_true(public.item_cap_for_user('9c100000-0000-4000-8000-000000000004') = 100,
+  'lapsed past_due cap through item_cap_for_user');
+UPDATE public.subscriptions SET status='active' WHERE user_id='9c100000-0000-4000-8000-000000000004';
+SELECT pg_temp.assert_true(public.item_cap_for_user('9c100000-0000-4000-8000-000000000004') IS NULL,
+  'Pro is uncapped through item_cap_for_user');
+SET LOCAL ROLE anon;
+SELECT pg_temp.assert_fails(
+  $q$SELECT public.item_cap_for_user('9c100000-0000-4000-8000-000000000001')$q$,
+  '42501', 'anon cannot call item_cap_for_user');
 RESET ROLE;
 
 SET LOCAL ROLE service_role;

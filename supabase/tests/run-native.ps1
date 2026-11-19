@@ -50,6 +50,8 @@ try {
     'supabase/migrations/20260908210000_unify_display_name.sql',
     'supabase/migrations/20260909010000_public_profile_avatar_url.sql',
     'supabase/migrations/20261027000000_lock_user_columns_and_item_cap.sql',
+    'supabase/migrations/20261119100000_public_stats_match_owner_series.sql',
+    'supabase/migrations/20261119100100_item_cap_definition_and_lock_order.sql',
     'supabase/tests/social-foundation.sql',
     'supabase/tests/social-transactions.sql',
     'supabase/tests/public-reads.sql',
